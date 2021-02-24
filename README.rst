@@ -1,15 +1,21 @@
 Tools for interfacing with stellar spectral libraries.
 ------------------------------------------------------
 
+.. image:: https://readthedocs.org/projects/speclib/badge/?version=latest
+    :target: https://speclib.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 .. image:: http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
 .. image:: https://github.com/brackham/speclib/workflows/CI%20Tests/badge.svg
     :target: https://github.com/brackham/speclib/actions
+    :alt: GitHub Actions Status
 
 .. image:: https://codecov.io/gh/brackham/speclib/branch/main/graph/badge.svg?token=W13Z9UV2HU
     :target: https://codecov.io/gh/brackham/speclib
+    :alt: Code Coverage
     
 
 License
