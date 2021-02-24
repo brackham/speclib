@@ -8,6 +8,10 @@ Tools for interfacing with stellar spectral libraries.
 .. image:: https://github.com/brackham/speclib/workflows/CI%20Tests/badge.svg
     :target: https://github.com/brackham/speclib/actions
 
+.. image:: https://codecov.io/gh/brackham/speclib/branch/main/graph/badge.svg?token=W13Z9UV2HU
+:target: https://codecov.io/gh/brackham/speclib
+    
+
 License
 -------
 
