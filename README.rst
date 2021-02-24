@@ -5,6 +5,8 @@ Tools for interfacing with stellar spectral libraries.
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
+.. image:: https://github.com/brackham/speclib/workflows/CI%20Tests/badge.svg
+    :target: https://github.com/brackham/speclib/actions
 
 License
 -------
