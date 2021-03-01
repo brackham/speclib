@@ -6,6 +6,10 @@ import shutil
 import urllib
 from contextlib import closing
 from specutils import Spectrum1D
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    import pysynphot as psp
 
 __all__ = ['load_spectrum']
 
@@ -65,7 +69,19 @@ def load_flux_array(fname, cache_dir, ftp_url):
     return flux
 
 
-def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
+def resample_spectrum(wave, specin, wavnew, waveunits='angstrom'):
+    """
+    Resample a spectrum while conserving flux.
+    """
+    spec = psp.spectrum.ArraySourceSpectrum(wave=wave, flux=specin)
+    filter = np.ones(len(wave))
+    filt = psp.spectrum.ArraySpectralElement(wave, filter, waveunits=waveunits)
+    obs = psp.observation.Observation(spec, filt, binset=wavnew, force='taper')
+
+    return obs.binflux
+
+
+def load_spectrum(teff, logg, feh=0, wave=None, model_grid='phoenix'):
     """
     Load a model spectrum from a library.
 
@@ -80,7 +96,10 @@ def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
     feh : float
         [Fe/H] of the model.
 
-    model_grid : str
+    wave : iterable, optional
+        Wavelengths of the interpolated spectrum. Assumed unit is Angstroms.
+
+    model_grid : str, optional
         Name of the model grid. Only `phoenix` is currently supported.
 
     Returns
@@ -133,7 +152,7 @@ def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
         'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
     )
     try:
-        wave = fits.getdata(wave_local_path)
+        wave_lib = fits.getdata(wave_local_path)
     except FileNotFoundError:
         wave_remote_path = os.path.join(
             ftp_url,
@@ -141,7 +160,7 @@ def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
             'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
         )
         download_file(wave_remote_path, wave_local_path)
-        wave = fits.getdata(wave_local_path)
+        wave_lib = fits.getdata(wave_local_path)
 
     teff_in_grid = teff in grid_teffs
     logg_in_grid = logg in grid_loggs
@@ -218,6 +237,12 @@ def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
         # Load the flux array
         fname = fname_str.format(teff, logg, feh)
         flux = load_flux_array(fname, cache_dir, ftp_url)
+
+    # Resample the spectrum to the desired wavelength array
+    if wave is not None:
+        flux = resample_spectrum(wave_lib, flux, wave)
+    else:
+        wave = wave_lib
 
     spec = Spectrum1D(
         spectral_axis=wave * u.AA,
