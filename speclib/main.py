@@ -210,7 +210,6 @@ def load_spectrum(teff, logg, feh=0, model_grid='phoenix'):
             c1 = c01
 
         if not fname000 == fname001:
-            print(fname000, fname001)
             flux = interpolate([c0, c1], feh_bds, feh)
         else:
             flux = c0
