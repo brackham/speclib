@@ -18,6 +18,9 @@ Tools for interfacing with stellar spectral libraries.
     :alt: Code Coverage
     
 
+* Code: https://github.com/brackham/speclib
+* Docs: https://speclib.readthedocs.io
+
 License
 -------
 
