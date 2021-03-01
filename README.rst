@@ -1,3 +1,6 @@
+speclib
+=======
+
 Tools for interfacing with stellar spectral libraries.
 ------------------------------------------------------
 
@@ -17,7 +20,6 @@ Tools for interfacing with stellar spectral libraries.
     :target: https://codecov.io/gh/brackham/speclib
     :alt: Code Coverage
     
-
 * Code: https://github.com/brackham/speclib
 * Docs: https://speclib.readthedocs.io
 
