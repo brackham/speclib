@@ -2,7 +2,6 @@ speclib
 =======
 
 Tools for interfacing with stellar spectral libraries.
-------------------------------------------------------
 
 .. image:: https://readthedocs.org/projects/speclib/badge/?version=latest
     :target: https://speclib.readthedocs.io/en/latest/?badge=latest
