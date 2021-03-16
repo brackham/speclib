@@ -11,7 +11,7 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import pysynphot as psp
 
-__all__ = ['load_spectrum']
+__all__ = ['load_spectrum', 'resample_spectrum']
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -69,16 +69,48 @@ def load_flux_array(fname, cache_dir, ftp_url):
     return flux
 
 
-def resample_spectrum(wave, specin, wavnew, waveunits='angstrom'):
+def resample_spectrum(spec, wave):
     """
     Resample a spectrum while conserving flux.
-    """
-    spec = psp.spectrum.ArraySourceSpectrum(wave=wave, flux=specin)
-    filter = np.ones(len(wave))
-    filt = psp.spectrum.ArraySpectralElement(wave, filter, waveunits=waveunits)
-    obs = psp.observation.Observation(spec, filt, binset=wavnew, force='taper')
 
-    return obs.binflux
+    Parameters
+    ----------
+    spec : `~specutils.Spectrum1D`
+        An input spectrum.
+
+    wave : `~astropy.units.Quantity`
+        A new wavelength axis. Unit must be specified.
+
+    Returns
+    -------
+    spec : `~specutils.Spectrum1D`
+         A resampled spectrum.
+    """
+    # Convert wavelengths arrays to same unit
+    wave_old = spec.wavelength.to(u.AA).value
+    wave_new = wave.to(u.AA).value
+    waveunits = 'angstrom'
+
+    # The input value without a unit
+    flux_old = spec.flux.value
+
+    # Make an observation object with pysynphot
+    spectrum = psp.spectrum.ArraySourceSpectrum(wave=wave_old, flux=flux_old)
+    throughput = np.ones(len(wave_old))
+    filt = psp.spectrum.ArraySpectralElement(
+        wave_old, throughput, waveunits=waveunits
+    )
+    obs = psp.observation.Observation(
+        spectrum, filt, binset=wave_new, force='taper'
+    )
+
+    # Save the new binned flux array in a `~specutils.Spectrum1D` object
+    spec_new = Spectrum1D(
+        spectral_axis=wave,
+        flux=obs.binflux * spec.flux.unit
+    )
+
+    return spec_new
 
 
 def load_spectrum(teff, logg, feh=0, wave=None, model_grid='phoenix'):
@@ -96,8 +128,8 @@ def load_spectrum(teff, logg, feh=0, wave=None, model_grid='phoenix'):
     feh : float
         [Fe/H] of the model.
 
-    wave : iterable, optional
-        Wavelengths of the interpolated spectrum. Assumed unit is Angstroms.
+    wave : `~astropy.units.Quantity`, optional
+        Wavelengths of the interpolated spectrum.
 
     model_grid : str, optional
         Name of the model grid. Only `phoenix` is currently supported.
@@ -238,15 +270,14 @@ def load_spectrum(teff, logg, feh=0, wave=None, model_grid='phoenix'):
         fname = fname_str.format(teff, logg, feh)
         flux = load_flux_array(fname, cache_dir, ftp_url)
 
-    # Resample the spectrum to the desired wavelength array
-    if wave is not None:
-        flux = resample_spectrum(wave_lib, flux, wave)
-    else:
-        wave = wave_lib
-
+    # Load `~specutils.Spectrum1D` object
     spec = Spectrum1D(
-        spectral_axis=wave * u.AA,
+        spectral_axis=wave_lib * u.AA,
         flux=flux * u.Unit('erg/(s * cm^2 * angstrom)')
     )
+
+    # Resample the spectrum to the desired wavelength array
+    if wave is not None:
+        spec = resample_spectrum(spec, wave)
 
     return spec
