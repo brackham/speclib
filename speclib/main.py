@@ -11,12 +11,7 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import pysynphot as psp
 
-__all__ = [
-    'load_spectrum',
-    'resample_spectrum',
-    'bin_spectrum',
-    'BinnedSpectrum'
-]
+__all__ = ['Spectrum', 'BinnedSpectrum']
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -74,6 +69,269 @@ def load_flux_array(fname, cache_dir, ftp_url):
     return flux
 
 
+class Spectrum(Spectrum1D):
+    """
+    A wrapper class for `~spectutils.spectrum1d.Spectrum1D`.
+
+    New functionality added to load spectra from a model grid,
+    resample spectra quickly using `~pysynphot`, and bin spectra.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def from_grid(self, teff, logg, feh=0, wave=None, model_grid='phoenix'):
+        """
+        Load a model spectrum from a library.
+
+        Parameters
+        ----------
+        teff : float
+            Effective temperature of the model in Kelvin.
+
+        logg : float
+            Surface gravity of the model in cgs units.
+
+        feh : float
+            [Fe/H] of the model.
+
+        wave : `~astropy.units.Quantity`, optional
+            Wavelengths of the interpolated spectrum.
+
+        model_grid : str, optional
+            Name of the model grid. Only `phoenix` is currently supported.
+
+        Returns
+        -------
+        spec : `~speclib.Spectrum`
+            A spectrum for the specified parameters.
+        """
+
+        if model_grid.lower() == 'phoenix':
+            cache_dir = os.path.join(
+                os.path.expanduser('~'),
+                '.speclib/libraries/phoenix/'
+            )
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+
+            ftp_url = 'ftp://phoenix.astro.physik.uni-goettingen.de'
+            fname_str = (
+                'lte{:05.0f}-{:0.2f}{:+0.1f}.' +
+                'PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+            )
+
+            # Grid of effective temperatures
+            grid_teffs = np.append(
+                np.arange(2300, 7100, 100),
+                np.arange(7200, 12200, 200)
+            )
+
+            # Grid of surface gravities
+            grid_loggs = np.arange(0.0, 6.5, 0.5)
+
+            # Grid of metallicities
+            grid_fehs = np.array([
+                -4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0
+            ])
+
+            # The convention of the PHOENIX model grids is that
+            # [Fe/H] = 0.0 is written as a negative number.
+            if feh == 0:
+                feh = -0.0
+        else:
+            raise NotImplementedError(
+                f'"{model_grid}" model grid not found. ' +
+                'Only PHOENIX models are currently supported.'
+            )
+
+        # Load the wavelength array
+        wave_local_path = os.path.join(
+            cache_dir,
+            'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+        )
+        try:
+            wave_lib = fits.getdata(wave_local_path)
+        except FileNotFoundError:
+            wave_remote_path = os.path.join(
+                ftp_url,
+                'HiResFITS',
+                'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+            )
+            download_file(wave_remote_path, wave_local_path)
+            wave_lib = fits.getdata(wave_local_path)
+
+        teff_in_grid = teff in grid_teffs
+        logg_in_grid = logg in grid_loggs
+        feh_in_grid = feh in grid_fehs
+        model_in_grid = all([
+            teff_in_grid,
+            logg_in_grid,
+            feh_in_grid
+        ])
+        if not model_in_grid:
+            if teff_in_grid:
+                teff_bds = [teff, teff]
+            else:
+                teff_bds = find_bounds(grid_teffs, teff)
+            if logg_in_grid:
+                logg_bds = [logg, logg]
+            else:
+                logg_bds = find_bounds(grid_loggs, logg)
+            if feh_in_grid:
+                feh_bds = [feh, feh]
+            else:
+                feh_bds = find_bounds(grid_fehs, feh)
+
+            fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
+            fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
+            fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
+            fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
+            fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
+            fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
+            fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
+            fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+
+            if not fname000 == fname100:
+                c000 = load_flux_array(fname000, cache_dir, ftp_url)
+                c100 = load_flux_array(fname100, cache_dir, ftp_url)
+                c00 = interpolate([c000, c100], teff_bds, teff)
+            else:
+                c00 = load_flux_array(fname000, cache_dir, ftp_url)
+
+            if not fname010 == fname110:
+                c010 = load_flux_array(fname010, cache_dir, ftp_url)
+                c110 = load_flux_array(fname110, cache_dir, ftp_url)
+                c10 = interpolate([c010, c110], teff_bds, teff)
+            else:
+                c10 = load_flux_array(fname010, cache_dir, ftp_url)
+
+            if not fname001 == fname101:
+                c001 = load_flux_array(fname001, cache_dir, ftp_url)
+                c101 = load_flux_array(fname101, cache_dir, ftp_url)
+                c01 = interpolate([c001, c101], teff_bds, teff)
+            else:
+                c01 = load_flux_array(fname001, cache_dir, ftp_url)
+
+            if not fname011 == fname111:
+                c011 = load_flux_array(fname011, cache_dir, ftp_url)
+                c111 = load_flux_array(fname111, cache_dir, ftp_url)
+                c11 = interpolate([c011, c111], teff_bds, teff)
+            else:
+                c11 = load_flux_array(fname011, cache_dir, ftp_url)
+
+            if not fname000 == fname010:
+                c0 = interpolate([c00, c10], logg_bds, logg)
+                c1 = interpolate([c01, c11], logg_bds, logg)
+            else:
+                c0 = c00
+                c1 = c01
+
+            if not fname000 == fname001:
+                flux = interpolate([c0, c1], feh_bds, feh)
+            else:
+                flux = c0
+
+        elif model_in_grid:
+            # Load the flux array
+            fname = fname_str.format(teff, logg, feh)
+            flux = load_flux_array(fname, cache_dir, ftp_url)
+
+        # Load `~speclib.Spectrum` object
+        spec = Spectrum(
+            spectral_axis=wave_lib * u.AA,
+            flux=flux * u.Unit('erg/(s * cm^2 * angstrom)')
+        )
+
+        # Resample the spectrum to the desired wavelength array
+        if wave is not None:
+            spec = spec.resample(wave)
+
+        return spec
+
+    @u.quantity_input(wave=u.AA)
+    def resample(self, wave):
+        """
+        Resample a spectrum while conserving flux.
+
+        Parameters
+        ----------
+        wave : `~astropy.units.Quantity`
+            A new wavelength axis. Unit must be specified.
+
+        Returns
+        -------
+        spec_new : `~speclib.Spectrum`
+             A resampled spectrum.
+        """
+        # Convert wavelengths arrays to same unit
+        wave_old = self.wavelength.to(u.AA).value
+        wave_new = wave.to(u.AA).value
+        waveunits = 'angstrom'
+
+        # The input value without a unit
+        flux_old = self.flux.value
+
+        # Make an observation object with pysynphot
+        spectrum = psp.spectrum.ArraySourceSpectrum(
+            wave=wave_old, flux=flux_old
+        )
+        throughput = np.ones(len(wave_old))
+        filt = psp.spectrum.ArraySpectralElement(
+            wave_old, throughput, waveunits=waveunits
+        )
+        obs = psp.observation.Observation(
+            spectrum, filt, binset=wave_new, force='taper'
+        )
+
+        # Save the new binned flux array in a `~speclib.Spectrum` object
+        spec_new = Spectrum(
+            spectral_axis=wave,
+            flux=obs.binflux * self.flux.unit
+        )
+
+        return spec_new
+
+    @u.quantity_input(center=u.AA, width=u.AA)
+    def bin(self, center, width):
+        """
+        Bin a model spectrum within specified wavelength bins.
+
+        Parameters
+        ----------
+        center : `~astropy.units.Quantity`
+            The centers of the wavelength bins.
+
+        width : `~astropy.units.Quantity`
+            The widths of the wavelength bins.
+
+        Returns
+        -------
+        `~speclib.BinnedSpectrum`
+
+        """
+        wave = self.wavelength
+        flux = self.flux
+        binned_fluxes = []
+        for cen, wid in zip(center, width):
+            lower = cen - wid / 2.
+            upper = cen + wid / 2.
+            idx = np.where((wave >= lower) & (wave <= upper))
+
+            # Adjust for bins that are slightly wider than the wavelength range
+            # due to discretization of the wavelength grid
+            scale_factor = (upper - lower) / (wave[idx][-1] - wave[idx][0])
+
+            binned_flux = (
+                scale_factor * np.trapz(flux[idx], wave[idx]) / (upper - lower)
+            )
+            binned_fluxes.append(binned_flux)
+        binned_fluxes = u.Quantity(binned_fluxes)
+
+        return BinnedSpectrum(center, width, binned_fluxes)
+
+
 class BinnedSpectrum(object):
     """
     A binned spectrum.
@@ -97,259 +355,3 @@ class BinnedSpectrum(object):
         self.lower = center - width / 2.
         self.upper = center + width / 2.
         self.flux = flux
-
-
-@u.quantity_input(center=u.AA, width=u.AA)
-def bin_spectrum(spec, center, width):
-    """
-    Bin a model spectrum within specified wavelength bins.
-
-    Parameters
-    ----------
-    spec : `~specutils.Spectrum1D`
-        A spectrum.
-
-    center : `~astropy.units.Quantity`
-        The centers of the wavelength bins.
-
-    width : `~astropy.units.Quantity`
-        The widths of the wavelength bins.
-
-    Returns
-    -------
-    `~speclib.BinnedSpectrum`
-
-    """
-    wave = spec.wavelength
-    flux = spec.flux
-    binned_fluxes = []
-    for cen, wid in zip(center, width):
-        lower = cen - wid / 2.
-        upper = cen + wid / 2.
-        idx = np.where((wave >= lower) & (wave <= upper))
-
-        # Adjust for bins that are slightly wider than the wavelength range
-        # due to discretization of the wavelength grid
-        scaling_factor = (upper - lower) / (wave[idx][-1] - wave[idx][0])
-
-        binned_flux = (
-            scaling_factor * np.trapz(flux[idx], wave[idx]) / (upper - lower)
-        )
-        binned_fluxes.append(binned_flux)
-    binned_fluxes = u.Quantity(binned_fluxes)
-
-    return BinnedSpectrum(center, width, binned_fluxes)
-
-
-def resample_spectrum(spec, wave):
-    """
-    Resample a spectrum while conserving flux.
-
-    Parameters
-    ----------
-    spec : `~specutils.Spectrum1D`
-        An input spectrum.
-
-    wave : `~astropy.units.Quantity`
-        A new wavelength axis. Unit must be specified.
-
-    Returns
-    -------
-    spec : `~specutils.Spectrum1D`
-         A resampled spectrum.
-    """
-    # Convert wavelengths arrays to same unit
-    wave_old = spec.wavelength.to(u.AA).value
-    wave_new = wave.to(u.AA).value
-    waveunits = 'angstrom'
-
-    # The input value without a unit
-    flux_old = spec.flux.value
-
-    # Make an observation object with pysynphot
-    spectrum = psp.spectrum.ArraySourceSpectrum(wave=wave_old, flux=flux_old)
-    throughput = np.ones(len(wave_old))
-    filt = psp.spectrum.ArraySpectralElement(
-        wave_old, throughput, waveunits=waveunits
-    )
-    obs = psp.observation.Observation(
-        spectrum, filt, binset=wave_new, force='taper'
-    )
-
-    # Save the new binned flux array in a `~specutils.Spectrum1D` object
-    spec_new = Spectrum1D(
-        spectral_axis=wave,
-        flux=obs.binflux * spec.flux.unit
-    )
-
-    return spec_new
-
-
-def load_spectrum(teff, logg, feh=0, wave=None, model_grid='phoenix'):
-    """
-    Load a model spectrum from a library.
-
-    Parameters
-    ----------
-    teff : float
-        Effective temperature of the model in Kelvin.
-
-    logg : float
-        Surface gravity of the model in cgs units.
-
-    feh : float
-        [Fe/H] of the model.
-
-    wave : `~astropy.units.Quantity`, optional
-        Wavelengths of the interpolated spectrum.
-
-    model_grid : str, optional
-        Name of the model grid. Only `phoenix` is currently supported.
-
-    Returns
-    -------
-    spec : `~specutils.Spectrum1D`
-        A spectrum for the specified parameters.
-    """
-
-    if model_grid.lower() == 'phoenix':
-        cache_dir = os.path.join(
-            os.path.expanduser('~'),
-            '.speclib/libraries/phoenix/'
-        )
-        if not os.path.exists(cache_dir):
-            os.makedirs(cache_dir)
-
-        ftp_url = 'ftp://phoenix.astro.physik.uni-goettingen.de'
-        fname_str = (
-            'lte{:05.0f}-{:0.2f}{:+0.1f}.' +
-            'PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
-        )
-
-        # Grid of effective temperatures
-        grid_teffs = np.append(
-            np.arange(2300, 7100, 100),
-            np.arange(7200, 12200, 200)
-        )
-
-        # Grid of surface gravities
-        grid_loggs = np.arange(0.0, 6.5, 0.5)
-
-        # Grid of metallicities
-        grid_fehs = np.array([
-            -4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0
-        ])
-
-        # The convention of the PHOENIX model grids is that
-        # [Fe/H] = 0.0 is written as a negative number.
-        if feh == 0:
-            feh = -0.0
-    else:
-        raise NotImplementedError(
-            f'"{model_grid}" model grid not found. ' +
-            'Only PHOENIX models are currently supported.'
-        )
-
-    # Load the wavelength array
-    wave_local_path = os.path.join(
-        cache_dir,
-        'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-    )
-    try:
-        wave_lib = fits.getdata(wave_local_path)
-    except FileNotFoundError:
-        wave_remote_path = os.path.join(
-            ftp_url,
-            'HiResFITS',
-            'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-        )
-        download_file(wave_remote_path, wave_local_path)
-        wave_lib = fits.getdata(wave_local_path)
-
-    teff_in_grid = teff in grid_teffs
-    logg_in_grid = logg in grid_loggs
-    feh_in_grid = feh in grid_fehs
-    model_in_grid = all([
-        teff_in_grid,
-        logg_in_grid,
-        feh_in_grid
-    ])
-    if not model_in_grid:
-        if teff_in_grid:
-            teff_bds = [teff, teff]
-        else:
-            teff_bds = find_bounds(grid_teffs, teff)
-        if logg_in_grid:
-            logg_bds = [logg, logg]
-        else:
-            logg_bds = find_bounds(grid_loggs, logg)
-        if feh_in_grid:
-            feh_bds = [feh, feh]
-        else:
-            feh_bds = find_bounds(grid_fehs, feh)
-
-        fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
-        fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
-        fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
-        fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
-        fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
-        fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
-        fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
-        fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
-
-        if not fname000 == fname100:
-            c000 = load_flux_array(fname000, cache_dir, ftp_url)
-            c100 = load_flux_array(fname100, cache_dir, ftp_url)
-            c00 = interpolate([c000, c100], teff_bds, teff)
-        else:
-            c00 = load_flux_array(fname000, cache_dir, ftp_url)
-
-        if not fname010 == fname110:
-            c010 = load_flux_array(fname010, cache_dir, ftp_url)
-            c110 = load_flux_array(fname110, cache_dir, ftp_url)
-            c10 = interpolate([c010, c110], teff_bds, teff)
-        else:
-            c10 = load_flux_array(fname010, cache_dir, ftp_url)
-
-        if not fname001 == fname101:
-            c001 = load_flux_array(fname001, cache_dir, ftp_url)
-            c101 = load_flux_array(fname101, cache_dir, ftp_url)
-            c01 = interpolate([c001, c101], teff_bds, teff)
-        else:
-            c01 = load_flux_array(fname001, cache_dir, ftp_url)
-
-        if not fname011 == fname111:
-            c011 = load_flux_array(fname011, cache_dir, ftp_url)
-            c111 = load_flux_array(fname111, cache_dir, ftp_url)
-            c11 = interpolate([c011, c111], teff_bds, teff)
-        else:
-            c11 = load_flux_array(fname011, cache_dir, ftp_url)
-
-        if not fname000 == fname010:
-            c0 = interpolate([c00, c10], logg_bds, logg)
-            c1 = interpolate([c01, c11], logg_bds, logg)
-        else:
-            c0 = c00
-            c1 = c01
-
-        if not fname000 == fname001:
-            flux = interpolate([c0, c1], feh_bds, feh)
-        else:
-            flux = c0
-
-    elif model_in_grid:
-        # Load the flux array
-        fname = fname_str.format(teff, logg, feh)
-        flux = load_flux_array(fname, cache_dir, ftp_url)
-
-    # Load `~specutils.Spectrum1D` object
-    spec = Spectrum1D(
-        spectral_axis=wave_lib * u.AA,
-        flux=flux * u.Unit('erg/(s * cm^2 * angstrom)')
-    )
-
-    # Resample the spectrum to the desired wavelength array
-    if wave is not None:
-        spec = resample_spectrum(spec, wave)
-
-    return spec
