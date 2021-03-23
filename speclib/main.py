@@ -11,7 +11,12 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import pysynphot as psp
 
-__all__ = ['load_spectrum', 'resample_spectrum']
+__all__ = [
+    'load_spectrum',
+    'resample_spectrum',
+    'bin_spectrum',
+    'BinnedSpectrum'
+]
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -67,6 +72,73 @@ def load_flux_array(fname, cache_dir, ftp_url):
         flux = fits.getdata(flux_local_path)
 
     return flux
+
+
+class BinnedSpectrum(object):
+    """
+    A binned spectrum.
+    """
+    @u.quantity_input(center=u.AA, width=u.AA)
+    def __init__(self, center, width, flux):
+        """
+        Parameters
+        ----------
+        center : `~astropy.units.Quantity`
+            The centers of the wavelength bins.
+
+        width : `~astropy.units.Quantity`
+            The widths of the wavelength bins.
+
+        flux : iterable
+            The quantity to bin.
+        """
+        self.center = center
+        self.width = width
+        self.lower = center - width / 2.
+        self.upper = center + width / 2.
+        self.flux = flux
+
+
+@u.quantity_input(center=u.AA, width=u.AA)
+def bin_spectrum(spec, center, width):
+    """
+    Bin a model spectrum within specified wavelength bins.
+
+    Parameters
+    ----------
+    spec : `~specutils.Spectrum1D`
+        A spectrum.
+
+    center : `~astropy.units.Quantity`
+        The centers of the wavelength bins.
+
+    width : `~astropy.units.Quantity`
+        The widths of the wavelength bins.
+
+    Returns
+    -------
+    `~speclib.BinnedSpectrum`
+
+    """
+    wave = spec.wavelength
+    flux = spec.flux
+    binned_fluxes = []
+    for cen, wid in zip(center, width):
+        lower = cen - wid / 2.
+        upper = cen + wid / 2.
+        idx = np.where((wave >= lower) & (wave <= upper))
+
+        # Adjust for bins that are slightly wider than the wavelength range
+        # due to discretization of the wavelength grid
+        scaling_factor = (upper - lower) / (wave[idx][-1] - wave[idx][0])
+
+        binned_flux = (
+            scaling_factor * np.trapz(flux[idx], wave[idx]) / (upper - lower)
+        )
+        binned_fluxes.append(binned_flux)
+    binned_fluxes = u.Quantity(binned_fluxes)
+
+    return BinnedSpectrum(center, width, binned_fluxes)
 
 
 def resample_spectrum(spec, wave):
