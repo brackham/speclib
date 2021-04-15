@@ -75,8 +75,18 @@ class Spectrum(Spectrum1D):
 
     New functionality added to load spectra from a model grid,
     resample spectra quickly using `~pysynphot`, and bin spectra.
-    """
 
+    Methods
+    -------
+    from_grid(teff, logg, feh=0, wave=None, model_grid='phoenix')
+        Load a model spectrum from a library.
+
+    resample(wave)
+        Resample a spectrum while conserving flux.
+
+    bin(center, width)
+        Bin a model spectrum within specified wavelength bins.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -335,6 +345,23 @@ class Spectrum(Spectrum1D):
 class BinnedSpectrum(object):
     """
     A binned spectrum.
+
+    Attributes
+    ----------
+    center : `~astropy.units.Quantity`
+        The centers of the wavelength bins.
+
+    width : `~astropy.units.Quantity`
+        The widths of the wavelength bins.
+
+    lower : `~astropy.units.Quantity`
+        The lower bounds of the wavelength bins.
+
+    upper : `~astropy.units.Quantity`
+        The upper bounds of the wavelength bins.
+
+    flux : `~astropy.units.Quantity`
+        The binned flux array.
     """
     @u.quantity_input(center=u.AA, width=u.AA)
     def __init__(self, center, width, flux):
@@ -348,7 +375,7 @@ class BinnedSpectrum(object):
             The widths of the wavelength bins.
 
         flux : iterable
-            The quantity to bin.
+            The binned flux array.
         """
         self.center = center
         self.width = width
