@@ -9,3 +9,4 @@ from ._astropy_init import *   # noqa
 __all__ = []
 
 from .main import *  # noqa
+from .utils import *  # noqa
