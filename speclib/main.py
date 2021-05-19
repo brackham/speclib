@@ -249,9 +249,10 @@ class Spectrum(Spectrum1D):
             flux = load_flux_array(fname, cache_dir, ftp_url)
 
         # Load `~speclib.Spectrum` object
+        conversion_factor = 1e-8  # erg/(s * cm^3) to erg/(s * cm^2 * Å)
         spec = Spectrum(
             spectral_axis=wave_lib * u.AA,
-            flux=flux * u.Unit('erg/(s * cm^2 * angstrom)')
+            flux=flux * conversion_factor * u.Unit('erg/(s * cm^2 * angstrom)')
         )
 
         # Resample the spectrum to the desired wavelength array
