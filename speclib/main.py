@@ -7,11 +7,12 @@ import urllib
 from contextlib import closing
 from specutils import Spectrum1D
 import warnings
+
 with warnings.catch_warnings():
-    warnings.simplefilter('ignore')
+    warnings.simplefilter("ignore")
     import pysynphot as psp
 
-__all__ = ['Spectrum', 'BinnedSpectrum', 'BinnedSpectralGrid']
+__all__ = ["Spectrum", "BinnedSpectrum", "BinnedSpectralGrid"]
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -19,9 +20,9 @@ def download_file(remote_path, local_path, verbose=True):
     Download a file via ftp.
     """
     if verbose:
-        print(f'> Downloading {remote_path}')
+        print(f"> Downloading {remote_path}")
     with closing(urllib.request.urlopen(remote_path)) as r:
-        with open(local_path, 'wb') as f:
+        with open(local_path, "wb") as f:
             shutil.copyfileobj(r, f)
 
 
@@ -39,7 +40,7 @@ def find_bounds(array, value):
     Find and return the two nearest values in an array to a given value.
     """
     array = np.array(array)
-    idxs = np.argsort(np.abs(array-value))[0:2]
+    idxs = np.argsort(np.abs(array - value))[0:2]
     return np.sort(array[idxs])
 
 
@@ -48,20 +49,14 @@ def load_flux_array(fname, cache_dir, ftp_url):
     Load a flux array.
     """
     # Look for a local file first
-    flux_local_path = os.path.join(
-        cache_dir,
-        fname
-    )
+    flux_local_path = os.path.join(cache_dir, fname)
     try:
         flux = fits.getdata(flux_local_path)
     # If that doesn't work, download the remote file
     except FileNotFoundError:
-        feh_folder = 'Z' + fname[13:17]
+        feh_folder = "Z" + fname[13:17]
         flux_remote_path = os.path.join(
-            ftp_url,
-            'HiResFITS/PHOENIX-ACES-AGSS-COND-2011',
-            feh_folder,
-            fname
+            ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
         )
         download_file(flux_remote_path, flux_local_path)
         flux = fits.getdata(flux_local_path)
@@ -87,11 +82,12 @@ class Spectrum(Spectrum1D):
     bin(center, width)
         Bin a model spectrum within specified wavelength bins.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     @classmethod
-    def from_grid(self, teff, logg, feh=0, wave=None, model_grid='phoenix'):
+    def from_grid(self, teff, logg, feh=0, wave=None, model_grid="phoenix"):
         """
         Load a model spectrum from a library.
 
@@ -118,33 +114,29 @@ class Spectrum(Spectrum1D):
             A spectrum for the specified parameters.
         """
 
-        if model_grid.lower() == 'phoenix':
+        if model_grid.lower() == "phoenix":
             cache_dir = os.path.join(
-                os.path.expanduser('~'),
-                '.speclib/libraries/phoenix/'
+                os.path.expanduser("~"), ".speclib/libraries/phoenix/"
             )
             if not os.path.exists(cache_dir):
                 os.makedirs(cache_dir)
 
-            ftp_url = 'ftp://phoenix.astro.physik.uni-goettingen.de'
+            ftp_url = "ftp://phoenix.astro.physik.uni-goettingen.de"
             fname_str = (
-                'lte{:05.0f}-{:0.2f}{:+0.1f}.' +
-                'PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+                "lte{:05.0f}-{:0.2f}{:+0.1f}."
+                + "PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
             )
 
             # Grid of effective temperatures
             grid_teffs = np.append(
-                np.arange(2300, 7100, 100),
-                np.arange(7200, 12200, 200)
+                np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)
             )
 
             # Grid of surface gravities
             grid_loggs = np.arange(0.0, 6.5, 0.5)
 
             # Grid of metallicities
-            grid_fehs = np.array([
-                -4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0
-            ])
+            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
 
             # The convention of the PHOENIX model grids is that
             # [Fe/H] = 0.0 is written as a negative number.
@@ -152,22 +144,19 @@ class Spectrum(Spectrum1D):
                 feh = -0.0
         else:
             raise NotImplementedError(
-                f'"{model_grid}" model grid not found. ' +
-                'Only PHOENIX models are currently supported.'
+                f'"{model_grid}" model grid not found. '
+                + "Only PHOENIX models are currently supported."
             )
 
         # Load the wavelength array
         wave_local_path = os.path.join(
-            cache_dir,
-            'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+            cache_dir, "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
         )
         try:
             wave_lib = fits.getdata(wave_local_path)
         except FileNotFoundError:
             wave_remote_path = os.path.join(
-                ftp_url,
-                'HiResFITS',
-                'WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+                ftp_url, "HiResFITS", "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
             )
             download_file(wave_remote_path, wave_local_path)
             wave_lib = fits.getdata(wave_local_path)
@@ -175,11 +164,7 @@ class Spectrum(Spectrum1D):
         teff_in_grid = teff in grid_teffs
         logg_in_grid = logg in grid_loggs
         feh_in_grid = feh in grid_fehs
-        model_in_grid = all([
-            teff_in_grid,
-            logg_in_grid,
-            feh_in_grid
-        ])
+        model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
         if not model_in_grid:
             if teff_in_grid:
                 teff_bds = [teff, teff]
@@ -252,7 +237,7 @@ class Spectrum(Spectrum1D):
         conversion_factor = 1e-8  # erg/(s * cm^3) to erg/(s * cm^2 * Å)
         spec = Spectrum(
             spectral_axis=wave_lib * u.AA,
-            flux=flux * conversion_factor * u.Unit('erg/(s * cm^2 * angstrom)')
+            flux=flux * conversion_factor * u.Unit("erg/(s * cm^2 * angstrom)"),
         )
 
         # Resample the spectrum to the desired wavelength array
@@ -279,28 +264,23 @@ class Spectrum(Spectrum1D):
         # Convert wavelengths arrays to same unit
         wave_old = self.wavelength.to(u.AA).value
         wave_new = wave.to(u.AA).value
-        waveunits = 'angstrom'
+        waveunits = "angstrom"
 
         # The input value without a unit
         flux_old = self.flux.value
 
         # Make an observation object with pysynphot
-        spectrum = psp.spectrum.ArraySourceSpectrum(
-            wave=wave_old, flux=flux_old
-        )
+        spectrum = psp.spectrum.ArraySourceSpectrum(wave=wave_old, flux=flux_old)
         throughput = np.ones(len(wave_old))
         filt = psp.spectrum.ArraySpectralElement(
             wave_old, throughput, waveunits=waveunits
         )
         obs = psp.observation.Observation(
-            spectrum, filt, binset=wave_new, force='taper'
+            spectrum, filt, binset=wave_new, force="taper"
         )
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
-        spec_new = Spectrum(
-            spectral_axis=wave,
-            flux=obs.binflux * self.flux.unit
-        )
+        spec_new = Spectrum(spectral_axis=wave, flux=obs.binflux * self.flux.unit)
 
         return spec_new
 
@@ -326,8 +306,8 @@ class Spectrum(Spectrum1D):
         flux = self.flux
         binned_fluxes = []
         for cen, wid in zip(center, width):
-            lower = cen - wid / 2.
-            upper = cen + wid / 2.
+            lower = cen - wid / 2.0
+            upper = cen + wid / 2.0
             idx = np.where((wave >= lower) & (wave <= upper))
 
             # Adjust for bins that are slightly wider than the wavelength range
@@ -364,6 +344,7 @@ class BinnedSpectrum(object):
     flux : `~astropy.units.Quantity`
         The binned flux array.
     """
+
     @u.quantity_input(center=u.AA, width=u.AA)
     def __init__(self, center, width, flux):
         """
@@ -380,8 +361,8 @@ class BinnedSpectrum(object):
         """
         self.center = center
         self.width = width
-        self.lower = center - width / 2.
-        self.upper = center + width / 2.
+        self.lower = center - width / 2.0
+        self.upper = center + width / 2.0
         self.flux = flux
 
 
@@ -424,8 +405,9 @@ class BinnedSpectralGrid(object):
         Returns a binned spectrum for the given teff, logg, and feh.
 
     """
+
     def __init__(
-        self, teff_bds, logg_bds, feh_bds, center, width, model_grid='phoenix'
+        self, teff_bds, logg_bds, feh_bds, center, width, model_grid="phoenix"
     ):
         """
         Parameters
@@ -451,24 +433,21 @@ class BinnedSpectralGrid(object):
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
 
-        if self.model_grid == 'phoenix':
+        if self.model_grid == "phoenix":
             # Grid of effective temperatures
             grid_teffs = np.append(
-                np.arange(2300, 7100, 100),
-                np.arange(7200, 12200, 200)
+                np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)
             )
 
             # Grid of surface gravities
             grid_loggs = np.arange(0.0, 6.5, 0.5)
 
             # Grid of metallicities
-            grid_fehs = np.array([
-                -4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0
-            ])
+            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
         else:
             raise NotImplementedError(
-                f'"{model_grid}" model grid not found. ' +
-                'Only PHOENIX models are currently supported.'
+                f'"{model_grid}" model grid not found. '
+                + "Only PHOENIX models are currently supported."
             )
 
         # Then ensure that the bounds given are valid.
@@ -495,28 +474,25 @@ class BinnedSpectralGrid(object):
 
         # Define the values covered in the grid
         subset = np.logical_and(
-            grid_teffs >= self.teff_bds[0],
-            grid_teffs <= self.teff_bds[1]
+            grid_teffs >= self.teff_bds[0], grid_teffs <= self.teff_bds[1]
         )
         self.teffs = grid_teffs[subset]
 
         subset = np.logical_and(
-            grid_loggs >= self.logg_bds[0],
-            grid_loggs <= self.logg_bds[1]
+            grid_loggs >= self.logg_bds[0], grid_loggs <= self.logg_bds[1]
         )
         self.loggs = grid_loggs[subset]
 
         subset = np.logical_and(
-            grid_fehs >= self.feh_bds[0],
-            grid_fehs <= self.feh_bds[1]
+            grid_fehs >= self.feh_bds[0], grid_fehs <= self.feh_bds[1]
         )
         self.fehs = grid_fehs[subset]
 
         # Load the fluxes
         self.center = center
         self.width = width
-        self.lower = center - width / 2.
-        self.upper = center + width / 2.
+        self.lower = center - width / 2.0
+        self.upper = center + width / 2.0
 
         fluxes = {}
         for teff in self.teffs:
@@ -553,15 +529,15 @@ class BinnedSpectralGrid(object):
         feh_in_grid = self.feh_bds[0] <= feh <= self.feh_bds[1]
 
         booleans = [teff_in_grid, logg_in_grid, feh_in_grid]
-        params = ['teff', 'logg', 'feh']
+        params = ["teff", "logg", "feh"]
         inputs = [teff, logg, feh]
         ranges = [self.teff_bds, self.logg_bds, self.feh_bds]
 
         if not all(booleans):
-            message = 'Input values are out of grid range.\n\n'
+            message = "Input values are out of grid range.\n\n"
             for b, p, i, r in zip(booleans, params, inputs, ranges):
                 if not b:
-                    message += f'\tInput {p}: {i}. Valid range: {r}\n'
+                    message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
 
         # Identify nearest values in grid
