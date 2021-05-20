@@ -397,9 +397,7 @@ class SpectralGrid(object):
 
     """
 
-    def __init__(
-        self, teff_bds, logg_bds, feh_bds, wave=None, model_grid="phoenix"
-    ):
+    def __init__(self, teff_bds, logg_bds, feh_bds, wave=None, model_grid="phoenix"):
         """
         Parameters
         ----------
