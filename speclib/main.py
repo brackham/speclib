@@ -87,7 +87,16 @@ class Spectrum(Spectrum1D):
         super().__init__(**kwargs)
 
     @classmethod
-    def from_grid(self, teff, logg, feh=0, wave=None, model_grid="phoenix"):
+    def from_grid(
+        self,
+        teff,
+        logg,
+        feh=0,
+        wave=None,
+        wl_min=None,
+        wl_max=None,
+        model_grid="phoenix",
+    ):
         """
         Load a model spectrum from a library.
 
@@ -104,6 +113,12 @@ class Spectrum(Spectrum1D):
 
         wave : `~astropy.units.Quantity`, optional
             Wavelengths of the interpolated spectrum.
+
+        wl_min : `~astropy.units.Quantity`, optional
+            Minimum wavelength of the model spectrum.
+
+        wl_max : `~astropy.units.Quantity`, optional
+            Maximium wavelength of the model spectrum.
 
         model_grid : str, optional
             Name of the model grid. Only `phoenix` is currently supported.
@@ -239,6 +254,15 @@ class Spectrum(Spectrum1D):
             spectral_axis=wave_lib * u.AA,
             flux=flux * conversion_factor * u.Unit("erg/(s * cm^2 * angstrom)"),
         )
+
+        # Crop to wavelength min and max, if given
+        if not all(v is None for v in [wl_min, wl_max]):
+            if wl_min is None:
+                wl_min = spec.wavelength.min()
+            if wl_max is None:
+                wl_max = spec.wavelength.max()
+            mask = np.logical_or(spec.wavelength <= wl_min, spec.wavelength >= wl_max)
+            spec = Spectrum(spectral_axis=spec.wavelength[~mask], flux=spec.flux[~mask])
 
         # Resample the spectrum to the desired wavelength array
         if wave is not None:
@@ -397,7 +421,9 @@ class SpectralGrid(object):
 
     """
 
-    def __init__(self, teff_bds, logg_bds, feh_bds, wave=None, model_grid="phoenix"):
+    def __init__(
+        self, teff_bds, logg_bds, feh_bds, wave=None, model_grid="phoenix", **kwargs
+    ):
         """
         Parameters
         ----------
@@ -481,7 +507,7 @@ class SpectralGrid(object):
             for logg in self.loggs:
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
-                    spec = Spectrum.from_grid(teff, logg, feh)
+                    spec = Spectrum.from_grid(teff, logg, feh, **kwargs)
                     # Resample the spectrum to the desired wavelength array
                     if wave is not None:
                         spec = spec.resample(wave)
@@ -637,7 +663,7 @@ class BinnedSpectralGrid(object):
     """
 
     def __init__(
-        self, teff_bds, logg_bds, feh_bds, center, width, model_grid="phoenix"
+        self, teff_bds, logg_bds, feh_bds, center, width, model_grid="phoenix", **kwargs
     ):
         """
         Parameters
@@ -730,7 +756,9 @@ class BinnedSpectralGrid(object):
             for logg in self.loggs:
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
-                    bs = Spectrum.from_grid(teff, logg, feh).bin(center, width)
+                    bs = Spectrum.from_grid(teff, logg, feh, **kwargs).bin(
+                        center, width
+                    )
                     fluxes[teff][logg][feh] = bs.flux
         self.fluxes = fluxes
 
