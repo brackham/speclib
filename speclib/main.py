@@ -308,6 +308,33 @@ class Spectrum(Spectrum1D):
 
         return spec_new
 
+    @u.quantity_input(delta_lambda=u.AA)
+    def regularize(self, delta_lambda=None):
+        """
+        Resample a spectrum to a regularly spaced wavelength grid.
+
+        Parameters
+        ----------
+        delta_lambda : `~astropy.units.Quantity`, optional
+            The spacing of the new wavelength grid. Defaults to the smallest spacing in the orignal grid.
+
+        Returns
+        -------
+        spec_new : `~speclib.Spectrum`
+            A resampled spectrum.
+        """
+        wl_min = self.wavelength.min()
+        wl_max = self.wavelength.max()
+        if delta_lambda is None:
+            delta_lambda = np.diff(self.wavelength).min()
+        n_points = int((wl_max.value - wl_min.value) / delta_lambda.value)
+        regular_grid = (
+            np.linspace(wl_min.value, wl_max.value, n_points) * delta_lambda.unit
+        )
+        spec_new = self.resample(regular_grid)
+
+        return spec_new
+
     @u.quantity_input(center=u.AA, width=u.AA)
     def bin(self, center, width):
         """
