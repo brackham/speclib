@@ -73,10 +73,10 @@ class Spectrum(Spectrum1D):
 
     Methods
     -------
-    from_grid(teff, logg, feh=0, wave=None, model_grid='phoenix')
+    from_grid(teff, logg, feh=0, wavelength=None, model_grid='phoenix')
         Load a model spectrum from a library.
 
-    resample(wave)
+    resample(wavelength)
         Resample a spectrum while conserving flux.
 
     bin(center, width)
@@ -92,7 +92,7 @@ class Spectrum(Spectrum1D):
         teff,
         logg,
         feh=0,
-        wave=None,
+        wavelength=None,
         wl_min=None,
         wl_max=None,
         model_grid="phoenix",
@@ -111,7 +111,7 @@ class Spectrum(Spectrum1D):
         feh : float
             [Fe/H] of the model.
 
-        wave : `~astropy.units.Quantity`, optional
+        wavelength : `~astropy.units.Quantity`, optional
             Wavelengths of the interpolated spectrum.
 
         wl_min : `~astropy.units.Quantity`, optional
@@ -265,19 +265,19 @@ class Spectrum(Spectrum1D):
             spec = Spectrum(spectral_axis=spec.wavelength[~mask], flux=spec.flux[~mask])
 
         # Resample the spectrum to the desired wavelength array
-        if wave is not None:
-            spec = spec.resample(wave)
+        if wavelength is not None:
+            spec = spec.resample(wavelength)
 
         return spec
 
-    @u.quantity_input(wave=u.AA)
-    def resample(self, wave):
+    @u.quantity_input(wavelength=u.AA)
+    def resample(self, wavelength):
         """
         Resample a spectrum while conserving flux.
 
         Parameters
         ----------
-        wave : `~astropy.units.Quantity`
+        wavelength : `~astropy.units.Quantity`
             A new wavelength axis. Unit must be specified.
 
         Returns
@@ -287,7 +287,7 @@ class Spectrum(Spectrum1D):
         """
         # Convert wavelengths arrays to same unit
         wave_old = self.wavelength.to(u.AA).value
-        wave_new = wave.to(u.AA).value
+        wave_new = wavelength.to(u.AA).value
         waveunits = "angstrom"
 
         # The input value without a unit
@@ -304,7 +304,7 @@ class Spectrum(Spectrum1D):
         )
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
-        spec_new = Spectrum(spectral_axis=wave, flux=obs.binflux * self.flux.unit)
+        spec_new = Spectrum(spectral_axis=wavelength, flux=obs.binflux * self.flux.unit)
 
         return spec_new
 
@@ -326,20 +326,20 @@ class Spectrum(Spectrum1D):
         `~speclib.BinnedSpectrum`
 
         """
-        wave = self.wavelength
+        wavelength = self.wavelength
         flux = self.flux
         binned_fluxes = []
         for cen, wid in zip(center, width):
             lower = cen - wid / 2.0
             upper = cen + wid / 2.0
-            idx = np.where((wave >= lower) & (wave <= upper))
+            idx = np.where((wavelength >= lower) & (wavelength <= upper))
 
             # Adjust for bins that are slightly wider than the wavelength range
             # due to discretization of the wavelength grid
-            scale_factor = (upper - lower) / (wave[idx][-1] - wave[idx][0])
+            scale_factor = (upper - lower) / (wavelength[idx][-1] - wavelength[idx][0])
 
             binned_flux = (
-                scale_factor * np.trapz(flux[idx], wave[idx]) / (upper - lower)
+                scale_factor * np.trapz(flux[idx], wavelength[idx]) / (upper - lower)
             )
             binned_fluxes.append(binned_flux)
         binned_fluxes = u.Quantity(binned_fluxes)
@@ -405,7 +405,7 @@ class SpectralGrid(object):
     feh_bds : iterable
         The lower and upper bounds of the model [Fe/H] to load.
 
-    wave : `~astropy.units.Quantity`
+    wavelength : `~astropy.units.Quantity`
         Wavelengths of the interpolated spectrum.
 
     fluxes : dict
@@ -422,7 +422,13 @@ class SpectralGrid(object):
     """
 
     def __init__(
-        self, teff_bds, logg_bds, feh_bds, wave=None, model_grid="phoenix", **kwargs
+        self,
+        teff_bds,
+        logg_bds,
+        feh_bds,
+        wavelength=None,
+        model_grid="phoenix",
+        **kwargs,
     ):
         """
         Parameters
@@ -509,13 +515,13 @@ class SpectralGrid(object):
                 for feh in self.fehs:
                     spec = Spectrum.from_grid(teff, logg, feh, **kwargs)
                     # Resample the spectrum to the desired wavelength array
-                    if wave is not None:
-                        spec = spec.resample(wave)
+                    if wavelength is not None:
+                        spec = spec.resample(wavelength)
                     fluxes[teff][logg][feh] = spec.flux
         self.fluxes = fluxes
 
         # Save the wavelength array
-        self.wave = spec.wavelength
+        self.wavelength = spec.wavelength
 
     def get_spectrum(self, teff, logg, feh):
         """
