@@ -300,7 +300,7 @@ class Spectrum(Spectrum1D):
             wave_old, throughput, waveunits=waveunits
         )
         obs = psp.observation.Observation(
-            spectrum, filt, binset=wave_new, force="taper"
+            spectrum, filt, binset=wave_new, force=None
         )
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
