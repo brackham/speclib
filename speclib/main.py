@@ -335,6 +335,33 @@ class Spectrum(Spectrum1D):
 
         return spec_new
 
+    @u.quantity_input(spectral_resolution=u.AA)
+    def set_spectral_resolution(self, spectral_resolution):
+        """
+        Set the spectral resolution by convolution with a Gaussian.
+
+        Parameters
+        ----------
+        spectral_resolution : `~astropy.units.Quantity`
+
+        Returns
+        -------
+        spec_new : `~speclib.Spectrum`
+            A spectrum with the desired spectral resolution.
+        """
+        from astropy.convolution import convolve, Gaussian1DKernel
+
+        # # First, check if grid spacing is regular
+        # delta_lambdas = np.unique(self.wavelength.diff())
+        delta_lambda = np.unique(self.wavelength.diff()).min()
+
+        kernel_size = (spectral_resolution / delta_lambda).value  # resolution elements
+        kernel = Gaussian1DKernel(kernel_size)
+        convolved_flux = convolve(self.flux, kernel, boundary="extend")
+        spec_new = Spectrum(spectral_axis=self.wavelength, flux=convolved_flux)
+
+        return spec_new
+
     @u.quantity_input(center=u.AA, width=u.AA)
     def bin(self, center, width):
         """
@@ -454,6 +481,7 @@ class SpectralGrid(object):
         logg_bds,
         feh_bds,
         wavelength=None,
+        spectral_resolution=None,
         model_grid="phoenix",
         **kwargs,
     ):
@@ -541,9 +569,16 @@ class SpectralGrid(object):
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
                     spec = Spectrum.from_grid(teff, logg, feh, **kwargs)
+
+                    # Set spectral resolution if specified
+                    if spectral_resolution is not None:
+                        spec = spec.regularize()
+                        spec = spec.set_spectral_resolution(spectral_resolution)
+
                     # Resample the spectrum to the desired wavelength array
                     if wavelength is not None:
                         spec = spec.resample(wavelength)
+
                     fluxes[teff][logg][feh] = spec.flux
         self.fluxes = fluxes
 
