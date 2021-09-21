@@ -316,7 +316,8 @@ class Spectrum(Spectrum1D):
         Parameters
         ----------
         delta_lambda : `~astropy.units.Quantity`, optional
-            The spacing of the new wavelength grid. Defaults to the smallest spacing in the orignal grid.
+            The spacing of the new wavelength grid. Defaults to the smallest
+            spacing in the orignal grid.
 
         Returns
         -------
@@ -343,6 +344,7 @@ class Spectrum(Spectrum1D):
         Parameters
         ----------
         spectral_resolution : `~astropy.units.Quantity`
+            The spectral resolution.
 
         Returns
         -------
@@ -499,6 +501,9 @@ class SpectralGrid(object):
 
         wavelength : `~astropy.units.Quantity`, optional
             Wavelengths of the interpolated spectrum.
+
+        spectral_resolution : `~astropy.units.Quantity`
+            The spectral resolution.
 
         model_grid : str, optional
             Name of the model grid. Only `phoenix` is currently supported.
