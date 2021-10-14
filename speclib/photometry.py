@@ -1,6 +1,9 @@
 import astropy.units as u
 import astropy.io as io
 import numpy as np
+import os
+
+from . import PACKAGEDIR
 from .main import Spectrum
 
 __all__ = ["Filter"]
@@ -16,12 +19,17 @@ class Filter(object):
         self.bandwidth = data["bandwidth"].quantity[0]
         self.zeropoint_flux = data["zeropoint_flux"].quantity[0]
         self.zeropoint_flux_err = data["zeropoint_flux_err"].quantity[0]
-        self.response_file = data["response_file"][0]
+        self.response_file = os.path.join(
+            PACKAGEDIR, "data/filters/", data["response_file"][0]
+        )
         self.response = self._load_response(self.response_file)
         self.resampled_response = None
 
     def _get_filter_data(self, name):
-        filters = io.ascii.read("./data/filters/filters.ecsv")
+        file_path = os.path.join(
+            PACKAGEDIR, "data/filters/filters.ecsv"
+        )
+        filters = io.ascii.read(file_path)
         good = filters["name"] == name
         if not good.sum():
             raise ValueError(f"'{name}' not recognized.")
@@ -29,9 +37,8 @@ class Filter(object):
 
         return data
 
-    def _load_response(self, file):
-        filter_dir = "./data/filters/"
-        wave, trans = np.loadtxt(filter_dir + file, unpack=True)
+    def _load_response(self, response_file):
+        wave, trans = np.loadtxt(response_file, unpack=True)
         response = Spectrum(
             spectral_axis=wave * u.AA, flux=trans * u.dimensionless_unscaled
         )
