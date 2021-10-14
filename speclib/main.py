@@ -299,9 +299,7 @@ class Spectrum(Spectrum1D):
         filt = psp.spectrum.ArraySpectralElement(
             wave_old, throughput, waveunits=waveunits
         )
-        obs = psp.observation.Observation(
-            spectrum, filt, binset=wave_new, force=None
-        )
+        obs = psp.observation.Observation(spectrum, filt, binset=wave_new, force=None)
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
         spec_new = Spectrum(spectral_axis=wavelength, flux=obs.binflux * self.flux.unit)
