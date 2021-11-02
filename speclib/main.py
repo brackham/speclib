@@ -6,6 +6,9 @@ import shutil
 import urllib
 from contextlib import closing
 from specutils import Spectrum1D
+
+from .utils import interpolate
+
 import warnings
 
 with warnings.catch_warnings():
@@ -24,15 +27,6 @@ def download_file(remote_path, local_path, verbose=True):
     with closing(urllib.request.urlopen(remote_path)) as r:
         with open(local_path, "wb") as f:
             shutil.copyfileobj(r, f)
-
-
-def interpolate(fluxes, xlims, x):
-    y0, y1 = fluxes
-    x0, x1 = xlims
-    w1 = (x - x0) / (x1 - x0)
-    y = y0 * (1 - w1) + y1 * w1
-
-    return y
 
 
 def find_bounds(array, value):

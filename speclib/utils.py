@@ -1,6 +1,15 @@
 import astropy.units as u
 
-__all__ = ["vac2air", "air2vac"]
+__all__ = ["interpolate", "vac2air", "air2vac"]
+
+
+def interpolate(fluxes, xlims, x):
+    y0, y1 = fluxes
+    x0, x1 = xlims
+    w1 = (x - x0) / (x1 - x0)
+    y = y0 * (1 - w1) + y1 * w1
+
+    return y
 
 
 @u.quantity_input(wl_vac=u.AA)
