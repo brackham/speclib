@@ -12,11 +12,11 @@ name wl_eff bandwidth zeropoint_flux zeropoint_flux_err response_file
 "2MASS J" 12350.0 1624.32 3.129000000000001e-10 5.464000000000001e-12 2MASS_2MASS.J.dat
 "2MASS H" 16620.0 2509.4 1.1330000000000002e-10 2.2120000000000007e-12 2MASS_2MASS.H.dat
 "2MASS Ks" 21590.0 2618.87 4.283000000000001e-11 8.050000000000001e-13 2MASS_2MASS.Ks.dat
-"Bessell U" 3663.61 640.40 4.02747e-9 0 Beneric_Bessell.U.dat
-"Bessell B" 4380.74 959.20 6.13268e-9 0 Beneric_Bessell.B.dat
-"Bessell V" 5445.79	893.08 3.61871e-9 0 Beneric_Bessell.V.dat
-"Bessell R" 6414.20 1591.03 2.16516e-9 0 Beneric_Bessell.R.dat
-"Bessell I" 7978.80 1495.07 1.13269e-9 0 Beneric_Bessell.I.dat
+"Bessell U" 3663.61 640.40 4.02747e-9 0 Generic_Bessell.U.dat
+"Bessell B" 4380.74 959.20 6.13268e-9 0 Generic_Bessell.B.dat
+"Bessell V" 5445.79	893.08 3.61871e-9 0 Generic_Bessell.V.dat
+"Bessell R" 6414.20 1591.03 2.16516e-9 0 Generic_Bessell.R.dat
+"Bessell I" 7978.80 1495.07 1.13269e-9 0 Generic_Bessell.I.dat
 "Gaia G_BP" 5020.92 2279.45 4.03528e-9 0 GAIA_GAIA2r.Gbp.dat
 "Gaia G" 5836.31 4358.43 2.49524e-9 0 GAIA_GAIA2r.G.dat
 "Gaia G_RP" 7588.83 2943.72 1.29363e-9 0 GAIA_GAIA2r.Grp.dat
