@@ -52,8 +52,12 @@ def load_flux_array(fname, cache_dir, ftp_url):
         flux_remote_path = os.path.join(
             ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
         )
-        download_file(flux_remote_path, flux_local_path)
-        flux = fits.getdata(flux_local_path)
+        try:
+            download_file(flux_remote_path, flux_local_path)
+            flux = fits.getdata(flux_local_path)
+        # Some low-G models are missing, e.g., lte05400-0.00+1.0...
+        except URLError:  # noqa
+            flux = None
 
     return flux
 
