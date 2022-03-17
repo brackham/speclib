@@ -14,7 +14,7 @@ name wl_eff bandwidth zeropoint_flux zeropoint_flux_err response_file
 "2MASS Ks" 21590.0 2618.87 4.283000000000001e-11 8.050000000000001e-13 2MASS_2MASS.Ks.dat
 "Bessell U" 3663.61 640.40 4.02747e-9 0 Generic_Bessell.U.dat
 "Bessell B" 4380.74 959.20 6.13268e-9 0 Generic_Bessell.B.dat
-"Bessell V" 5445.79	893.08 3.61871e-9 0 Generic_Bessell.V.dat
+"Bessell V" 5445.79 893.08 3.61871e-9 0 Generic_Bessell.V.dat
 "Bessell R" 6414.20 1591.03 2.16516e-9 0 Generic_Bessell.R.dat
 "Bessell I" 7978.80 1495.07 1.13269e-9 0 Generic_Bessell.I.dat
 "Gaia G_BP" 5020.92 2279.45 4.03528e-9 0 GAIA_GAIA2r.Gbp.dat
