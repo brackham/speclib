@@ -20,3 +20,7 @@ name wl_eff bandwidth zeropoint_flux zeropoint_flux_err response_file
 "Gaia G_BP" 5020.92 2279.45 4.03528e-9 0 GAIA_GAIA2r.Gbp.dat
 "Gaia G" 5836.31 4358.43 2.49524e-9 0 GAIA_GAIA2r.G.dat
 "Gaia G_RP" 7588.83 2943.72 1.29363e-9 0 GAIA_GAIA2r.Grp.dat
+"Spitzer I1" 35075.11 6836.16 6.75539e-12 0 Spitzer_IRAC.I1.dat
+"Spitzer I2" 44365.78 8649.93 2.72688e-12 0 Spitzer_IRAC.I2.dat
+"Spitzer I3" 56281.02 12561.17 1.07752e-12 0 Spitzer_IRAC.I3.dat
+"Spitzer I4" 75891.59 25288.50 1.88999e-11 0 Spitzer_IRAC.I4.dat
