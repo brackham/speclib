@@ -44,8 +44,8 @@ class Filter(object):
         return response
 
     @u.quantity_input(wavelength=u.AA)
-    def resample(self, wavelength):
-        self.response = self.response.resample(wavelength)
+    def resample(self, wavelength, taper=True):
+        self.response = self.response.resample(wavelength, taper=taper)
 
 
 class SED(object):
@@ -316,7 +316,7 @@ def apply_filter(spec, filt):
     try:
         filtered_flux = spec.flux * filt.response.flux
     except ValueError:
-        filt.resample(spec.wavelength, taper=True)
+        filt.resample(spec.wavelength)
         filtered_flux = spec.flux * filt.response.flux
     integrated_flux = np.trapz(filtered_flux, spec.wavelength) / filt.bandwidth
 
