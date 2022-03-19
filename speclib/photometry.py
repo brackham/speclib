@@ -316,7 +316,7 @@ def apply_filter(spec, filt):
     try:
         filtered_flux = spec.flux * filt.response.flux
     except ValueError:
-        filt.resample(spec.wavelength)
+        filt.resample(spec.wavelength, taper=True)
         filtered_flux = spec.flux * filt.response.flux
     integrated_flux = np.trapz(filtered_flux, spec.wavelength) / filt.bandwidth
 

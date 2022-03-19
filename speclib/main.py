@@ -270,7 +270,7 @@ class Spectrum(Spectrum1D):
         return spec
 
     @u.quantity_input(wavelength=u.AA)
-    def resample(self, wavelength):
+    def resample(self, wavelength, taper=False):
         """
         Resample a spectrum while conserving flux.
 
@@ -284,6 +284,10 @@ class Spectrum(Spectrum1D):
         spec_new : `~speclib.Spectrum`
              A resampled spectrum.
         """
+        if taper:
+            force = 'taper'
+        else:
+            force = None
         # Convert wavelengths arrays to same unit
         wave_old = self.wavelength.to(u.AA).value
         wave_new = wavelength.to(u.AA).value
@@ -298,7 +302,7 @@ class Spectrum(Spectrum1D):
         filt = psp.spectrum.ArraySpectralElement(
             wave_old, throughput, waveunits=waveunits
         )
-        obs = psp.observation.Observation(spectrum, filt, binset=wave_new, force=None)
+        obs = psp.observation.Observation(spectrum, filt, binset=wave_new, force=force)
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
         spec_new = Spectrum(spectral_axis=wavelength, flux=obs.binflux * self.flux.unit)
