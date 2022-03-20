@@ -606,7 +606,7 @@ class SpectralGrid(object):
         # Save the wavelength array
         self.wavelength = spec.wavelength
 
-    def get_spectrum(self, teff, logg, feh, interpolate=True):
+    def get_spectrum(self, teff, logg, feh, interp=True):
         """
         Parameters
         ----------
@@ -619,7 +619,7 @@ class SpectralGrid(object):
         feh : float
             [Fe/H] of the model.
 
-        interpolate : boolean
+        interp : boolean
             Interpolate between the grid points. Defaults to `True`.
 
         Returns
@@ -646,7 +646,7 @@ class SpectralGrid(object):
             raise ValueError(message)
 
         # If not interpolating, then just return the closest point in the grid.
-        if not interpolate:
+        if not interp:
             teff = nearest(self.teffs, teff)
             logg = nearest(self.loggs, logg)
             feh = nearest(self.fehs, feh)
