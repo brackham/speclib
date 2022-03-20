@@ -484,7 +484,7 @@ class SpectralGrid(object):
 
     Methods
     -------
-    get_spectrum(teff, logg, feh)
+    get_spectrum(teff, logg, feh, interpoate=True)
         Returns a binned spectrum for the given teff, logg, and feh.
 
     """
@@ -647,9 +647,9 @@ class SpectralGrid(object):
 
         # If not interpolating, then just return the closest point in the grid.
         if not interpolate:
-            teff = nearest(self.grid_teffs, teff)
-            logg = nearest(self.grid_loggs, logg)
-            feh = nearest(self.grid_fehs, feh)
+            teff = nearest(self.teffs, teff)
+            logg = nearest(self.loggs, logg)
+            feh = nearest(self.fehs, feh)
 
             return self.fluxes[teff][logg][feh]
 
