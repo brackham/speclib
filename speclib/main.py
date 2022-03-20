@@ -36,7 +36,18 @@ def find_bounds(array, value):
     """
     array = np.array(array)
     idxs = np.argsort(np.abs(array - value))[0:2]
+
     return np.sort(array[idxs])
+
+
+def nearest(array, value):
+    """
+    Return the nearst values in an array to a given value.
+    """
+    array = np.array(array)
+    idx = np.argmin(np.abs(array - value))
+
+    return array[idx]
 
 
 def load_flux_array(fname, cache_dir, ftp_url):
@@ -523,6 +534,7 @@ class SpectralGrid(object):
 
             # Grid of metallicities
             grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
+
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
@@ -535,6 +547,7 @@ class SpectralGrid(object):
             grid_teffs[grid_teffs <= teff_bds.min()].max(),
             grid_teffs[grid_teffs >= teff_bds.max()].min(),
         )
+        self.grid_teffs = grid_teffs
         self.teff_bds = teff_bds
 
         logg_bds = np.array(logg_bds)
@@ -542,6 +555,7 @@ class SpectralGrid(object):
             grid_loggs[grid_loggs <= logg_bds.min()].max(),
             grid_loggs[grid_loggs >= logg_bds.max()].min(),
         )
+        self.grid_loggs = grid_loggs
         self.logg_bds = logg_bds
 
         feh_bds = np.array(feh_bds)
@@ -549,6 +563,7 @@ class SpectralGrid(object):
             grid_fehs[grid_fehs <= feh_bds.min()].max(),
             grid_fehs[grid_fehs >= feh_bds.max()].min(),
         )
+        self.grid_fehs = grid_fehs
         self.feh_bds = feh_bds
 
         # Define the values covered in the grid
@@ -591,7 +606,7 @@ class SpectralGrid(object):
         # Save the wavelength array
         self.wavelength = spec.wavelength
 
-    def get_spectrum(self, teff, logg, feh):
+    def get_spectrum(self, teff, logg, feh, interpolate=True):
         """
         Parameters
         ----------
@@ -603,6 +618,9 @@ class SpectralGrid(object):
 
         feh : float
             [Fe/H] of the model.
+
+        interpolate : boolean
+            Interpolate between the grid points. Defaults to `True`.
 
         Returns
         -------
@@ -627,6 +645,15 @@ class SpectralGrid(object):
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
 
+        # If not interpolating, then just return the closest point in the grid.
+        if not interpolate:
+            teff = nearest(self.grid_teffs, teff)
+            logg = nearest(self.grid_loggs, logg)
+            feh = nearest(self.grid_fehs, feh)
+
+            return self.fluxes[teff][logg][feh]
+
+        # Otherwise, interpolate:
         # Identify nearest values in grid
         flanking_teffs = (
             self.teffs[self.teffs <= teff].max(),
