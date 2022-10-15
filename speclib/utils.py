@@ -1,4 +1,11 @@
 import astropy.units as u
+import astropy.io.fits as fits
+import numpy as np
+import os
+import shutil
+import urllib
+from contextlib import closing
+from urllib.error import URLError
 
 __all__ = [
     "download_file",

@@ -2,11 +2,7 @@ import astropy.units as u
 import astropy.io.fits as fits
 import numpy as np
 import os
-import shutil
-import urllib
-from contextlib import closing
 from specutils import Spectrum1D
-from urllib.error import URLError
 
 from .utils import download_file, find_bounds, interpolate, nearest, load_flux_array
 
