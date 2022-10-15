@@ -1,6 +1,36 @@
 import astropy.units as u
 
-__all__ = ["interpolate", "vac2air", "air2vac"]
+__all__ = [
+    "download_file",
+    "find_bounds",
+    "interpolate",
+    "load_flux_array",
+    "nearest",
+    "vac2air",
+    "air2vac"
+]
+
+
+def download_file(remote_path, local_path, verbose=True):
+    """
+    Download a file via ftp.
+    """
+    if verbose:
+        print(f"> Downloading {remote_path}")
+    with closing(urllib.request.urlopen(remote_path)) as r:
+        with open(local_path, "wb") as f:
+            shutil.copyfileobj(r, f)
+
+
+def find_bounds(array, value):
+    """
+    Find and return the two nearest values in an array to a given value.
+    """
+    array = np.array(array)
+    idxs = np.argsort(np.abs(array - value))[0:2]
+
+    return np.sort(array[idxs])
+
 
 
 def interpolate(fluxes, xlims, x):
@@ -10,6 +40,40 @@ def interpolate(fluxes, xlims, x):
     y = y0 * (1 - w1) + y1 * w1
 
     return y
+
+
+def nearest(array, value):
+    """
+    Return the nearst values in an array to a given value.
+    """
+    array = np.array(array)
+    idx = np.argmin(np.abs(array - value))
+
+    return array[idx]
+
+
+def load_flux_array(fname, cache_dir, ftp_url):
+    """
+    Load a flux array.
+    """
+    # Look for a local file first
+    flux_local_path = os.path.join(cache_dir, fname)
+    try:
+        flux = fits.getdata(flux_local_path)
+    # If that doesn't work, download the remote file
+    except FileNotFoundError:
+        feh_folder = "Z" + fname[13:17]
+        flux_remote_path = os.path.join(
+            ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
+        )
+        try:
+            download_file(flux_remote_path, flux_local_path)
+            flux = fits.getdata(flux_local_path)
+        # Some low-G models are missing, e.g., lte05400-0.00+1.0...
+        except URLError:
+            flux = None
+
+    return flux
 
 
 @u.quantity_input(wl_vac=u.AA)
