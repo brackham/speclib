@@ -2,9 +2,8 @@ import astropy.units as u
 import astropy.io.fits as fits
 import numpy as np
 import os
+import speclib.utils as utils
 from specutils import Spectrum1D
-
-from .utils import download_file, find_bounds, interpolate, nearest, load_flux_array
 
 import warnings
 
@@ -120,7 +119,7 @@ class Spectrum(Spectrum1D):
                 wave_remote_path = os.path.join(
                     ftp_url, "HiResFITS", "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
                 )
-                download_file(wave_remote_path, wave_local_path)
+                utils.download_file(wave_remote_path, wave_local_path)
                 wave_lib = fits.getdata(wave_local_path)
 
             teff_in_grid = teff in grid_teffs
@@ -131,15 +130,15 @@ class Spectrum(Spectrum1D):
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -151,49 +150,49 @@ class Spectrum(Spectrum1D):
                 fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
 
                 if not fname000 == fname100:
-                    c000 = load_flux_array(fname000, cache_dir, ftp_url)
-                    c100 = load_flux_array(fname100, cache_dir, ftp_url)
-                    c00 = interpolate([c000, c100], teff_bds, teff)
+                    c000 = utils.load_flux_array(fname000, cache_dir, ftp_url)
+                    c100 = utils.load_flux_array(fname100, cache_dir, ftp_url)
+                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
                 else:
-                    c00 = load_flux_array(fname000, cache_dir, ftp_url)
+                    c00 = utils.load_flux_array(fname000, cache_dir, ftp_url)
 
                 if not fname010 == fname110:
-                    c010 = load_flux_array(fname010, cache_dir, ftp_url)
-                    c110 = load_flux_array(fname110, cache_dir, ftp_url)
-                    c10 = interpolate([c010, c110], teff_bds, teff)
+                    c010 = utils.load_flux_array(fname010, cache_dir, ftp_url)
+                    c110 = utils.load_flux_array(fname110, cache_dir, ftp_url)
+                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
                 else:
-                    c10 = load_flux_array(fname010, cache_dir, ftp_url)
+                    c10 = utils.load_flux_array(fname010, cache_dir, ftp_url)
 
                 if not fname001 == fname101:
-                    c001 = load_flux_array(fname001, cache_dir, ftp_url)
-                    c101 = load_flux_array(fname101, cache_dir, ftp_url)
-                    c01 = interpolate([c001, c101], teff_bds, teff)
+                    c001 = utils.load_flux_array(fname001, cache_dir, ftp_url)
+                    c101 = utils.load_flux_array(fname101, cache_dir, ftp_url)
+                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
                 else:
-                    c01 = load_flux_array(fname001, cache_dir, ftp_url)
+                    c01 = utils.load_flux_array(fname001, cache_dir, ftp_url)
 
                 if not fname011 == fname111:
-                    c011 = load_flux_array(fname011, cache_dir, ftp_url)
-                    c111 = load_flux_array(fname111, cache_dir, ftp_url)
-                    c11 = interpolate([c011, c111], teff_bds, teff)
+                    c011 = utils.load_flux_array(fname011, cache_dir, ftp_url)
+                    c111 = utils.load_flux_array(fname111, cache_dir, ftp_url)
+                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
                 else:
-                    c11 = load_flux_array(fname011, cache_dir, ftp_url)
+                    c11 = utils.load_flux_array(fname011, cache_dir, ftp_url)
 
                 if not fname000 == fname010:
-                    c0 = interpolate([c00, c10], logg_bds, logg)
-                    c1 = interpolate([c01, c11], logg_bds, logg)
+                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
+                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
                 else:
                     c0 = c00
                     c1 = c01
 
                 if not fname000 == fname001:
-                    flux = interpolate([c0, c1], feh_bds, feh)
+                    flux = utils.interpolate([c0, c1], feh_bds, feh)
                 else:
                     flux = c0
 
             elif model_in_grid:
                 # Load the flux array
                 fname = fname_str.format(teff, logg, feh)
-                flux = load_flux_array(fname, cache_dir, ftp_url)
+                flux = utils.load_flux_array(fname, cache_dir, ftp_url)
 
         elif model_grid.lower() == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
@@ -234,15 +233,15 @@ class Spectrum(Spectrum1D):
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -256,40 +255,40 @@ class Spectrum(Spectrum1D):
                 if not fname000 == fname100:
                     c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
                     c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
-                    c00 = interpolate([c000, c100], teff_bds, teff)
+                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
                 else:
                     c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
 
                 if not fname010 == fname110:
                     c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
                     c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
-                    c10 = interpolate([c010, c110], teff_bds, teff)
+                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
                 else:
                     c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
 
                 if not fname001 == fname101:
                     c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
                     c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
-                    c01 = interpolate([c001, c101], teff_bds, teff)
+                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
                 else:
                     c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
 
                 if not fname011 == fname111:
                     c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
                     c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
-                    c11 = interpolate([c011, c111], teff_bds, teff)
+                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
                 else:
                     c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
 
                 if not fname000 == fname010:
-                    c0 = interpolate([c00, c10], logg_bds, logg)
-                    c1 = interpolate([c01, c11], logg_bds, logg)
+                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
+                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
                 else:
                     c0 = c00
                     c1 = c01
 
                 if not fname000 == fname001:
-                    flux = interpolate([c0, c1], feh_bds, feh)
+                    flux = utils.interpolate([c0, c1], feh_bds, feh)
                 else:
                     flux = c0
 
@@ -301,7 +300,7 @@ class Spectrum(Spectrum1D):
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
-                + "Only PHOENIX and DRIFT-PHOENIX models are currently supported."
+                + "Only PHOENIX, DRIFT-PHOENIX, and NextGen models are currently supported."
             )
 
         # Load `~speclib.Spectrum` object
@@ -531,7 +530,7 @@ class SpectralGrid(object):
 
     Methods
     -------
-    get_spectrum(teff, logg, feh, interpoate=True)
+    get_spectrum(teff, logg, feh, interpolate=True)
         Returns a binned spectrum for the given teff, logg, and feh.
 
     """
@@ -707,9 +706,9 @@ class SpectralGrid(object):
 
         # If not interpolating, then just return the closest point in the grid.
         if not interp:
-            teff = nearest(self.teffs, teff)
-            logg = nearest(self.loggs, logg)
-            feh = nearest(self.fehs, feh)
+            teff = utils.nearest(self.teffs, teff)
+            logg = utils.nearest(self.loggs, logg)
+            feh = utils.nearest(self.fehs, feh)
 
             return self.fluxes[teff][logg][feh]
 
@@ -743,40 +742,40 @@ class SpectralGrid(object):
         if not params000 == params100:
             c000 = self.fluxes[params000[0]][params000[1]][params000[2]]
             c100 = self.fluxes[params100[0]][params100[1]][params100[2]]
-            c00 = interpolate([c000, c100], flanking_teffs, teff)
+            c00 = utils.interpolate([c000, c100], flanking_teffs, teff)
         else:
             c00 = self.fluxes[params000[0]][params000[1]][params000[2]]
 
         if not params010 == params110:
             c010 = self.fluxes[params010[0]][params010[1]][params010[2]]
             c110 = self.fluxes[params110[0]][params110[1]][params110[2]]
-            c10 = interpolate([c010, c110], flanking_teffs, teff)
+            c10 = utils.interpolate([c010, c110], flanking_teffs, teff)
         else:
             c10 = self.fluxes[params010[0]][params010[1]][params010[2]]
 
         if not params001 == params101:
             c001 = self.fluxes[params001[0]][params001[1]][params001[2]]
             c101 = self.fluxes[params101[0]][params101[1]][params101[2]]
-            c01 = interpolate([c001, c101], flanking_teffs, teff)
+            c01 = utils.interpolate([c001, c101], flanking_teffs, teff)
         else:
             c01 = self.fluxes[params001[0]][params001[1]][params001[2]]
 
         if not params011 == params111:
             c011 = self.fluxes[params011[0]][params011[1]][params011[2]]
             c111 = self.fluxes[params111[0]][params111[1]][params111[2]]
-            c11 = interpolate([c011, c111], flanking_teffs, teff)
+            c11 = utils.interpolate([c011, c111], flanking_teffs, teff)
         else:
             c11 = self.fluxes[params011[0]][params011[1]][params011[2]]
 
         if not params000 == params010:
-            c0 = interpolate([c00, c10], flanking_loggs, logg)
-            c1 = interpolate([c01, c11], flanking_loggs, logg)
+            c0 = utils.interpolate([c00, c10], flanking_loggs, logg)
+            c1 = utils.interpolate([c01, c11], flanking_loggs, logg)
         else:
             c0 = c00
             c1 = c01
 
         if not params000 == params001:
-            flux = interpolate([c0, c1], flanking_fehs, feh)
+            flux = utils.interpolate([c0, c1], flanking_fehs, feh)
         else:
             flux = c0
 
@@ -1000,40 +999,40 @@ class BinnedSpectralGrid(object):
         if not params000 == params100:
             c000 = self.fluxes[params000[0]][params000[1]][params000[2]]
             c100 = self.fluxes[params100[0]][params100[1]][params100[2]]
-            c00 = interpolate([c000, c100], flanking_teffs, teff)
+            c00 = utils.interpolate([c000, c100], flanking_teffs, teff)
         else:
             c00 = self.fluxes[params000[0]][params000[1]][params000[2]]
 
         if not params010 == params110:
             c010 = self.fluxes[params010[0]][params010[1]][params010[2]]
             c110 = self.fluxes[params110[0]][params110[1]][params110[2]]
-            c10 = interpolate([c010, c110], flanking_teffs, teff)
+            c10 = utils.interpolate([c010, c110], flanking_teffs, teff)
         else:
             c10 = self.fluxes[params010[0]][params010[1]][params010[2]]
 
         if not params001 == params101:
             c001 = self.fluxes[params001[0]][params001[1]][params001[2]]
             c101 = self.fluxes[params101[0]][params101[1]][params101[2]]
-            c01 = interpolate([c001, c101], flanking_teffs, teff)
+            c01 = utils.interpolate([c001, c101], flanking_teffs, teff)
         else:
             c01 = self.fluxes[params001[0]][params001[1]][params001[2]]
 
         if not params011 == params111:
             c011 = self.fluxes[params011[0]][params011[1]][params011[2]]
             c111 = self.fluxes[params111[0]][params111[1]][params111[2]]
-            c11 = interpolate([c011, c111], flanking_teffs, teff)
+            c11 = utils.interpolate([c011, c111], flanking_teffs, teff)
         else:
             c11 = self.fluxes[params011[0]][params011[1]][params011[2]]
 
         if not params000 == params010:
-            c0 = interpolate([c00, c10], flanking_loggs, logg)
-            c1 = interpolate([c01, c11], flanking_loggs, logg)
+            c0 = utils.interpolate([c00, c10], flanking_loggs, logg)
+            c1 = utils.interpolate([c01, c11], flanking_loggs, logg)
         else:
             c0 = c00
             c1 = c01
 
         if not params000 == params001:
-            flux = interpolate([c0, c1], flanking_fehs, feh)
+            flux = utils.interpolate([c0, c1], flanking_fehs, feh)
         else:
             flux = c0
 
