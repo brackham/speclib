@@ -158,3 +158,9 @@ def air2vac(wl_air):
     wl_vac = (wl_vac * u.AA).to(orig_unit)
 
     return wl_vac
+
+VALID_MODELS = [
+    'phoenix',
+    'drift-phoenix',
+    'nextgen-solar'
+]

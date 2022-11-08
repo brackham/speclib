@@ -398,7 +398,7 @@ class Spectrum(Spectrum1D):
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
-                + "Only PHOENIX, DRIFT-PHOENIX, and NextGen models are currently supported."
+                + "Currently supported models are: " + str(utils.VALID_MODELS)
             )
 
         # Load `~speclib.Spectrum` object
@@ -704,7 +704,7 @@ class SpectralGrid(object):
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
-                + "Only PHOENIX, DRIFT-PHOENIX, and NextGen models are currently supported."
+                + "Currently supported models are: " + str(utils.VALID_MODELS)
             )
 
         # Then ensure that the bounds given are valid.
@@ -980,12 +980,6 @@ class BinnedSpectralGrid(object):
 
             # Grid of metallicities
             grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
-
-        else:
-            raise NotImplementedError(
-                f'"{model_grid}" model grid not found. '
-                + "Only PHOENIX and DRIFT-PHOENIX models are currently supported."
-            )
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
