@@ -981,6 +981,17 @@ class BinnedSpectralGrid(object):
             # Grid of metallicities
             grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
 
+        elif model_grid.lower() == "nextgen-solar":
+            # Only works if the user has already cached the NextGen model grid
+            # Grid of effective temperatures
+            grid_teffs = np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200))
+
+            # Grid of surface gravities
+            grid_loggs = np.arange(3.0, 6.5, 0.5)
+
+            # Grid of metallicities
+            grid_fehs = np.array([0.0])
+
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
         teff_bds = (
