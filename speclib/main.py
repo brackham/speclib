@@ -42,6 +42,7 @@ class Spectrum(Spectrum1D):
         teff,
         logg,
         feh=0,
+        # CtoO=0.5,
         wavelength=None,
         wl_min=None,
         wl_max=None,
@@ -78,8 +79,11 @@ class Spectrum(Spectrum1D):
         spec : `~speclib.Spectrum`
             A spectrum for the specified parameters.
         """
+        # First check that the model_grid is valid.
+        self.model_grid = model_grid.lower()
 
-        if model_grid.lower() == "phoenix":
+        if self.model_grid == "phoenix":
+            lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^3)")
             cache_dir = os.path.join(
                 os.path.expanduser("~"), ".speclib/libraries/phoenix/"
@@ -194,8 +198,9 @@ class Spectrum(Spectrum1D):
                 fname = fname_str.format(teff, logg, feh)
                 flux = utils.load_flux_array(fname, cache_dir, ftp_url)
 
-        elif model_grid.lower() == "drift-phoenix":
+        elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
+            lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
             cache_dir = os.path.join(
                 os.path.expanduser("~"), ".speclib/libraries/drift-phoenix/"
@@ -297,8 +302,9 @@ class Spectrum(Spectrum1D):
                 fname = fname_str.format(teff, logg, feh)
                 flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
 
-        elif model_grid.lower() == "nextgen-solar":
+        elif self.model_grid == "nextgen-solar":
             # Only works if the user has already cached the NextGen model grid
+            lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
             cache_dir = os.path.join(
                 os.path.expanduser("~"), ".speclib/libraries/nextgen-solar/"
@@ -395,6 +401,109 @@ class Spectrum(Spectrum1D):
                 fname = fname_str.format(teff, logg, feh)
                 flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
 
+        elif self.model_grid == "sphinx":
+            # Only works if the user has already cached the SPHINX model grid
+            lib_wave_unit = u.micron
+            lib_flux_unit = u.Unit("W/(m^2 * m)")
+            cache_dir = os.path.join(
+                os.path.expanduser("~"), ".speclib/libraries/sphinx/"
+            )
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+
+            CtoO = 0.5  # Not varying this for now
+            fname_str = f"Teff_{teff:04.1f}_logg_{logg:0.2f}_logZ_{feh:+0.2f}_CtoO_{CtoO:0.1f}_spectra.txt"
+
+            # Grid of effective temperatures
+            grid_teffs = np.arange(2000., 4100., 100)
+
+            # Grid of surface gravities
+            grid_loggs = np.arange(4.0, 5.75, 0.25)
+
+            # Grid of metallicities
+            grid_fehs = np.arange(-1, 1.25, 0.25)
+
+            # # Grid of CtoOs
+            # grid_CtoOs = np.array([0.3, 0.5, 0.7, 0.9])
+
+            # Load the wavelength array
+            wave_local_path = os.path.join(
+                cache_dir, "Teff_2000.0_logg_4.00_logZ_-0.25_CtoO_0.3_spectra.txt"
+            )
+            wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
+
+            teff_in_grid = teff in grid_teffs
+            logg_in_grid = logg in grid_loggs
+            feh_in_grid = feh in grid_fehs
+            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            if not model_in_grid:
+                if teff_in_grid:
+                    teff_bds = [teff, teff]
+                else:
+                    teff_bds = utils.find_bounds(grid_teffs, teff)
+                if logg_in_grid:
+                    logg_bds = [logg, logg]
+                else:
+                    logg_bds = utils.find_bounds(grid_loggs, logg)
+                if feh_in_grid:
+                    feh_bds = [feh, feh]
+                else:
+                    feh_bds = utils.find_bounds(grid_fehs, feh)
+
+                fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
+                fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
+                fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
+                fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
+                fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
+                fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
+                fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
+                fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+
+                if not fname000 == fname100:
+                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
+                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
+                else:
+                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+
+                if not fname010 == fname110:
+                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
+                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
+                else:
+                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+
+                if not fname001 == fname101:
+                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
+                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
+                else:
+                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+
+                if not fname011 == fname111:
+                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
+                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
+                else:
+                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+
+                if not fname000 == fname010:
+                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
+                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
+                else:
+                    c0 = c00
+                    c1 = c01
+
+                if not fname000 == fname001:
+                    flux = utils.interpolate([c0, c1], feh_bds, feh)
+                else:
+                    flux = c0
+
+            elif model_in_grid:
+                # Load the flux array
+                fname = fname_str.format(teff, logg, feh)
+                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
@@ -403,10 +512,12 @@ class Spectrum(Spectrum1D):
 
         # Load `~speclib.Spectrum` object
         spec = Spectrum(
-            spectral_axis=wave_lib * u.AA,
+            spectral_axis=wave_lib * lib_wave_unit,
             flux=flux * lib_flux_unit,
         )
+        default_wave_unit = u.AA
         default_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
+        spec = spec.with_spectral_unit(default_wave_unit)
         spec = spec.new_flux_unit(default_flux_unit)
 
         # Crop to wavelength min and max, if given
@@ -679,7 +790,7 @@ class SpectralGrid(object):
             # Grid of metallicities
             grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
 
-        elif model_grid.lower() == "drift-phoenix":
+        elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
             # Grid of effective temperatures
             grid_teffs = np.arange(1000, 3100, 100)
@@ -700,6 +811,17 @@ class SpectralGrid(object):
 
             # Grid of metallicities
             grid_fehs = np.array([0.0])
+
+        elif self.model_grid == "sphinx":
+            # Only works if the user has already cached the SPHINX model grid
+            # Grid of effective temperatures
+            grid_teffs = np.arange(2000., 4100., 100)
+
+            # Grid of surface gravities
+            grid_loggs = np.arange(4.0, 5.75, 0.25)
+
+            # Grid of metallicities
+            grid_fehs = np.arange(-1, 1.25, 0.25)
 
         else:
             raise NotImplementedError(
@@ -756,7 +878,7 @@ class SpectralGrid(object):
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
                     spec = Spectrum.from_grid(
-                        teff, logg, feh, model_grid=model_grid, **kwargs
+                        teff, logg, feh, model_grid=self.model_grid, **kwargs
                     )
 
                     # Set spectral resolution if specified
@@ -970,7 +1092,7 @@ class BinnedSpectralGrid(object):
             # Grid of metallicities
             grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
 
-        elif model_grid.lower() == "drift-phoenix":
+        elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
             # Grid of effective temperatures
             grid_teffs = np.arange(1000, 3100, 100)
@@ -981,7 +1103,7 @@ class BinnedSpectralGrid(object):
             # Grid of metallicities
             grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
 
-        elif model_grid.lower() == "nextgen-solar":
+        elif self.model_grid == "nextgen-solar":
             # Only works if the user has already cached the NextGen model grid
             # Grid of effective temperatures
             grid_teffs = np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200))
@@ -991,6 +1113,17 @@ class BinnedSpectralGrid(object):
 
             # Grid of metallicities
             grid_fehs = np.array([0.0])
+
+        elif self.model_grid == "sphinx":
+            # Only works if the user has already cached the SPHINX model grid
+            # Grid of effective temperatures
+            grid_teffs = np.arange(2000., 4100., 100)
+
+            # Grid of surface gravities
+            grid_loggs = np.arange(4.0, 5.75, 0.25)
+
+            # Grid of metallicities
+            grid_fehs = np.arange(-1, 1.25, 0.25)
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)

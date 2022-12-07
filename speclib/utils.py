@@ -162,5 +162,6 @@ def air2vac(wl_air):
 VALID_MODELS = [
     'phoenix',
     'drift-phoenix',
-    'nextgen-solar'
+    'nextgen-solar',
+    'sphinx'
 ]
