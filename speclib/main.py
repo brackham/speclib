@@ -474,6 +474,93 @@ class Spectrum(Spectrum1D):
                 fname = fname_str.format(teff, logg, feh)
                 flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
 
+        elif self.model_grid == "mps-atlas":
+            # Only works if the user has already cached the MPS-Atlas model grid
+            lib_wave_unit = u.nm
+            lib_flux_unit = u.Unit('erg / (s * cm^2 * Hz^1)') * (u.AU / u.R_sun).cgs**2
+            cache_dir = os.path.join(
+                os.path.expanduser("~"), ".speclib/libraries/mps-atlas/"
+            )
+            fname_str = f"MH{feh:+0.2f}/teff{teff:4.0f}/logg{logg:0.1f}/mpsa_flux_spectra.dat"
+
+            # Load the wavelength array
+            wave_local_path = os.path.join(
+                cache_dir, "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
+            )
+            wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
+
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
+            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            if not model_in_grid:
+                if teff_in_grid:
+                    teff_bds = [teff, teff]
+                else:
+                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
+                if logg_in_grid:
+                    logg_bds = [logg, logg]
+                else:
+                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
+                if feh_in_grid:
+                    feh_bds = [feh, feh]
+                else:
+                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
+
+                fname000 = fname_str.format(feh_bds[0], teff_bds[0], logg_bds[0])
+                fname100 = fname_str.format(feh_bds[1], teff_bds[0], logg_bds[0])
+                fname010 = fname_str.format(feh_bds[0], teff_bds[1], logg_bds[0])
+                fname110 = fname_str.format(feh_bds[1], teff_bds[1], logg_bds[0])
+                fname001 = fname_str.format(feh_bds[0], teff_bds[0], logg_bds[1])
+                fname101 = fname_str.format(feh_bds[1], teff_bds[0], logg_bds[1])
+                fname011 = fname_str.format(feh_bds[0], teff_bds[1], logg_bds[1])
+                fname111 = fname_str.format(feh_bds[1], teff_bds[1], logg_bds[1])
+
+                if not fname000 == fname100:
+                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
+                    c00 = utils.interpolate([c000, c100], feh_bds, feh)
+                else:
+                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+
+                if not fname010 == fname110:
+                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
+                    c10 = utils.interpolate([c010, c110], feh_bds, feh)
+                else:
+                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+
+                if not fname001 == fname101:
+                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
+                    c01 = utils.interpolate([c001, c101], feh_bds, feh)
+                else:
+                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+
+                if not fname011 == fname111:
+                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
+                    c11 = utils.interpolate([c011, c111], feh_bds, feh)
+                else:
+                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+
+                if not fname000 == fname010:
+                    c1 = utils.interpolate([c01, c11], teff_bds, teff)
+                    c0 = utils.interpolate([c00, c10], teff_bds, teff)
+                else:
+                    c0 = c00
+                    c1 = c01
+
+                if not fname000 == fname001:
+                    flux = utils.interpolate([c0, c1], logg_bds, logg)
+                else:
+                    flux = c0
+
+            elif model_in_grid:
+                # Load the flux array
+                fname = fname_str.format(feh, teff, logg)
+                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+
         # Load `~speclib.Spectrum` object
         spec = Spectrum(
             spectral_axis=wave_lib * lib_wave_unit,
