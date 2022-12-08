@@ -165,3 +165,44 @@ VALID_MODELS = [
     'nextgen-solar',
     'sphinx'
 ]
+
+GRID_POINTS = {
+    'drift-phoenix': {
+        # Grid of effective temperatures
+        'grid_teffs': np.arange(1000, 3100, 100),
+        # Grid of surface gravities
+        'grid_loggs': np.arange(3.0, 6.5, 0.5),
+        # Grid of metallicities
+        'grid_fehs': np.array([-0.6, -0.3, -0.0, 0.3]),
+    },
+
+    'nextgen-solar': {
+        # Grid of effective temperatures
+        'grid_teffs': np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200)),
+        # Grid of surface gravities
+        'grid_loggs': np.arange(3.5, 6.0, 0.5),
+        # Grid of metallicities
+        'grid_fehs': np.array([0.0]),
+    },
+
+    'phoenix': {
+        # Grid of effective temperatures
+        'grid_teffs': np.append(np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)),
+        # Grid of surface gravities
+        'grid_loggs': np.arange(0.0, 6.5, 0.5),
+        # Grid of metallicities
+        'grid_fehs': np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0]),
+    },
+
+    'sphinx': {
+        # Grid of effective temperatures
+        'grid_teffs': np.arange(2000., 4100., 100),
+        # Grid of surface gravities
+        'grid_loggs': np.arange(4.0, 5.75, 0.25),
+        # Grid of metallicities
+        'grid_fehs': np.arange(-1, 1.25, 0.25),
+        # # Grid of CtoOs
+        # 'grid_CtoOs': np.array([0.3, 0.5, 0.7, 0.9]),
+    },
+}
+

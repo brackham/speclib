@@ -81,6 +81,17 @@ class Spectrum(Spectrum1D):
         """
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
+        if self.model_grid not in utils.VALID_MODELS:
+            raise NotImplementedError(
+                f'"{self.model_grid}" model grid not found. '
+                + "Currently supported models are: " + str(utils.VALID_MODELS)
+            )
+
+        # Define grid points
+        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        self.grid_teffs = self.grid_points['grid_teffs']
+        self.grid_loggs = self.grid_points['grid_loggs']
+        self.grid_fehs = self.grid_points['grid_fehs']
 
         if self.model_grid == "phoenix":
             lib_wave_unit = u.AA
@@ -96,17 +107,6 @@ class Spectrum(Spectrum1D):
                 "lte{:05.0f}-{:0.2f}{:+0.1f}."
                 + "PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
             )
-
-            # Grid of effective temperatures
-            grid_teffs = np.append(
-                np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)
-            )
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(0.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
 
             # The convention of the PHOENIX model grids is that
             # [Fe/H] = 0.0 is written as a negative number.
@@ -126,23 +126,23 @@ class Spectrum(Spectrum1D):
                 utils.download_file(wave_remote_path, wave_local_path)
                 wave_lib = fits.getdata(wave_local_path)
 
-            teff_in_grid = teff in grid_teffs
-            logg_in_grid = logg in grid_loggs
-            feh_in_grid = feh in grid_fehs
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = utils.find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = utils.find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = utils.find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -210,15 +210,6 @@ class Spectrum(Spectrum1D):
 
             fname_str = "lte_{:4.0f}_{:0.1f}{:+0.1f}.7.dat.txt"
 
-            # Grid of effective temperatures
-            grid_teffs = np.arange(1000, 3100, 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
-
             # The convention of the DRIFT-PHOENIX model grids is that
             # [Fe/H] = 0.0 is written as a negative number.
             if feh == 0:
@@ -230,23 +221,23 @@ class Spectrum(Spectrum1D):
             )
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
-            teff_in_grid = teff in grid_teffs
-            logg_in_grid = logg in grid_loggs
-            feh_in_grid = feh in grid_fehs
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = utils.find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = utils.find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = utils.find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -314,38 +305,29 @@ class Spectrum(Spectrum1D):
 
             fname_str = f"lte{teff:05.0f}_{logg:+0.1f}_{feh:+.1f}_NextGen-solar.dat"
 
-            # Grid of effective temperatures
-            grid_teffs = np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200))
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.5, 6.0, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([0.0])
-
             # Load the wavelength array
             wave_local_path = os.path.join(
                 cache_dir, "lte01600_+5.5_+0.0_NextGen-solar.dat"
             )
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
-            teff_in_grid = teff in grid_teffs
-            logg_in_grid = logg in grid_loggs
-            feh_in_grid = feh in grid_fehs
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = utils.find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = utils.find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = utils.find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -414,41 +396,29 @@ class Spectrum(Spectrum1D):
             CtoO = 0.5  # Not varying this for now
             fname_str = f"Teff_{teff:04.1f}_logg_{logg:0.2f}_logZ_{feh:+0.2f}_CtoO_{CtoO:0.1f}_spectra.txt"
 
-            # Grid of effective temperatures
-            grid_teffs = np.arange(2000., 4100., 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(4.0, 5.75, 0.25)
-
-            # Grid of metallicities
-            grid_fehs = np.arange(-1, 1.25, 0.25)
-
-            # # Grid of CtoOs
-            # grid_CtoOs = np.array([0.3, 0.5, 0.7, 0.9])
-
             # Load the wavelength array
             wave_local_path = os.path.join(
                 cache_dir, "Teff_2000.0_logg_4.00_logZ_-0.25_CtoO_0.3_spectra.txt"
             )
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
-            teff_in_grid = teff in grid_teffs
-            logg_in_grid = logg in grid_loggs
-            feh_in_grid = feh in grid_fehs
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = utils.find_bounds(grid_teffs, teff)
+                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = utils.find_bounds(grid_loggs, logg)
+                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = utils.find_bounds(grid_fehs, feh)
+                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
                 fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
                 fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
@@ -503,12 +473,6 @@ class Spectrum(Spectrum1D):
                 # Load the flux array
                 fname = fname_str.format(teff, logg, feh)
                 flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
-
-        else:
-            raise NotImplementedError(
-                f'"{model_grid}" model grid not found. '
-                + "Currently supported models are: " + str(utils.VALID_MODELS)
-            )
 
         # Load `~speclib.Spectrum` object
         spec = Spectrum(
@@ -777,98 +741,55 @@ class SpectralGrid(object):
         """
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
-
-        if self.model_grid == "phoenix":
-            # Grid of effective temperatures
-            grid_teffs = np.append(
-                np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)
-            )
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(0.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
-
-        elif self.model_grid == "drift-phoenix":
-            # Only works if the user has already cached the DRIFT-PHOENIX model grid
-            # Grid of effective temperatures
-            grid_teffs = np.arange(1000, 3100, 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
-
-        elif model_grid.lower() == "nextgen-solar":
-            # Only works if the user has already cached the NextGen model grid
-            # Grid of effective temperatures
-            grid_teffs = np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200))
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([0.0])
-
-        elif self.model_grid == "sphinx":
-            # Only works if the user has already cached the SPHINX model grid
-            # Grid of effective temperatures
-            grid_teffs = np.arange(2000., 4100., 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(4.0, 5.75, 0.25)
-
-            # Grid of metallicities
-            grid_fehs = np.arange(-1, 1.25, 0.25)
-
-        else:
+        if self.model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
-                f'"{model_grid}" model grid not found. '
+                f'"{self.model_grid}" model grid not found. '
                 + "Currently supported models are: " + str(utils.VALID_MODELS)
             )
+
+        # Define grid points
+        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        self.grid_teffs = self.grid_points['grid_teffs']
+        self.grid_loggs = self.grid_points['grid_loggs']
+        self.grid_fehs = self.grid_points['grid_fehs']
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
         teff_bds = (
-            grid_teffs[grid_teffs <= teff_bds.min()].max(),
-            grid_teffs[grid_teffs >= teff_bds.max()].min(),
+            self.grid_teffs[self.grid_teffs <= teff_bds.min()].max(),
+            self.grid_teffs[self.grid_teffs >= teff_bds.max()].min(),
         )
-        self.grid_teffs = grid_teffs
         self.teff_bds = teff_bds
 
         logg_bds = np.array(logg_bds)
         logg_bds = (
-            grid_loggs[grid_loggs <= logg_bds.min()].max(),
-            grid_loggs[grid_loggs >= logg_bds.max()].min(),
+            self.grid_loggs[self.grid_loggs <= logg_bds.min()].max(),
+            self.grid_loggs[self.grid_loggs >= logg_bds.max()].min(),
         )
-        self.grid_loggs = grid_loggs
         self.logg_bds = logg_bds
 
         feh_bds = np.array(feh_bds)
         feh_bds = (
-            grid_fehs[grid_fehs <= feh_bds.min()].max(),
-            grid_fehs[grid_fehs >= feh_bds.max()].min(),
+            self.grid_fehs[self.grid_fehs <= feh_bds.min()].max(),
+            self.grid_fehs[self.grid_fehs >= feh_bds.max()].min(),
         )
-        self.grid_fehs = grid_fehs
         self.feh_bds = feh_bds
 
         # Define the values covered in the grid
         subset = np.logical_and(
-            grid_teffs >= self.teff_bds[0], grid_teffs <= self.teff_bds[1]
+            self.grid_teffs >= self.teff_bds[0], self.grid_teffs <= self.teff_bds[1]
         )
-        self.teffs = grid_teffs[subset]
+        self.teffs = self.grid_teffs[subset]
 
         subset = np.logical_and(
-            grid_loggs >= self.logg_bds[0], grid_loggs <= self.logg_bds[1]
+            self.grid_loggs >= self.logg_bds[0], self.grid_loggs <= self.logg_bds[1]
         )
-        self.loggs = grid_loggs[subset]
+        self.loggs = self.grid_loggs[subset]
 
         subset = np.logical_and(
-            grid_fehs >= self.feh_bds[0], grid_fehs <= self.feh_bds[1]
+            self.grid_fehs >= self.feh_bds[0], self.grid_fehs <= self.feh_bds[1]
         )
-        self.fehs = grid_fehs[subset]
+        self.fehs = self.grid_fehs[subset]
 
         # Load the fluxes
         fluxes = {}
@@ -1079,89 +1000,55 @@ class BinnedSpectralGrid(object):
         """
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
-
-        if self.model_grid == "phoenix":
-            # Grid of effective temperatures
-            grid_teffs = np.append(
-                np.arange(2300, 7100, 100), np.arange(7200, 12200, 200)
+        if self.model_grid not in utils.VALID_MODELS:
+            raise NotImplementedError(
+                f'"{self.model_grid}" model grid not found. '
+                + "Currently supported models are: " + str(utils.VALID_MODELS)
             )
 
-            # Grid of surface gravities
-            grid_loggs = np.arange(0.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
-
-        elif self.model_grid == "drift-phoenix":
-            # Only works if the user has already cached the DRIFT-PHOENIX model grid
-            # Grid of effective temperatures
-            grid_teffs = np.arange(1000, 3100, 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([-0.6, -0.3, -0.0, 0.3])
-
-        elif self.model_grid == "nextgen-solar":
-            # Only works if the user has already cached the NextGen model grid
-            # Grid of effective temperatures
-            grid_teffs = np.append(np.arange(1600., 4000., 100), np.arange(4000., 10200., 200))
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(3.0, 6.5, 0.5)
-
-            # Grid of metallicities
-            grid_fehs = np.array([0.0])
-
-        elif self.model_grid == "sphinx":
-            # Only works if the user has already cached the SPHINX model grid
-            # Grid of effective temperatures
-            grid_teffs = np.arange(2000., 4100., 100)
-
-            # Grid of surface gravities
-            grid_loggs = np.arange(4.0, 5.75, 0.25)
-
-            # Grid of metallicities
-            grid_fehs = np.arange(-1, 1.25, 0.25)
+        # Define grid points
+        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        self.grid_teffs = self.grid_points['grid_teffs']
+        self.grid_loggs = self.grid_points['grid_loggs']
+        self.grid_fehs = self.grid_points['grid_fehs']
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
         teff_bds = (
-            grid_teffs[grid_teffs <= teff_bds.min()].max(),
-            grid_teffs[grid_teffs >= teff_bds.max()].min(),
+            self.grid_teffs[self.grid_teffs <= teff_bds.min()].max(),
+            self.grid_teffs[self.grid_teffs >= teff_bds.max()].min(),
         )
         self.teff_bds = teff_bds
 
         logg_bds = np.array(logg_bds)
         logg_bds = (
-            grid_loggs[grid_loggs <= logg_bds.min()].max(),
-            grid_loggs[grid_loggs >= logg_bds.max()].min(),
+            self.grid_loggs[self.grid_loggs >= logg_bds.max()].min(),
+            self.grid_loggs[self.grid_loggs <= logg_bds.min()].max(),
         )
         self.logg_bds = logg_bds
 
         feh_bds = np.array(feh_bds)
         feh_bds = (
-            grid_fehs[grid_fehs <= feh_bds.min()].max(),
-            grid_fehs[grid_fehs >= feh_bds.max()].min(),
+            self.grid_fehs[self.grid_fehs <= feh_bds.min()].max(),
+            self.grid_fehs[self.grid_fehs >= feh_bds.max()].min(),
         )
         self.feh_bds = feh_bds
 
         # Define the values covered in the grid
         subset = np.logical_and(
-            grid_teffs >= self.teff_bds[0], grid_teffs <= self.teff_bds[1]
+            self.grid_teffs >= self.teff_bds[0], self.grid_teffs <= self.teff_bds[1]
         )
-        self.teffs = grid_teffs[subset]
+        self.teffs = self.grid_teffs[subset]
 
         subset = np.logical_and(
-            grid_loggs >= self.logg_bds[0], grid_loggs <= self.logg_bds[1]
+            self.grid_loggs >= self.logg_bds[0], self.grid_loggs <= self.logg_bds[1]
         )
-        self.loggs = grid_loggs[subset]
+        self.loggs = self.grid_loggs[subset]
 
         subset = np.logical_and(
-            grid_fehs >= self.feh_bds[0], grid_fehs <= self.feh_bds[1]
+            self.grid_fehs >= self.feh_bds[0], self.grid_fehs <= self.feh_bds[1]
         )
-        self.fehs = grid_fehs[subset]
+        self.fehs = self.grid_fehs[subset]
 
         # Load the fluxes
         self.center = center
