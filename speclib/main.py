@@ -567,6 +567,13 @@ class Spectrum(Spectrum1D):
             spectral_axis=wave_lib * lib_wave_unit,
             flux=flux * lib_flux_unit,
         )
+        # Ensure spectra are ordered correctly (problem for mps-atlas grid)
+        idx_order = np.argsort(spec.wavelength)
+        spec = Spectrum(
+            spectral_axis=spec.wavelength[idx_order],
+            flux=spec.flux[idx_order]
+        )
+        # Change to default units
         default_wave_unit = u.AA
         default_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
         spec = spec.with_spectral_unit(default_wave_unit)
