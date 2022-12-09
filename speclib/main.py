@@ -303,7 +303,7 @@ class Spectrum(Spectrum1D):
             if not os.path.exists(cache_dir):
                 os.makedirs(cache_dir)
 
-            fname_str = f"lte{teff:05.0f}_{logg:+0.1f}_{feh:+.1f}_NextGen-solar.dat"
+            fname_str = "lte{:05.0f}_{:+0.1f}_{:+.1f}_NextGen-solar.dat"
 
             # Load the wavelength array
             wave_local_path = os.path.join(
@@ -393,8 +393,9 @@ class Spectrum(Spectrum1D):
             if not os.path.exists(cache_dir):
                 os.makedirs(cache_dir)
 
-            CtoO = 0.5  # Not varying this for now
-            fname_str = f"Teff_{teff:04.1f}_logg_{logg:0.2f}_logZ_{feh:+0.2f}_CtoO_{CtoO:0.1f}_spectra.txt"
+            # CtoO = 0.5  # Not varying this for now
+            # fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_{:0.1f}_spectra.txt"
+            fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_0.5_spectra.txt"
 
             # Load the wavelength array
             wave_local_path = os.path.join(
@@ -481,7 +482,7 @@ class Spectrum(Spectrum1D):
             cache_dir = os.path.join(
                 os.path.expanduser("~"), ".speclib/libraries/mps-atlas/"
             )
-            fname_str = f"MH{feh:+0.2f}/teff{teff:4.0f}/logg{logg:0.1f}/mpsa_flux_spectra.dat"
+            fname_str = "MH{:+0.2f}/teff{:4.0f}/logg{:0.1f}/mpsa_flux_spectra.dat"
 
             # Load the wavelength array
             wave_local_path = os.path.join(
