@@ -1,14 +1,17 @@
 import astropy.units as u
 import astropy.io.fits as fits
+import itertools
 import numpy as np
 import os
 import shutil
 import urllib
+from astropy.io import fits
 from contextlib import closing
 from urllib.error import URLError
 
 __all__ = [
     "download_file",
+    "download_phoenix_grid",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -27,6 +30,51 @@ def download_file(remote_path, local_path, verbose=True):
     with closing(urllib.request.urlopen(remote_path)) as r:
         with open(local_path, "wb") as f:
             shutil.copyfileobj(r, f)
+
+
+def download_phoenix_grid(overwrite=False):
+    # Define the remote and local paths
+    ftp_url = "ftp://phoenix.astro.physik.uni-goettingen.de"
+    cache_dir = os.path.join(
+        os.path.expanduser("~"), ".speclib/libraries/phoenix/"
+    )
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    fname_str = (
+        "lte{:05.0f}-{:0.2f}{:+0.1f}."
+        + "PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
+    )
+
+    # Define the parameter space
+    param_combos = list(itertools.product(*GRID_POINTS['phoenix'].values()))
+
+    # Iterate through the parameter space
+    for combo in param_combos:
+        fname = fname_str.format(*combo)
+        local_path = os.path.join(cache_dir, fname)
+        feh_folder = "Z" + fname[13:17]
+        remote_path = os.path.join(
+            ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
+        )
+        # If overwriting, just go ahead and download the file
+        if overwrite:
+            download_file(remote_path, local_path)
+
+        # Otherwise, skip files that already exist locally
+        else:
+            try:
+                _ = fits.getdata(local_path)
+                continue
+
+            # If that doesn't work, download the remote file
+            except FileNotFoundError:
+                try:
+                    download_file(remote_path, local_path)
+                    continue
+
+                # Some low-G models are missing, e.g., lte05400-0.00+1.0...
+                except URLError:
+                    continue
 
 
 def find_bounds(array, value):
