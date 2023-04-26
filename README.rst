@@ -18,6 +18,9 @@ Tools for interfacing with stellar spectral libraries.
 .. image:: https://codecov.io/gh/brackham/speclib/branch/main/graph/badge.svg?token=W13Z9UV2HU
     :target: https://codecov.io/gh/brackham/speclib
     :alt: Code Coverage
+
+.. image:: https://zenodo.org/badge/339518965.svg
+   :target: https://zenodo.org/badge/latestdoi/339518965
     
 * Code: https://github.com/brackham/speclib
 * Docs: https://speclib.readthedocs.io
