@@ -1117,8 +1117,8 @@ class BinnedSpectralGrid(object):
 
         logg_bds = np.array(logg_bds)
         logg_bds = (
-            self.grid_loggs[self.grid_loggs >= logg_bds.max()].min(),
-            self.grid_loggs[self.grid_loggs <= logg_bds.min()].max(),
+            self.grid_loggs[self.grid_loggs >= logg_bds.min()].max(),
+            self.grid_loggs[self.grid_loggs <= logg_bds.max()].min(),
         )
         self.logg_bds = logg_bds
 
