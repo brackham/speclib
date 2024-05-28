@@ -84,14 +84,15 @@ class Spectrum(Spectrum1D):
         if self.model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
                 f'"{self.model_grid}" model grid not found. '
-                + "Currently supported models are: " + str(utils.VALID_MODELS)
+                + "Currently supported models are: "
+                + str(utils.VALID_MODELS)
             )
 
         # Define grid points
         self.grid_points = utils.GRID_POINTS[self.model_grid]
-        self.grid_teffs = self.grid_points['grid_teffs']
-        self.grid_loggs = self.grid_points['grid_loggs']
-        self.grid_fehs = self.grid_points['grid_fehs']
+        self.grid_teffs = self.grid_points["grid_teffs"]
+        self.grid_loggs = self.grid_points["grid_loggs"]
+        self.grid_fehs = self.grid_points["grid_fehs"]
 
         if self.model_grid == "phoenix":
             lib_wave_unit = u.AA
@@ -216,9 +217,7 @@ class Spectrum(Spectrum1D):
                 feh = -0.0
 
             # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "lte_1000_3.0-0.0.7.dat.txt"
-            )
+            wave_local_path = os.path.join(cache_dir, "lte_1000_3.0-0.0.7.dat.txt")
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
             teff_in_grid = teff in self.grid_teffs
@@ -478,7 +477,9 @@ class Spectrum(Spectrum1D):
         elif self.model_grid == "mps-atlas":
             # Only works if the user has already cached the MPS-Atlas model grid
             lib_wave_unit = u.nm
-            lib_flux_unit = u.Unit('erg / (s * cm^2 * Hz^1)') * (u.AU / u.R_sun).cgs**2
+            lib_flux_unit = (
+                u.Unit("erg / (s * cm^2 * Hz^1)") * (u.AU / u.R_sun).cgs ** 2
+            )
             cache_dir = os.path.join(
                 os.path.expanduser("~"), ".speclib/libraries/mps-atlas/"
             )
@@ -570,13 +571,12 @@ class Spectrum(Spectrum1D):
         # Ensure spectra are ordered correctly (problem for mps-atlas grid)
         idx_order = np.argsort(spec.wavelength)
         spec = Spectrum(
-            spectral_axis=spec.wavelength[idx_order],
-            flux=spec.flux[idx_order]
+            spectral_axis=spec.wavelength[idx_order], flux=spec.flux[idx_order]
         )
         # Change to default units
         default_wave_unit = u.AA
         default_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
-        spec = spec.with_spectral_unit(default_wave_unit)
+        spec = spec.with_spectral_axis_unit(default_wave_unit)
         spec = spec.new_flux_unit(default_flux_unit)
 
         # Crop to wavelength min and max, if given
@@ -610,7 +610,7 @@ class Spectrum(Spectrum1D):
              A resampled spectrum.
         """
         if taper:
-            force = 'taper'
+            force = "taper"
         else:
             force = None
         # Convert wavelengths arrays to same unit
@@ -839,14 +839,15 @@ class SpectralGrid(object):
         if self.model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
                 f'"{self.model_grid}" model grid not found. '
-                + "Currently supported models are: " + str(utils.VALID_MODELS)
+                + "Currently supported models are: "
+                + str(utils.VALID_MODELS)
             )
 
         # Define grid points
         self.grid_points = utils.GRID_POINTS[self.model_grid]
-        self.grid_teffs = self.grid_points['grid_teffs']
-        self.grid_loggs = self.grid_points['grid_loggs']
-        self.grid_fehs = self.grid_points['grid_fehs']
+        self.grid_teffs = self.grid_points["grid_teffs"]
+        self.grid_loggs = self.grid_points["grid_loggs"]
+        self.grid_fehs = self.grid_points["grid_fehs"]
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
@@ -1098,14 +1099,15 @@ class BinnedSpectralGrid(object):
         if self.model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
                 f'"{self.model_grid}" model grid not found. '
-                + "Currently supported models are: " + str(utils.VALID_MODELS)
+                + "Currently supported models are: "
+                + str(utils.VALID_MODELS)
             )
 
         # Define grid points
         self.grid_points = utils.GRID_POINTS[self.model_grid]
-        self.grid_teffs = self.grid_points['grid_teffs']
-        self.grid_loggs = self.grid_points['grid_loggs']
-        self.grid_fehs = self.grid_points['grid_fehs']
+        self.grid_teffs = self.grid_points["grid_teffs"]
+        self.grid_loggs = self.grid_points["grid_loggs"]
+        self.grid_fehs = self.grid_points["grid_fehs"]
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
