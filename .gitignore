@@ -124,5 +124,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Dropbox
-*.DS_Store
+# IDEs
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
