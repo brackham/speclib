@@ -1,0 +1,2 @@
+# MANIFEST.in
+recursive-include src/speclib/data/filters *
