@@ -40,6 +40,11 @@ include = [
   "src/speclib/data/filters/*"
 ]
 
+[tool.poetry.group.dev.dependencies]
+sphinx = "<8.0.0"
+furo = "^2024.8.6"
+myst-parser = "<4.0.0"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
