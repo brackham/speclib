@@ -1,17 +1,35 @@
 import astropy.units as u
 import astropy.io as io
 import numpy as np
-import os
+from importlib.resources import files
 
-from . import PACKAGEDIR
-from .main import Spectrum
+from .core import Spectrum
 from .utils import interpolate
 
 __all__ = ["Filter", "SED", "SEDGrid", "apply_filter", "mag_to_flux"]
 
 
 class Filter(object):
-    """A filter."""
+    """
+    A photometric filter.
+
+    Loads filter metadata and response curve from local ECSV and text files.
+
+    Attributes
+    ----------
+    name : str
+        Name of the filter.
+    wl_eff : `~astropy.units.Quantity`
+        Effective wavelength of the filter.
+    bandwidth : `~astropy.units.Quantity`
+        Bandwidth of the filter.
+    zeropoint_flux : `~astropy.units.Quantity`
+        Zeropoint flux of the filter.
+    zeropoint_flux_err : `~astropy.units.Quantity`
+        Error on the zeropoint flux.
+    response : `~speclib.Spectrum`
+        Filter response curve as a spectrum.
+    """
 
     def __init__(self, name):
         self.name = name
@@ -20,14 +38,15 @@ class Filter(object):
         self.bandwidth = data["bandwidth"].quantity[0]
         self.zeropoint_flux = data["zeropoint_flux"].quantity[0]
         self.zeropoint_flux_err = data["zeropoint_flux_err"].quantity[0]
-        self.response_file = os.path.join(
-            PACKAGEDIR, "data/filters/", data["response_file"][0]
-        )
-        self.response = self._load_response(self.response_file)
+        response_file = data["response_file"][0]
+        response_path = files("speclib.data.filters") / response_file
+        self.response = self._load_response(response_path)
+
 
     def _get_filter_data(self, name):
-        file_path = os.path.join(PACKAGEDIR, "data/filters/filters.ecsv")
-        filters = io.ascii.read(file_path)
+        """Return the row of filter metadata corresponding to the given name."""
+        filters_path = files("speclib.data.filters") / "filters.ecsv"
+        filters = io.ascii.read(filters_path)
         good = filters["name"] == name
         if not good.sum():
             raise ValueError(f"'{name}' not recognized.")
@@ -36,6 +55,7 @@ class Filter(object):
         return data
 
     def _load_response(self, response_file):
+        """Load the filter response curve from a text file."""
         wave, trans = np.loadtxt(response_file, unpack=True)
         response = Spectrum(
             spectral_axis=wave * u.AA, flux=trans * u.dimensionless_unscaled
@@ -45,10 +65,24 @@ class Filter(object):
 
     @u.quantity_input(wavelength=u.AA)
     def resample(self, wavelength, taper=True):
+        """Resample the filter response curve onto a new wavelength grid."""
         self.response = self.response.resample(wavelength, taper=taper)
 
 
 class SED(object):
+    """
+    A spectral energy distribution derived from a spectrum and a set of filters.
+
+    Attributes
+    ----------
+    wavelength : `~astropy.units.Quantity`
+        Effective wavelengths of the filters.
+    bandwidth : `~astropy.units.Quantity`
+        Bandwidths of the filters.
+    flux : `~astropy.units.Quantity`
+        Filtered fluxes.
+    """
+
     def __init__(self, spec, filters, model_grid="phoenix"):
         wavelength = []
         bandwidth = []
@@ -65,6 +99,26 @@ class SED(object):
 
     @classmethod
     def from_grid(self, teff, logg, feh, filters, model_grid="phoenix"):
+        """
+        Create an SED from a stellar model grid.
+
+        Parameters
+        ----------
+        teff : float
+            Effective temperature [K]
+        logg : float
+            Surface gravity [cgs]
+        feh : float
+            Metallicity [Fe/H]
+        filters : list
+            List of `~speclib.Filter` objects
+        model_grid : str
+            Name of model grid (default 'phoenix')
+
+        Returns
+        -------
+        `~speclib.SED`
+        """
         spec = Spectrum.from_grid(teff, logg, feh, model_grid=model_grid)
         sed = SED(spec, filters, model_grid)
 
@@ -313,6 +367,21 @@ class SEDGrid(object):
 
 
 def apply_filter(spec, filt):
+    """
+    Apply a photometric filter to a spectrum.
+
+    Parameters
+    ----------
+    spec : `~speclib.Spectrum`
+        The input spectrum.
+    filt : `~speclib.Filter`
+        The filter object.
+
+    Returns
+    -------
+    flux : `~astropy.units.Quantity`
+        Filtered flux.
+    """
     try:
         filtered_flux = spec.flux * filt.response.flux
     except ValueError:
@@ -324,6 +393,27 @@ def apply_filter(spec, filt):
 
 
 def mag_to_flux(mag, filt, mag_err=0, nsamples=100000):
+    """
+    Convert magnitude to flux using a filter zeropoint and propagate uncertainty.
+
+    Parameters
+    ----------
+    mag : float
+        Apparent magnitude.
+    filt : `~speclib.Filter`
+        The filter.
+    mag_err : float, optional
+        Uncertainty on the magnitude.
+    nsamples : int, optional
+        Number of Monte Carlo samples (default 100,000).
+
+    Returns
+    -------
+    mean : `~astropy.units.Quantity`
+        Mean flux.
+    std : `~astropy.units.Quantity`
+        Standard deviation of the flux.
+    """
     zp = filt.zeropoint_flux
     zp_err = filt.zeropoint_flux_err
 

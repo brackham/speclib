@@ -1,9 +1,17 @@
-Documentation
-=============
-
-This is the documentation for speclib.
+.. speclib documentation master file
+Welcome to speclib's documentation!
+===================================
 
 .. toctree::
-  :maxdepth: 2
+   :maxdepth: 2
+   :caption: Contents:
 
-  speclib/index.rst
+   usage
+
+API Reference
+-------------
+
+.. automodule:: speclib
+   :members:
+   :undoc-members:
+   :show-inheritance:
