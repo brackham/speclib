@@ -26,7 +26,12 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "black"]
+dev = [
+  "pytest",
+  "black",
+  "furo",
+  "myst-parser",
+]
 
 [project.urls]
 Homepage = "https://github.com/brackham/speclib"
