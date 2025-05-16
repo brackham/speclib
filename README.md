@@ -26,7 +26,7 @@ pip install git+https://github.com/brackham/speclib.git
 
 ## Requirements
 
-* Python ≥ 3.11
+* Python 3.9 to 3.11
 * [astropy](https://www.astropy.org/)
 * [specutils](https://specutils.readthedocs.io/)
 * [pysynphot](https://pysynphot.readthedocs.io/)
