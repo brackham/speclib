@@ -1,34 +1,45 @@
-[tool.poetry]
-name = "speclib"
-version = "0.1.0"
-description = "Tools for working with stellar spectral libraries."
-authors = ["Benjamin V. Rackham"]
-license = "MIT"
-readme = "README.md"
-packages = [{ include = "speclib", from = "src" }]
-homepage = "https://github.com/brackham/speclib"
-repository = "https://github.com/brackham/speclib"
-keywords = ["astronomy", "spectra", "stellar libraries"]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-
-[[tool.poetry.include]]
-path = "src/speclib/data/filters"
-format = "sdist"
-
-[tool.poetry.dependencies]
-python = ">=3.9,<3.12"
-astropy = ">=5.2.2,<6.0.0"
-specutils = ">=1.9.1,<1.10.0"
-pysynphot = ">=2.0.0,<3.0.0"
-numpy = "<2.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "*"
-
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "speclib"
+version = "0.1.0"
+description = "Tools for working with stellar spectral libraries."
+authors = [
+  { name = "Benjamin V. Rackham" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9,<3.12"
+dependencies = [
+  "astropy>=5.2.2,<6.0.0",
+  "specutils>=1.9.1,<1.10.0",
+  "pysynphot>=2.0.0,<3.0.0",
+  "numpy<2.0"
+]
+keywords = ["astronomy", "spectra", "stellar libraries"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "black"]
+
+[project.urls]
+Homepage = "https://github.com/brackham/speclib"
+Repository = "https://github.com/brackham/speclib"
+
+[tool.poetry]
+packages = [
+  { include = "speclib", from = "src" }
+]
+include = [
+  "src/speclib/data/filters/*"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
