@@ -16,10 +16,19 @@ __all__ = ["Spectrum", "BinnedSpectrum", "SpectralGrid", "BinnedSpectralGrid"]
 
 class Spectrum(Spectrum1D):
     """
-    A wrapper class for `~spectutils.spectrum1d.Spectrum1D`.
+    A wrapper class for `~specutils.Spectrum1D` with extended functionality for
+    working with stellar model spectra.
 
-    New functionality added to load spectra from a model grid,
-    resample spectra quickly using `~pysynphot`, and bin spectra.
+    This class adds capabilities to:
+    - Load and interpolate spectra from various model grids
+    - Resample spectra using `pysynphot` to conserve flux
+    - Convolve spectra to lower resolution
+    - Bin spectra into custom wavelength intervals
+
+    Parameters
+    ----------
+    **kwargs : dict
+        Arguments passed to the base `Spectrum1D` initializer.
 
     Methods
     -------
@@ -733,7 +742,9 @@ class Spectrum(Spectrum1D):
 
 class BinnedSpectrum(object):
     """
-    A binned spectrum.
+    Represents a spectrum that has been binned into specified wavelength intervals.
+
+    Useful for simulating photometric measurements or spectral channels.
 
     Attributes
     ----------
@@ -776,7 +787,10 @@ class BinnedSpectrum(object):
 
 class SpectralGrid(object):
     """
-    A grid of spectra for quick interpolation.
+    Represents a multi-dimensional grid of synthetic spectra from a model library.
+
+    Provides fast access to preloaded spectra and supports trilinear interpolation
+    in (Teff, logg, [Fe/H]) space.
 
     Attributes
     ----------
@@ -1034,7 +1048,9 @@ class SpectralGrid(object):
 
 class BinnedSpectralGrid(object):
     """
-    A grid of binned spectra for quick interpolation.
+    Represents a multi-dimensional grid of binned spectra from a model library.
+
+    Supports trilinear interpolation over the parameter space.
 
     Attributes
     ----------
