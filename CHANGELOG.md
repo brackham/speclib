@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+
+## [0.1.0-beta.2] – 2025-05-23
+
+### Added
+- ✅ Support for loading **PHOENIX NewEra model spectra** via `Spectrum.from_grid(model_grid="newera")`
+- 📥 Utility function `download_newera_grid()` to selectively download subsets of the NewEra model grid
+- 🎯 Filtering options for `teff_range`, `logg_range`, `feh_range`, and `alpha_range` in `download_newera_grid()`
+- ⚠️ Warning raised when attempting to download the full grid (~4.5 TB)
+
+### Changed
+- 🔧 Improved verbosity and error handling for model downloads
+
+---
+
 ## \[0.1.0-beta.1] - 2024-05-16
 
 ### Added

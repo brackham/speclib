@@ -51,11 +51,13 @@ class Spectrum(Spectrum1D):
         teff,
         logg,
         feh=0,
+        alpha=0.0,
         # CtoO=0.5,
         wavelength=None,
         wl_min=None,
         wl_max=None,
         model_grid="phoenix",
+        verbose=False,
     ):
         """
         Load a model spectrum from a library.
@@ -133,7 +135,7 @@ class Spectrum(Spectrum1D):
                 wave_remote_path = os.path.join(
                     ftp_url, "HiResFITS", "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
                 )
-                utils.download_file(wave_remote_path, wave_local_path)
+                utils.download_file(wave_remote_path, wave_local_path, verbose)
                 wave_lib = fits.getdata(wave_local_path)
 
             teff_in_grid = teff in self.grid_teffs
@@ -207,6 +209,73 @@ class Spectrum(Spectrum1D):
                 # Load the flux array
                 fname = fname_str.format(teff, logg, feh)
                 flux = utils.load_flux_array(fname, cache_dir, ftp_url)
+
+        elif self.model_grid == "newera":
+            import h5py
+
+            lib_wave_unit = u.AA
+            lib_flux_unit = u.Unit("erg / (s * cm^3)")
+            cache_dir = os.path.join(
+                os.path.expanduser("~"), ".speclib/libraries/newera/"
+            )
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+
+            # Ensure feh is float-compatible with naming convention
+            if feh == 0:
+                feh = -0.0
+
+            # Define bounds
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
+            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
+            use_alpha = feh >= -2.0 and feh <= 0.0 and alpha_in_grid
+
+            def load_flux_from_h5(teff_, logg_, feh_, alpha_=0.0):
+                local_path = utils.download_newera_file(
+                    teff_, logg_, feh_, alpha_, cache_dir=cache_dir
+                )
+                with h5py.File(local_path, "r") as h5:
+                    # Wavelengths in vacuum Ångströms
+                    wl = h5["PHOENIX_SPECTRUM/wl"][:]
+
+                    # Flux is log10(F_lambda) in erg / (s cm² cm)
+                    log_flux = h5["PHOENIX_SPECTRUM/flux"][:]
+                    flux_per_cm = 10**log_flux
+
+                return wl, flux_per_cm
+
+            if not model_in_grid:
+                teff_bds = utils.find_bounds(self.grid_teffs, teff)
+                logg_bds = utils.find_bounds(self.grid_loggs, logg)
+                feh_bds = utils.find_bounds(self.grid_fehs, feh)
+
+                c000_wl, c000 = load_flux_from_h5(
+                    teff_bds[0], logg_bds[0], feh_bds[0], alpha
+                )
+                _, c100 = load_flux_from_h5(teff_bds[1], logg_bds[0], feh_bds[0], alpha)
+                _, c010 = load_flux_from_h5(teff_bds[0], logg_bds[1], feh_bds[0], alpha)
+                _, c110 = load_flux_from_h5(teff_bds[1], logg_bds[1], feh_bds[0], alpha)
+                _, c001 = load_flux_from_h5(teff_bds[0], logg_bds[0], feh_bds[1], alpha)
+                _, c101 = load_flux_from_h5(teff_bds[1], logg_bds[0], feh_bds[1], alpha)
+                _, c011 = load_flux_from_h5(teff_bds[0], logg_bds[1], feh_bds[1], alpha)
+                _, c111 = load_flux_from_h5(teff_bds[1], logg_bds[1], feh_bds[1], alpha)
+
+                c00 = utils.interpolate([c000, c100], teff_bds, teff)
+                c10 = utils.interpolate([c010, c110], teff_bds, teff)
+                c01 = utils.interpolate([c001, c101], teff_bds, teff)
+                c11 = utils.interpolate([c011, c111], teff_bds, teff)
+
+                c0 = utils.interpolate([c00, c10], logg_bds, logg)
+                c1 = utils.interpolate([c01, c11], logg_bds, logg)
+
+                flux = utils.interpolate([c0, c1], feh_bds, feh)
+                wave_lib = c000_wl  # All wavelength arrays should be identical
+
+            else:
+                wave_lib, flux = load_flux_from_h5(teff, logg, feh, alpha)
 
         elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
@@ -587,7 +656,7 @@ class Spectrum(Spectrum1D):
         default_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
         spec = Spectrum(
             spectral_axis=spec.spectral_axis.to(default_wave_unit),
-            flux=spec.flux.to(default_flux_unit)
+            flux=spec.flux.to(default_flux_unit),
         )
 
         # Crop to wavelength min and max, if given
