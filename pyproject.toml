@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "speclib"
-version = "0.1.0-beta1"
+version = "0.1.0-beta.2"
 description = "Tools for working with stellar spectral libraries."
 authors = [
   { name = "Benjamin V. Rackham" }
