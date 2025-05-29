@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0-beta.3] - 2025-05-28
+
+### Added
+- Option to disable interpolation in `SpectralGrid`, `BinnedSpectralGrid`, and `SEDGrid` via `interpolate=False`.
+- Tests for nearest-neighbor retrieval.
+- Test to ensure `speclib.__version__` matches the version in `pyproject.toml`.
+
+### Changed
+- `__version__` is now read from `pyproject.toml` using `importlib.metadata`.
+
+---
 
 ## [0.1.0-beta.2] – 2025-05-23
 
