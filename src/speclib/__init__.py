@@ -2,7 +2,12 @@
 speclib: Tools for working with stellar spectral libraries.
 """
 
-__version__ = "0.1.0"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("speclib")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 from .core import Spectrum, BinnedSpectrum, SpectralGrid, BinnedSpectralGrid
 from .photometry import Filter, SED, SEDGrid, apply_filter, mag_to_flux
