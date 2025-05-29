@@ -57,6 +57,7 @@ class Spectrum(Spectrum1D):
         wl_min=None,
         wl_max=None,
         model_grid="phoenix",
+        interpolate=True,
         verbose=False,
     ):
         """
@@ -84,6 +85,11 @@ class Spectrum(Spectrum1D):
 
         model_grid : str, optional
             Name of the model grid. Only `phoenix` is currently supported.
+
+        interpolate : bool, optional
+            Whether to interpolate between grid points. If `True` (default), the spectrum
+            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            the nearest available grid point will be used without interpolation.
 
         Returns
         -------
@@ -142,6 +148,11 @@ class Spectrum(Spectrum1D):
             logg_in_grid = logg in self.grid_loggs
             feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            if not interpolate and not model_in_grid:
+                teff = utils.nearest(self.grid_teffs, teff)
+                logg = utils.nearest(self.grid_loggs, logg)
+                feh = utils.nearest(self.grid_fehs, feh)
+                model_in_grid = True  # force nearest model retrieval
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
@@ -998,7 +1009,7 @@ class SpectralGrid(object):
         # Save the wavelength array
         self.wavelength = spec.wavelength
 
-    def get_spectrum(self, teff, logg, feh, interp=True):
+    def get_spectrum(self, teff, logg, feh, interpolate=True):
         """
         Parameters
         ----------
@@ -1011,8 +1022,10 @@ class SpectralGrid(object):
         feh : float
             [Fe/H] of the model.
 
-        interp : boolean
-            Interpolate between the grid points. Defaults to `True`.
+        interpolate : bool, optional
+            Whether to interpolate between grid points. If `True` (default), the spectrum
+            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            the nearest available grid point will be used without interpolation.
 
         Returns
         -------
@@ -1038,7 +1051,7 @@ class SpectralGrid(object):
             raise ValueError(message)
 
         # If not interpolating, then just return the closest point in the grid.
-        if not interp:
+        if not interpolate:
             teff = utils.nearest(self.teffs, teff)
             logg = utils.nearest(self.loggs, logg)
             feh = utils.nearest(self.fehs, feh)
@@ -1252,7 +1265,7 @@ class BinnedSpectralGrid(object):
                     fluxes[teff][logg][feh] = bs.flux
         self.fluxes = fluxes
 
-    def get_spectrum(self, teff, logg, feh):
+    def get_spectrum(self, teff, logg, feh, interpolate=True):
         """
         Parameters
         ----------
@@ -1264,6 +1277,11 @@ class BinnedSpectralGrid(object):
 
         feh : float
             [Fe/H] of the model.
+
+        interpolate : bool, optional
+            Whether to interpolate between grid points. If `True` (default), the spectrum
+            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            the nearest available grid point will be used without interpolation.
 
         Returns
         -------
@@ -1288,6 +1306,15 @@ class BinnedSpectralGrid(object):
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
 
+        # If not interpolating, then just return the closest point in the grid.
+        if not interpolate:
+            teff = utils.nearest(self.teffs, teff)
+            logg = utils.nearest(self.loggs, logg)
+            feh = utils.nearest(self.fehs, feh)
+
+            return self.fluxes[teff][logg][feh]
+
+        # Otherwise, interpolate:
         # Identify nearest values in grid
         flanking_teffs = (
             self.teffs[self.teffs <= teff].max(),
