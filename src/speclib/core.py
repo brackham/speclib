@@ -84,7 +84,10 @@ class Spectrum(Spectrum1D):
             Maximium wavelength of the model spectrum.
 
         model_grid : str, optional
-            Name of the model grid. Only `phoenix` is currently supported.
+            Name of the model grid.
+
+        verbose: bool, optional
+            Print details for debugging.
 
         interpolate : bool, optional
             Whether to interpolate between grid points. If `True` (default), the spectrum
@@ -287,6 +290,56 @@ class Spectrum(Spectrum1D):
 
             else:
                 wave_lib, flux = load_flux_from_h5(teff, logg, feh, alpha)
+
+        elif self.model_grid in ["newera_gaia", "newera_jwst", "newera_lowres"]:
+            grid_name = self.model_grid
+            lib_wave_unit = u.nm
+            lib_flux_unit = u.W / (u.m**2 * u.nm)
+
+            teff_in_grid = teff in self.grid_teffs
+            logg_in_grid = logg in self.grid_loggs
+            feh_in_grid = feh in self.grid_fehs
+            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
+
+            def load_flux(teff_, logg_, feh_, alpha_=0.0):
+                return utils.load_newera_flux_array(
+                    teff_, logg_, feh_, alpha_, grid_name
+                )
+
+            def load_wave(teff_, logg_, feh_, alpha_=0.0):
+                return utils.load_newera_wavelength_array(
+                    teff_, logg_, feh_, alpha_, grid_name
+                )
+
+            if not model_in_grid:
+                teff_bds = utils.find_bounds(self.grid_teffs, teff)
+                logg_bds = utils.find_bounds(self.grid_loggs, logg)
+                feh_bds = utils.find_bounds(self.grid_fehs, feh)
+
+                wave_lib = load_wave(teff_bds[0], logg_bds[0], feh_bds[0], alpha)
+                c000 = load_flux(teff_bds[0], logg_bds[0], feh_bds[0], alpha)
+                c100 = load_flux(teff_bds[1], logg_bds[0], feh_bds[0], alpha)
+                c010 = load_flux(teff_bds[0], logg_bds[1], feh_bds[0], alpha)
+                c110 = load_flux(teff_bds[1], logg_bds[1], feh_bds[0], alpha)
+                c001 = load_flux(teff_bds[0], logg_bds[0], feh_bds[1], alpha)
+                c101 = load_flux(teff_bds[1], logg_bds[0], feh_bds[1], alpha)
+                c011 = load_flux(teff_bds[0], logg_bds[1], feh_bds[1], alpha)
+                c111 = load_flux(teff_bds[1], logg_bds[1], feh_bds[1], alpha)
+
+                c00 = utils.interpolate([c000, c100], teff_bds, teff)
+                c10 = utils.interpolate([c010, c110], teff_bds, teff)
+                c01 = utils.interpolate([c001, c101], teff_bds, teff)
+                c11 = utils.interpolate([c011, c111], teff_bds, teff)
+
+                c0 = utils.interpolate([c00, c10], logg_bds, logg)
+                c1 = utils.interpolate([c01, c11], logg_bds, logg)
+
+                flux = utils.interpolate([c0, c1], feh_bds, feh)
+
+            else:
+                wave_lib = load_wave(teff, logg, feh, alpha)
+                flux = load_flux(teff, logg, feh, alpha)
 
         elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
@@ -928,7 +981,7 @@ class SpectralGrid(object):
             The spectral resolution.
 
         model_grid : str, optional
-            Name of the model grid. Only `phoenix` is currently supported.
+            Name of the model grid.
         """
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
@@ -991,7 +1044,11 @@ class SpectralGrid(object):
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
                     spec = Spectrum.from_grid(
-                        teff, logg, feh, model_grid=self.model_grid, **kwargs
+                        teff,
+                        logg,
+                        feh,
+                        model_grid=self.model_grid,
+                        **kwargs,
                     )
 
                     # Set spectral resolution if specified

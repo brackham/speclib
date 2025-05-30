@@ -42,7 +42,6 @@ class Filter(object):
         response_path = files("speclib.data.filters") / response_file
         self.response = self._load_response(response_path)
 
-
     def _get_filter_data(self, name):
         """Return the row of filter metadata corresponding to the given name."""
         filters_path = files("speclib.data.filters") / "filters.ecsv"

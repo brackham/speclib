@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "speclib"
-version = "0.1.0-beta.3"
+version = "0.1.0-beta.4"
 description = "Tools for working with stellar spectral libraries."
 authors = [
   { name = "Benjamin V. Rackham" }
@@ -18,6 +18,8 @@ dependencies = [
   "pysynphot>=2.0.0,<3.0.0",
   "numpy<2.0",
   "h5py (>=3.13.0,<4.0.0)",
+  "pooch (>=1.8.2,<2.0.0)",
+  "tqdm (>=4.67.1,<5.0.0)",
 ]
 keywords = ["astronomy", "spectra", "stellar libraries"]
 classifiers = [
