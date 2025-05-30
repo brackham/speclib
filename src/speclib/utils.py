@@ -1,12 +1,17 @@
 import astropy.units as u
 import astropy.io.fits as fits
+import io
 import itertools
 import numpy as np
 import os
+import pooch
 import shutil
+import tarfile
 import urllib
+import warnings
 from astropy.io import fits
 from contextlib import closing
+from pathlib import Path
 from urllib.error import URLError
 
 __all__ = [
@@ -15,6 +20,7 @@ __all__ = [
     "find_bounds",
     "interpolate",
     "load_flux_array",
+    "load_gaia_format_spectrum",
     "nearest",
     "vac2air",
     "air2vac",
@@ -46,6 +52,110 @@ def download_newera_file(
         download_file(url, local_path, verbose=verbose)
 
     return local_path
+
+
+def download_newera_grid(
+    grid_name: str, extract: bool = True, overwrite: bool = False
+) -> Path:
+    """
+    Download and extract a NewEra tarball if not already cached.
+
+    Parameters
+    ----------
+    grid_name : str
+        One of "newera_gaia", "newera_lowres", or "newera_jwst".
+    extract : bool, optional
+        If True, extract the tarball after download. Default is True.
+    overwrite : bool, optional
+        If True, force re-download of the tarball even if already present. Default is False.
+
+    Returns
+    -------
+    Path
+        Path to the extracted directory (e.g., ~/.speclib/libraries/newera_jwst).
+
+    Note
+    ----
+    This function fetches reduced-resolution NewEra grids from published `.tar.gz` archives,
+    suitable for most applications (e.g., forward modeling, calibration).
+    """
+    NEWERA_FILES = {
+        "newera_gaia": "NewEra_for_GAIA_DR4.tar",
+        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA.tar.gz",
+        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA.tar.gz",
+    }
+
+    NEWERA_URLS = {
+        "newera_gaia": "https://www.fdr.uni-hamburg.de/record/17156/files/NewEra_for_GAIA_DR4.tar?download=1",
+        "newera_lowres": "https://www.fdr.uni-hamburg.de/record/17156/files/PHOENIX-NewEra-LowRes-SPECTRA.tar.gz?download=1",
+        "newera_jwst": "https://www.fdr.uni-hamburg.de/record/17156/files/PHOENIX-NewEra-JWST-SPECTRA.tar.gz?download=1",
+    }
+
+    NEWERA_HASHES = {
+        "newera_gaia": "26f788339bc34f972a30150bcdbd2db179baed7a5158ea050b04c48d39d05153",
+        "newera_jwst": "fa2cb3df4cda39672093a7a0f3aa5366a70d1d8d9fc6e84b2d9a020c63ccb645",
+        "newera_lowres": "44276e3db8c7062a4bc4de06a3e0909e925c684f45f5d2c790065b1e4330a306",
+    }
+
+    if grid_name not in NEWERA_FILES:
+        raise ValueError(
+            f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_FILES.keys())}"
+        )
+
+    filename = NEWERA_FILES[grid_name]
+    url = NEWERA_URLS[grid_name]
+    known_hash = NEWERA_HASHES[grid_name]
+
+    # Cache location: ~/.speclib/libraries/{grid_name}/
+    cache_dir = Path.home() / ".speclib" / "libraries" / grid_name
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    tar_path = cache_dir / filename
+
+    # Delete tarball if overwrite requested
+    if overwrite and tar_path.exists():
+        print(f"🔁 Overwriting existing tarball: {tar_path.name}")
+        tar_path.unlink()
+
+    # Download if not already present
+    if not tar_path.exists():
+        print(f"⬇ Downloading {filename} from {url}")
+        tar_path = pooch.retrieve(
+            url=url,
+            fname=filename,
+            path=cache_dir,
+            known_hash=known_hash,
+            processor=None,
+            progressbar=True,
+        )
+    else:
+        print(f"✅ Tarball already present: {tar_path.name}")
+
+    # Extract tarball if needed
+    if extract:
+        print(f"🗂 Extracting archive to: {cache_dir}")
+        extract_missing_txt_files(tar_path, cache_dir)
+
+    return cache_dir
+
+
+def extract_missing_txt_files(tar_path: Path, extract_dir: Path) -> None:
+    """
+    Extract only missing .txt files from a tarball into extract_dir.
+
+    Parameters
+    ----------
+    tar_path : Path
+        Path to the tar archive.
+    extract_dir : Path
+        Directory to extract into.
+    """
+    with tarfile.open(tar_path, "r:*") as tar:
+        for member in tar.getmembers():
+            if member.name.endswith(".txt"):
+                target_file = extract_dir / Path(member.name).name
+                if not target_file.exists():
+                    print(f"📦 Extracting: {member.name}")
+                    tar.extract(member, path=extract_dir)
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -101,7 +211,7 @@ def download_phoenix_grid(overwrite=False):
                     continue
 
 
-def download_newera_grid(
+def download_newera_hsr_subset(
     teff_range=None,
     logg_range=None,
     feh_range=None,
@@ -126,6 +236,11 @@ def download_newera_grid(
         Whether to overwrite files that already exist locally.
     verbose : bool
         Whether to print download progress and errors.
+
+    Warning
+    -------
+    This function accesses the **full-resolution NewEra HSR grid**, which totals ~4.5 TB.
+    Use only when you need high-resolution spectra over specific parameter ranges.
     """
     import itertools
     import os
@@ -250,6 +365,200 @@ def load_flux_array(fname, cache_dir, ftp_url):
     return flux
 
 
+def load_newera_wavelength_array(
+    teff, logg, z, alpha=0.0, grid_name="newera_jwst", library_root=None
+):
+    """
+    Load the wavelength array from a GAIA-format NewEra spectrum file,
+    matching the given Teff and logg within a file specified by Z and alpha.
+
+    Parameters
+    ----------
+    teff : float
+        Effective temperature (K).
+    logg : float
+        Log surface gravity (dex).
+    z : float
+        Metallicity as mass fraction (e.g., 0.0).
+    alpha : float, optional
+        Alpha enhancement (e.g., 0.2).
+    grid_name : str, optional
+        One of "newera_gaia", "newera_jwst", or "newera_lowres".
+    library_root : str or Path, optional
+        Path to the base `.speclib/libraries/` directory.
+        Defaults to ~/.speclib/libraries/.
+
+    Returns
+    -------
+    np.ndarray
+        Wavelength values in nanometers (unitless NumPy array).
+
+    Raises
+    ------
+    FileNotFoundError
+        If the expected file is missing.
+    ValueError
+        If a valid header is not found.
+    """
+    if not np.isclose(alpha, 0.0):
+        warnings.warn(
+            f"Alpha-enhanced models (alpha={alpha}) are not yet supported for grid '{grid_name}'. "
+            "Behavior may be unreliable or fail.",
+            UserWarning,
+        )
+    if library_root is None:
+        library_root = Path.home() / ".speclib" / "libraries"
+    else:
+        library_root = Path(library_root)
+
+    if grid_name not in ["newera_gaia", "newera_jwst", "newera_lowres"]:
+        raise ValueError(f"Invalid grid_name '{grid_name}'")
+
+    grid_dir = library_root / grid_name
+
+    # Construct file name
+    prefix = {
+        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+    }[grid_name]
+
+    # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
+    z_str = "Z-0.0" if np.isclose(z, 0.0) else f"Z{z:+.1f}"
+
+    # Format alpha string
+    if np.isclose(alpha, 0.0):
+        fname = f"{prefix}.{z_str}.txt"
+    else:
+        alpha_str = f"alpha={alpha:.1f}"
+        fname = f"{prefix}.{z_str}.{alpha_str}.txt"
+
+    filepath = grid_dir / fname
+
+    if not filepath.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    with open(filepath, "r") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            header = np.loadtxt(io.StringIO(line), dtype="S41")
+            try:
+                header_teff = float(header[12])
+                header_logg = float(header[13])
+            except Exception:
+                continue
+
+            if np.isclose(header_teff, teff, atol=1.0) and np.isclose(
+                header_logg, logg, atol=0.1
+            ):
+                res = float(header[7])
+                wl_start = float(header[9])
+                wl_end = float(header[10])
+                nwl = int(header[8])
+                wl = np.linspace(
+                    wl_start, wl_end, num=int((wl_end - wl_start) / res) + 1
+                )
+                if wl.shape[0] != nwl:
+                    raise ValueError(
+                        f"Wavelength point mismatch: header says {nwl}, got {wl.shape[0]}"
+                    )
+                return wl
+
+            # Skip the corresponding flux line
+            f.readline()
+
+    raise ValueError(f"No matching spectrum found in file for Teff={teff}, logg={logg}")
+
+
+def load_newera_flux_array(
+    teff, logg, z, alpha=0.0, grid_name="newera_jwst", library_root=None
+):
+    """
+    Load a flux array from a bundled GAIA-format NewEra spectrum file,
+    matching the given Teff and logg within a file specified by Z and alpha.
+
+    Parameters
+    ----------
+    teff : float
+        Effective temperature (K).
+    logg : float
+        Log surface gravity (dex).
+    z : float
+        Metallicity as mass fraction (e.g., 0.0).
+    alpha : float, optional
+        Alpha enhancement (e.g., 0.2).
+    grid_name : str, optional
+        One of "newera_gaia", "newera_jwst", or "newera_lowres".
+    library_root : str or Path, optional
+        Path to the base `.speclib/libraries/` directory.
+        Defaults to ~/.speclib/libraries/.
+
+    Returns
+    -------
+    np.ndarray
+        Flux values (unitless NumPy array). Fluxes are in W/m^2/nm.
+
+    Raises
+    ------
+    ValueError
+        If no matching model is found in the file.
+    """
+    if library_root is None:
+        library_root = Path.home() / ".speclib" / "libraries"
+    else:
+        library_root = Path(library_root)
+
+    if grid_name not in ["newera_gaia", "newera_jwst", "newera_lowres"]:
+        raise ValueError(f"Invalid grid_name '{grid_name}'")
+
+    grid_dir = library_root / grid_name
+
+    # Construct file name
+    prefix = {
+        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+    }[grid_name]
+
+    # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
+    z_str = "Z-0.0" if np.isclose(z, 0.0) else f"Z{z:+.1f}"
+
+    # Format alpha string
+    if np.isclose(alpha, 0.0):
+        fname = f"{prefix}.{z_str}.txt"
+    else:
+        alpha_str = f"alpha={alpha:.1f}"
+        fname = f"{prefix}.{z_str}.{alpha_str}.txt"
+
+    filepath = grid_dir / fname
+
+    if not filepath.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    with open(filepath, "r") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            header = np.loadtxt(io.StringIO(line), dtype="S41")
+            try:
+                header_teff = float(header[12])
+                header_logg = float(header[13])
+            except Exception:
+                continue
+
+            flux_line = f.readline()
+            if np.isclose(header_teff, teff, atol=1.0) and np.isclose(
+                header_logg, logg, atol=0.1
+            ):
+                flux = np.loadtxt(io.StringIO(flux_line), unpack=True)
+                return flux
+
+    raise ValueError(f"No matching flux found in file for Teff={teff}, logg={logg}")
+
+
 @u.quantity_input(wl_vac=u.AA)
 def vac2air(wl_vac):
     """
@@ -331,10 +640,22 @@ VALID_MODELS = [
     "drift-phoenix",
     "mps-atlas",
     "newera",
+    "newera_gaia",
+    "newera_jwst",
+    "newera_lowres",
     "nextgen-solar",
     "phoenix",
     "sphinx",
 ]
+
+# Shared grid values for all NewEra subtypes
+newera_grid = {
+    "grid_teffs": np.arange(2300, 12001, 100),
+    "grid_loggs": np.arange(0.0, 6.1, 0.5),
+    "grid_fehs": np.array([-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]),
+    # α-enhanced models only for -2.0 ≤ [M/H] ≤ 0.0
+    "grid_alphas": np.array([-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]),
+}
 
 GRID_POINTS = {
     "drift-phoenix": {
@@ -416,15 +737,10 @@ GRID_POINTS = {
             ]
         ),
     },
-    "newera": {
-        "grid_teffs": np.arange(2300, 12000 + 100, 100),  # 2300K to 12000K
-        "grid_loggs": np.arange(0.0, 6.0 + 0.5, 0.5),  # 0.0 to 6.0
-        "grid_fehs": np.array(
-            [-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]
-        ),
-        # α-enhanced models only for -2.0 ≤ [M/H] ≤ 0.0
-        "grid_alphas": np.array([-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]),
-    },
+    "newera": newera_grid,
+    "newera_gaia": newera_grid,
+    "newera_jwst": newera_grid,
+    "newera_lowres": newera_grid,
     "nextgen-solar": {
         # Grid of effective temperatures
         "grid_teffs": np.append(
