@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0-beta.4] - 2025-05-30
+
+### Added
+- Support for PHOENIX NewEra model grids (`newera_gaia`, `newera_jwst`, `newera_lowres`) via `Spectrum.from_grid()`
+- Utility functions `load_newera_wavelength_array()` and `load_newera_flux_array()` in `utils.py` to handle NewEra file structure
+- Automatic detection of wavelength grid parameters from NewEra file headers
+- Warning when `alpha ≠ 0.0` is requested, as non-zero alpha values may not be reliably supported yet
+
+### Changed
+- Improved error messaging for missing NewEra files to aid debugging and model grid validation
+
+---
+
 ## [0.1.0-beta.3] - 2025-05-28
 
 ### Added
