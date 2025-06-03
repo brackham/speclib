@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- Automatically trigger NewEra tarball download when loading a wavelength array for the first time.
+  `load_newera_wavelength_array()` now calls `download_newera_grid()` if the expected `.txt` file is missing.
+
+---
+
 ## [0.1.0-beta.4] - 2025-05-30
 
 ### Added
