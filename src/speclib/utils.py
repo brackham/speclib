@@ -17,6 +17,7 @@ from urllib.error import URLError
 __all__ = [
     "download_file",
     "download_phoenix_grid",
+    "download_newera_grid",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -435,6 +436,11 @@ def load_newera_wavelength_array(
 
     filepath = grid_dir / fname
 
+    # Trigger download and extraction if file is missing
+    if not filepath.exists():
+        download_newera_grid(grid_name)
+
+    # Raise error if the file still doesn't exist.
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
 
