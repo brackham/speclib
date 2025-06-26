@@ -22,6 +22,7 @@ __all__ = [
     "interpolate",
     "load_flux_array",
     "load_gaia_format_spectrum",
+    "trilinear_interpolate",
     "nearest",
     "vac2air",
     "air2vac",
@@ -340,6 +341,50 @@ def nearest(array, value):
     idx = np.argmin(np.abs(array - value))
 
     return array[idx]
+
+
+def _flanking_vals(grid, value):
+    grid = np.asarray(grid)
+    lower = grid[grid <= value].max() if np.any(grid <= value) else grid.min()
+    upper = grid[grid >= value].min() if np.any(grid >= value) else grid.max()
+    return lower, upper
+
+
+def trilinear_interpolate(fluxes, grid_axes, query_point):
+    """Perform trilinear interpolation on a nested flux dictionary."""
+    teff_grid, logg_grid, feh_grid = grid_axes
+    teff, logg, feh = query_point
+
+    t_bds = _flanking_vals(teff_grid, teff)
+    g_bds = _flanking_vals(logg_grid, logg)
+    f_bds = _flanking_vals(feh_grid, feh)
+
+    c000 = fluxes[t_bds[0]][g_bds[0]][f_bds[0]]
+    c100 = fluxes[t_bds[1]][g_bds[0]][f_bds[0]]
+    c010 = fluxes[t_bds[0]][g_bds[1]][f_bds[0]]
+    c110 = fluxes[t_bds[1]][g_bds[1]][f_bds[0]]
+    c001 = fluxes[t_bds[0]][g_bds[0]][f_bds[1]]
+    c101 = fluxes[t_bds[1]][g_bds[0]][f_bds[1]]
+    c011 = fluxes[t_bds[0]][g_bds[1]][f_bds[1]]
+    c111 = fluxes[t_bds[1]][g_bds[1]][f_bds[1]]
+
+    if t_bds[0] != t_bds[1]:
+        c00 = interpolate([c000, c100], t_bds, teff)
+        c10 = interpolate([c010, c110], t_bds, teff)
+        c01 = interpolate([c001, c101], t_bds, teff)
+        c11 = interpolate([c011, c111], t_bds, teff)
+    else:
+        c00, c10, c01, c11 = c000, c010, c001, c011
+
+    if g_bds[0] != g_bds[1]:
+        c0 = interpolate([c00, c10], g_bds, logg)
+        c1 = interpolate([c01, c11], g_bds, logg)
+    else:
+        c0, c1 = c00, c01
+
+    if f_bds[0] != f_bds[1]:
+        return interpolate([c0, c1], f_bds, feh)
+    return c0
 
 
 def load_flux_array(fname, cache_dir, ftp_url):
