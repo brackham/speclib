@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Automatically trigger NewEra tarball download when loading a wavelength array for the first time.
   `load_newera_wavelength_array()` now calls `download_newera_grid()` if the expected `.txt` file is missing.
+- Corrected the metallicity list for the MPS-Atlas grid in `utils.py` where `-0.95 - 0.9` was accidentally
+  combined into a single entry.
 
 ---
 
