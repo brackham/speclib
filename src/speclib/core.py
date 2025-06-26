@@ -351,9 +351,9 @@ class Spectrum(Spectrum1D):
                 )
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "nextgen-solar":
             # Only works if the user has already cached the NextGen model grid
@@ -407,9 +407,9 @@ class Spectrum(Spectrum1D):
                 )
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "sphinx":
             # Only works if the user has already cached the SPHINX model grid
@@ -425,11 +425,9 @@ class Spectrum(Spectrum1D):
             # fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_{:0.1f}_spectra.txt"
             fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_0.5_spectra.txt"
 
-            # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "Teff_2000.0_logg_4.00_logZ_-0.25_CtoO_0.3_spectra.txt"
-            )
-            wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
+            def load_wave_flux(fname):
+                wave, flux = np.loadtxt(cache_dir + fname, unpack=True)
+                return wave, flux
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
@@ -465,9 +463,9 @@ class Spectrum(Spectrum1D):
                 )
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "mps-atlas":
             # Only works if the user has already cached the MPS-Atlas model grid
