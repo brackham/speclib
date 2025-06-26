@@ -390,32 +390,32 @@ class Spectrum(Spectrum1D):
                 fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
 
                 if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
+                    wave_lib, c000 = load_wave_flux(fname000)
+                    _, c100 = load_wave_flux(fname100)
                     c00 = utils.interpolate([c000, c100], teff_bds, teff)
                 else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+                    wave_lib, c00 = load_wave_flux(fname000)
 
                 if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
+                    _, c010 = load_wave_flux(fname010)
+                    _, c110 = load_wave_flux(fname110)
                     c10 = utils.interpolate([c010, c110], teff_bds, teff)
                 else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+                    _, c10 = load_wave_flux(fname010)
 
                 if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
+                    _, c001 = load_wave_flux(fname001)
+                    _, c101 = load_wave_flux(fname101)
                     c01 = utils.interpolate([c001, c101], teff_bds, teff)
                 else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+                    _, c01 = load_wave_flux(fname001)
 
                 if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
+                    _, c011 = load_wave_flux(fname011)
+                    _, c111 = load_wave_flux(fname111)
                     c11 = utils.interpolate([c011, c111], teff_bds, teff)
                 else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+                    _, c11 = load_wave_flux(fname011)
 
                 if not fname000 == fname010:
                     c0 = utils.interpolate([c00, c10], logg_bds, logg)
@@ -430,9 +430,9 @@ class Spectrum(Spectrum1D):
                     flux = c0
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "nextgen-solar":
             # Only works if the user has already cached the NextGen model grid
@@ -480,32 +480,32 @@ class Spectrum(Spectrum1D):
                 fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
 
                 if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
+                    wave_lib, c000 = load_wave_flux(fname000)
+                    _, c100 = load_wave_flux(fname100)
                     c00 = utils.interpolate([c000, c100], teff_bds, teff)
                 else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+                    wave_lib, c00 = load_wave_flux(fname000)
 
                 if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
+                    _, c010 = load_wave_flux(fname010)
+                    _, c110 = load_wave_flux(fname110)
                     c10 = utils.interpolate([c010, c110], teff_bds, teff)
                 else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+                    _, c10 = load_wave_flux(fname010)
 
                 if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
+                    _, c001 = load_wave_flux(fname001)
+                    _, c101 = load_wave_flux(fname101)
                     c01 = utils.interpolate([c001, c101], teff_bds, teff)
                 else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+                    _, c01 = load_wave_flux(fname001)
 
                 if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
+                    _, c011 = load_wave_flux(fname011)
+                    _, c111 = load_wave_flux(fname111)
                     c11 = utils.interpolate([c011, c111], teff_bds, teff)
                 else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+                    _, c11 = load_wave_flux(fname011)
 
                 if not fname000 == fname010:
                     c0 = utils.interpolate([c00, c10], logg_bds, logg)
@@ -520,9 +520,9 @@ class Spectrum(Spectrum1D):
                     flux = c0
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "sphinx":
             # Only works if the user has already cached the SPHINX model grid
@@ -538,11 +538,9 @@ class Spectrum(Spectrum1D):
             # fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_{:0.1f}_spectra.txt"
             fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_0.5_spectra.txt"
 
-            # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "Teff_2000.0_logg_4.00_logZ_-0.25_CtoO_0.3_spectra.txt"
-            )
-            wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
+            def load_wave_flux(fname):
+                wave, flux = np.loadtxt(cache_dir + fname, unpack=True)
+                return wave, flux
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
@@ -572,32 +570,32 @@ class Spectrum(Spectrum1D):
                 fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
 
                 if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
+                    wave_lib, c000 = load_wave_flux(fname000)
+                    _, c100 = load_wave_flux(fname100)
                     c00 = utils.interpolate([c000, c100], teff_bds, teff)
                 else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
+                    wave_lib, c00 = load_wave_flux(fname000)
 
                 if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
+                    _, c010 = load_wave_flux(fname010)
+                    _, c110 = load_wave_flux(fname110)
                     c10 = utils.interpolate([c010, c110], teff_bds, teff)
                 else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
+                    _, c10 = load_wave_flux(fname010)
 
                 if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
+                    _, c001 = load_wave_flux(fname001)
+                    _, c101 = load_wave_flux(fname101)
                     c01 = utils.interpolate([c001, c101], teff_bds, teff)
                 else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
+                    _, c01 = load_wave_flux(fname001)
 
                 if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
+                    _, c011 = load_wave_flux(fname011)
+                    _, c111 = load_wave_flux(fname111)
                     c11 = utils.interpolate([c011, c111], teff_bds, teff)
                 else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
+                    _, c11 = load_wave_flux(fname011)
 
                 if not fname000 == fname010:
                     c0 = utils.interpolate([c00, c10], logg_bds, logg)
@@ -612,9 +610,9 @@ class Spectrum(Spectrum1D):
                     flux = c0
 
             elif model_in_grid:
-                # Load the flux array
+                # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                wave_lib, flux = load_wave_flux(fname)
 
         elif self.model_grid == "mps-atlas":
             # Only works if the user has already cached the MPS-Atlas model grid
