@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Corrected the metallicity list for the MPS-Atlas grid in `utils.py` where `-0.95 - 0.9` was accidentally
   combined into a single entry.
 
+### Added
+- Example SPHINX spectra under `tests/data/sphinx/` for offline testing.
+
+### Changed
+- SPHINX loader now reads the wavelength array directly from each cached
+  spectrum file, removing the dependency on a separate wavelength file.
+- Tests patch the SPHINX grid to use these local spectra so no network
+  access is required when running the suite (see issue #27).
+
 ---
 
 ## [0.1.0-beta.4] - 2025-05-30
