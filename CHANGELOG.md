@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Example SPHINX spectra under `tests/data/sphinx/` for offline testing.
+- Added `trilinear_interpolation` utility function and implemented it in `core.py` to improve readability and modularity.
+
 
 ### Changed
 - SPHINX loader now reads the wavelength array directly from each cached
