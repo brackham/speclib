@@ -1066,7 +1066,7 @@ class SpectralGrid(object):
         # Save the wavelength array
         self.wavelength = spec.wavelength
 
-    def get_spectrum(self, teff, logg, feh, interpolate=True):
+    def get_flux(self, teff, logg, feh, interpolate=True):
         """
         Parameters
         ----------
