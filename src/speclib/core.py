@@ -170,54 +170,20 @@ class Spectrum(Spectrum1D):
                 else:
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
-                fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
-                fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
-                fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
-                fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
-                fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
-                fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
-                fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+                flux_dict = {}
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            fname = fname_str.format(tt, gg, ff)
+                            flux_dict[tt][gg][ff] = utils.load_flux_array(
+                                fname, cache_dir, ftp_url
+                            )
 
-                if not fname000 == fname100:
-                    c000 = utils.load_flux_array(fname000, cache_dir, ftp_url)
-                    c100 = utils.load_flux_array(fname100, cache_dir, ftp_url)
-                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                else:
-                    c00 = utils.load_flux_array(fname000, cache_dir, ftp_url)
-
-                if not fname010 == fname110:
-                    c010 = utils.load_flux_array(fname010, cache_dir, ftp_url)
-                    c110 = utils.load_flux_array(fname110, cache_dir, ftp_url)
-                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                else:
-                    c10 = utils.load_flux_array(fname010, cache_dir, ftp_url)
-
-                if not fname001 == fname101:
-                    c001 = utils.load_flux_array(fname001, cache_dir, ftp_url)
-                    c101 = utils.load_flux_array(fname101, cache_dir, ftp_url)
-                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                else:
-                    c01 = utils.load_flux_array(fname001, cache_dir, ftp_url)
-
-                if not fname011 == fname111:
-                    c011 = utils.load_flux_array(fname011, cache_dir, ftp_url)
-                    c111 = utils.load_flux_array(fname111, cache_dir, ftp_url)
-                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
-                else:
-                    c11 = utils.load_flux_array(fname011, cache_dir, ftp_url)
-
-                if not fname000 == fname010:
-                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
-                else:
-                    c0 = c00
-                    c1 = c01
-
-                if not fname000 == fname001:
-                    flux = utils.interpolate([c0, c1], feh_bds, feh)
-                else:
-                    flux = c0
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             elif model_in_grid:
                 # Load the flux array
@@ -266,27 +232,21 @@ class Spectrum(Spectrum1D):
                 logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                c000_wl, c000 = load_flux_from_h5(
-                    teff_bds[0], logg_bds[0], feh_bds[0], alpha
+                flux_dict = {}
+                wave_lib = None
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            wl, flx = load_flux_from_h5(tt, gg, ff, alpha)
+                            flux_dict[tt][gg][ff] = flx
+                            if wave_lib is None:
+                                wave_lib = wl
+
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
                 )
-                _, c100 = load_flux_from_h5(teff_bds[1], logg_bds[0], feh_bds[0], alpha)
-                _, c010 = load_flux_from_h5(teff_bds[0], logg_bds[1], feh_bds[0], alpha)
-                _, c110 = load_flux_from_h5(teff_bds[1], logg_bds[1], feh_bds[0], alpha)
-                _, c001 = load_flux_from_h5(teff_bds[0], logg_bds[0], feh_bds[1], alpha)
-                _, c101 = load_flux_from_h5(teff_bds[1], logg_bds[0], feh_bds[1], alpha)
-                _, c011 = load_flux_from_h5(teff_bds[0], logg_bds[1], feh_bds[1], alpha)
-                _, c111 = load_flux_from_h5(teff_bds[1], logg_bds[1], feh_bds[1], alpha)
-
-                c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                c11 = utils.interpolate([c011, c111], teff_bds, teff)
-
-                c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                c1 = utils.interpolate([c01, c11], logg_bds, logg)
-
-                flux = utils.interpolate([c0, c1], feh_bds, feh)
-                wave_lib = c000_wl  # All wavelength arrays should be identical
 
             else:
                 wave_lib, flux = load_flux_from_h5(teff, logg, feh, alpha)
@@ -317,25 +277,20 @@ class Spectrum(Spectrum1D):
                 logg_bds = utils.find_bounds(self.grid_loggs, logg)
                 feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                wave_lib = load_wave(teff_bds[0], logg_bds[0], feh_bds[0], alpha)
-                c000 = load_flux(teff_bds[0], logg_bds[0], feh_bds[0], alpha)
-                c100 = load_flux(teff_bds[1], logg_bds[0], feh_bds[0], alpha)
-                c010 = load_flux(teff_bds[0], logg_bds[1], feh_bds[0], alpha)
-                c110 = load_flux(teff_bds[1], logg_bds[1], feh_bds[0], alpha)
-                c001 = load_flux(teff_bds[0], logg_bds[0], feh_bds[1], alpha)
-                c101 = load_flux(teff_bds[1], logg_bds[0], feh_bds[1], alpha)
-                c011 = load_flux(teff_bds[0], logg_bds[1], feh_bds[1], alpha)
-                c111 = load_flux(teff_bds[1], logg_bds[1], feh_bds[1], alpha)
+                flux_dict = {}
+                wave_lib = None
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            if wave_lib is None:
+                                wave_lib = load_wave(tt, gg, ff, alpha)
+                            flux_dict[tt][gg][ff] = load_flux(tt, gg, ff, alpha)
 
-                c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                c11 = utils.interpolate([c011, c111], teff_bds, teff)
-
-                c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                c1 = utils.interpolate([c01, c11], logg_bds, logg)
-
-                flux = utils.interpolate([c0, c1], feh_bds, feh)
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             else:
                 wave_lib = load_wave(teff, logg, feh, alpha)
@@ -380,54 +335,20 @@ class Spectrum(Spectrum1D):
                 else:
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
-                fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
-                fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
-                fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
-                fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
-                fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
-                fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
-                fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+                flux_dict = {}
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            fname = fname_str.format(tt, gg, ff)
+                            flux_dict[tt][gg][ff] = np.loadtxt(
+                                cache_dir + fname, unpack=True, usecols=1
+                            )
 
-                if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
-                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-
-                if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
-                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-
-                if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
-                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-
-                if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
-                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
-                else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-
-                if not fname000 == fname010:
-                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
-                else:
-                    c0 = c00
-                    c1 = c01
-
-                if not fname000 == fname001:
-                    flux = utils.interpolate([c0, c1], feh_bds, feh)
-                else:
-                    flux = c0
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             elif model_in_grid:
                 # Load the flux array
@@ -470,54 +391,20 @@ class Spectrum(Spectrum1D):
                 else:
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
-                fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
-                fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
-                fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
-                fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
-                fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
-                fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
-                fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+                flux_dict = {}
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            fname = fname_str.format(tt, gg, ff)
+                            flux_dict[tt][gg][ff] = np.loadtxt(
+                                cache_dir + fname, unpack=True, usecols=1
+                            )
 
-                if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
-                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-
-                if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
-                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-
-                if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
-                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-
-                if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
-                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
-                else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-
-                if not fname000 == fname010:
-                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
-                else:
-                    c0 = c00
-                    c1 = c01
-
-                if not fname000 == fname001:
-                    flux = utils.interpolate([c0, c1], feh_bds, feh)
-                else:
-                    flux = c0
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             elif model_in_grid:
                 # Load the flux array
@@ -562,54 +449,20 @@ class Spectrum(Spectrum1D):
                 else:
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                fname000 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[0])
-                fname100 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[0])
-                fname010 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[0])
-                fname110 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[0])
-                fname001 = fname_str.format(teff_bds[0], logg_bds[0], feh_bds[1])
-                fname101 = fname_str.format(teff_bds[1], logg_bds[0], feh_bds[1])
-                fname011 = fname_str.format(teff_bds[0], logg_bds[1], feh_bds[1])
-                fname111 = fname_str.format(teff_bds[1], logg_bds[1], feh_bds[1])
+                flux_dict = {}
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            fname = fname_str.format(tt, gg, ff)
+                            flux_dict[tt][gg][ff] = np.loadtxt(
+                                cache_dir + fname, unpack=True, usecols=1
+                            )
 
-                if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
-                    c00 = utils.interpolate([c000, c100], teff_bds, teff)
-                else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-
-                if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
-                    c10 = utils.interpolate([c010, c110], teff_bds, teff)
-                else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-
-                if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
-                    c01 = utils.interpolate([c001, c101], teff_bds, teff)
-                else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-
-                if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
-                    c11 = utils.interpolate([c011, c111], teff_bds, teff)
-                else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-
-                if not fname000 == fname010:
-                    c0 = utils.interpolate([c00, c10], logg_bds, logg)
-                    c1 = utils.interpolate([c01, c11], logg_bds, logg)
-                else:
-                    c0 = c00
-                    c1 = c01
-
-                if not fname000 == fname001:
-                    flux = utils.interpolate([c0, c1], feh_bds, feh)
-                else:
-                    flux = c0
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             elif model_in_grid:
                 # Load the flux array
@@ -651,54 +504,20 @@ class Spectrum(Spectrum1D):
                 else:
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
-                fname000 = fname_str.format(feh_bds[0], teff_bds[0], logg_bds[0])
-                fname100 = fname_str.format(feh_bds[1], teff_bds[0], logg_bds[0])
-                fname010 = fname_str.format(feh_bds[0], teff_bds[1], logg_bds[0])
-                fname110 = fname_str.format(feh_bds[1], teff_bds[1], logg_bds[0])
-                fname001 = fname_str.format(feh_bds[0], teff_bds[0], logg_bds[1])
-                fname101 = fname_str.format(feh_bds[1], teff_bds[0], logg_bds[1])
-                fname011 = fname_str.format(feh_bds[0], teff_bds[1], logg_bds[1])
-                fname111 = fname_str.format(feh_bds[1], teff_bds[1], logg_bds[1])
+                flux_dict = {}
+                for tt in teff_bds:
+                    flux_dict[tt] = {}
+                    for gg in logg_bds:
+                        flux_dict[tt][gg] = {}
+                        for ff in feh_bds:
+                            fname = fname_str.format(ff, tt, gg)
+                            flux_dict[tt][gg][ff] = np.loadtxt(
+                                cache_dir + fname, unpack=True, usecols=1
+                            )
 
-                if not fname000 == fname100:
-                    c000 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-                    c100 = np.loadtxt(cache_dir + fname100, unpack=True, usecols=1)
-                    c00 = utils.interpolate([c000, c100], feh_bds, feh)
-                else:
-                    c00 = np.loadtxt(cache_dir + fname000, unpack=True, usecols=1)
-
-                if not fname010 == fname110:
-                    c010 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-                    c110 = np.loadtxt(cache_dir + fname110, unpack=True, usecols=1)
-                    c10 = utils.interpolate([c010, c110], feh_bds, feh)
-                else:
-                    c10 = np.loadtxt(cache_dir + fname010, unpack=True, usecols=1)
-
-                if not fname001 == fname101:
-                    c001 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-                    c101 = np.loadtxt(cache_dir + fname101, unpack=True, usecols=1)
-                    c01 = utils.interpolate([c001, c101], feh_bds, feh)
-                else:
-                    c01 = np.loadtxt(cache_dir + fname001, unpack=True, usecols=1)
-
-                if not fname011 == fname111:
-                    c011 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-                    c111 = np.loadtxt(cache_dir + fname111, unpack=True, usecols=1)
-                    c11 = utils.interpolate([c011, c111], feh_bds, feh)
-                else:
-                    c11 = np.loadtxt(cache_dir + fname011, unpack=True, usecols=1)
-
-                if not fname000 == fname010:
-                    c1 = utils.interpolate([c01, c11], teff_bds, teff)
-                    c0 = utils.interpolate([c00, c10], teff_bds, teff)
-                else:
-                    c0 = c00
-                    c1 = c01
-
-                if not fname000 == fname001:
-                    flux = utils.interpolate([c0, c1], logg_bds, logg)
-                else:
-                    flux = c0
+                flux = utils.trilinear_interpolate(
+                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                )
 
             elif model_in_grid:
                 # Load the flux array
@@ -1115,74 +934,12 @@ class SpectralGrid(object):
 
             return self.fluxes[teff][logg][feh]
 
-        # Otherwise, interpolate:
-        # Identify nearest values in grid
-        flanking_teffs = (
-            self.teffs[self.teffs <= teff].max(),
-            self.teffs[self.teffs >= teff].min(),
+        # Otherwise, interpolate using the helper
+        return utils.trilinear_interpolate(
+            self.fluxes,
+            (self.teffs, self.loggs, self.fehs),
+            (teff, logg, feh),
         )
-        flanking_loggs = (
-            self.loggs[self.loggs <= logg].max(),
-            self.loggs[self.loggs >= logg].min(),
-        )
-        flanking_fehs = (
-            self.fehs[self.fehs <= feh].max(),
-            self.fehs[self.fehs >= feh].min(),
-        )
-
-        # Define the points for interpolation
-        params000 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[0])
-        params100 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[0])
-        params010 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[0])
-        params110 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[0])
-        params001 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[1])
-        params101 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[1])
-        params011 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[1])
-        params111 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[1])
-
-        # Interpolate trilinearly
-        # https://en.wikipedia.org/wiki/Trilinear_interpolation
-        if not params000 == params100:
-            c000 = self.fluxes[params000[0]][params000[1]][params000[2]]
-            c100 = self.fluxes[params100[0]][params100[1]][params100[2]]
-            c00 = utils.interpolate([c000, c100], flanking_teffs, teff)
-        else:
-            c00 = self.fluxes[params000[0]][params000[1]][params000[2]]
-
-        if not params010 == params110:
-            c010 = self.fluxes[params010[0]][params010[1]][params010[2]]
-            c110 = self.fluxes[params110[0]][params110[1]][params110[2]]
-            c10 = utils.interpolate([c010, c110], flanking_teffs, teff)
-        else:
-            c10 = self.fluxes[params010[0]][params010[1]][params010[2]]
-
-        if not params001 == params101:
-            c001 = self.fluxes[params001[0]][params001[1]][params001[2]]
-            c101 = self.fluxes[params101[0]][params101[1]][params101[2]]
-            c01 = utils.interpolate([c001, c101], flanking_teffs, teff)
-        else:
-            c01 = self.fluxes[params001[0]][params001[1]][params001[2]]
-
-        if not params011 == params111:
-            c011 = self.fluxes[params011[0]][params011[1]][params011[2]]
-            c111 = self.fluxes[params111[0]][params111[1]][params111[2]]
-            c11 = utils.interpolate([c011, c111], flanking_teffs, teff)
-        else:
-            c11 = self.fluxes[params011[0]][params011[1]][params011[2]]
-
-        if not params000 == params010:
-            c0 = utils.interpolate([c00, c10], flanking_loggs, logg)
-            c1 = utils.interpolate([c01, c11], flanking_loggs, logg)
-        else:
-            c0 = c00
-            c1 = c01
-
-        if not params000 == params001:
-            flux = utils.interpolate([c0, c1], flanking_fehs, feh)
-        else:
-            flux = c0
-
-        return flux
 
 
 class BinnedSpectralGrid(object):
@@ -1371,71 +1128,9 @@ class BinnedSpectralGrid(object):
 
             return self.fluxes[teff][logg][feh]
 
-        # Otherwise, interpolate:
-        # Identify nearest values in grid
-        flanking_teffs = (
-            self.teffs[self.teffs <= teff].max(),
-            self.teffs[self.teffs >= teff].min(),
+        # Otherwise, interpolate using the helper
+        return utils.trilinear_interpolate(
+            self.fluxes,
+            (self.teffs, self.loggs, self.fehs),
+            (teff, logg, feh),
         )
-        flanking_loggs = (
-            self.loggs[self.loggs <= logg].max(),
-            self.loggs[self.loggs >= logg].min(),
-        )
-        flanking_fehs = (
-            self.fehs[self.fehs <= feh].max(),
-            self.fehs[self.fehs >= feh].min(),
-        )
-
-        # Define the points for interpolation
-        params000 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[0])
-        params100 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[0])
-        params010 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[0])
-        params110 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[0])
-        params001 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[1])
-        params101 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[1])
-        params011 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[1])
-        params111 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[1])
-
-        # Interpolate trilinearly
-        # https://en.wikipedia.org/wiki/Trilinear_interpolation
-        if not params000 == params100:
-            c000 = self.fluxes[params000[0]][params000[1]][params000[2]]
-            c100 = self.fluxes[params100[0]][params100[1]][params100[2]]
-            c00 = utils.interpolate([c000, c100], flanking_teffs, teff)
-        else:
-            c00 = self.fluxes[params000[0]][params000[1]][params000[2]]
-
-        if not params010 == params110:
-            c010 = self.fluxes[params010[0]][params010[1]][params010[2]]
-            c110 = self.fluxes[params110[0]][params110[1]][params110[2]]
-            c10 = utils.interpolate([c010, c110], flanking_teffs, teff)
-        else:
-            c10 = self.fluxes[params010[0]][params010[1]][params010[2]]
-
-        if not params001 == params101:
-            c001 = self.fluxes[params001[0]][params001[1]][params001[2]]
-            c101 = self.fluxes[params101[0]][params101[1]][params101[2]]
-            c01 = utils.interpolate([c001, c101], flanking_teffs, teff)
-        else:
-            c01 = self.fluxes[params001[0]][params001[1]][params001[2]]
-
-        if not params011 == params111:
-            c011 = self.fluxes[params011[0]][params011[1]][params011[2]]
-            c111 = self.fluxes[params111[0]][params111[1]][params111[2]]
-            c11 = utils.interpolate([c011, c111], flanking_teffs, teff)
-        else:
-            c11 = self.fluxes[params011[0]][params011[1]][params011[2]]
-
-        if not params000 == params010:
-            c0 = utils.interpolate([c00, c10], flanking_loggs, logg)
-            c1 = utils.interpolate([c01, c11], flanking_loggs, logg)
-        else:
-            c0 = c00
-            c1 = c01
-
-        if not params000 == params001:
-            flux = utils.interpolate([c0, c1], flanking_fehs, feh)
-        else:
-            flux = c0
-
-        return flux
