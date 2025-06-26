@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 import shutil
 import pytest
+import numpy as np
+
+from speclib import utils
 
 # Add the `src/` directory to sys.path so `speclib` is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
@@ -18,6 +21,11 @@ def local_sphinx_cache(tmp_path_factory):
     data_dir = Path(__file__).parent / "data" / "sphinx"
     for fname in data_dir.iterdir():
         shutil.copy(fname, cache_dir / fname.name)
+
+    # Limit the available SPHINX grid points to the provided sample files
+    utils.GRID_POINTS["sphinx"]["grid_teffs"] = np.array([3000.0])
+    utils.GRID_POINTS["sphinx"]["grid_loggs"] = np.array([4.0, 4.5])
+    utils.GRID_POINTS["sphinx"]["grid_fehs"] = np.array([0.0])
 
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(tmp_home)
