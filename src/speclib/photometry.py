@@ -140,7 +140,7 @@ class SEDGrid(object):
         The lower and upper bounds of the model [Fe/H] to load.
 
     wavelength : `~astropy.units.Quantity`
-        Efffective wavelengths of the SED grid.
+        Effective wavelengths of the SED grid.
 
     bandwidth : `~astropy.units.Quantity`
         Bandwidths of the interpolated SED grid.
