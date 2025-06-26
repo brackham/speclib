@@ -4,6 +4,7 @@ import numpy as np
 import os
 import speclib.utils as utils
 from specutils import Spectrum1D
+from scipy.interpolate import NearestNDInterpolator
 
 import warnings
 
@@ -855,18 +856,25 @@ class SpectralGrid(object):
 
         # Load the fluxes
         fluxes = {}
+        points = []
+        data = []
+        spec = None
         for teff in self.teffs:
             fluxes[teff] = {}
             for logg in self.loggs:
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
-                    spec = Spectrum.from_grid(
-                        teff,
-                        logg,
-                        feh,
-                        model_grid=self.model_grid,
-                        **kwargs,
-                    )
+                    try:
+                        spec = Spectrum.from_grid(
+                            teff,
+                            logg,
+                            feh,
+                            model_grid=self.model_grid,
+                            **kwargs,
+                        )
+                    except ValueError:
+                        # Skip combinations that do not exist in sparse grids
+                        continue
 
                     # Set spectral resolution if specified
                     if spectral_resolution is not None:
@@ -878,10 +886,26 @@ class SpectralGrid(object):
                         spec = spec.resample(wavelength)
 
                     fluxes[teff][logg][feh] = spec.flux
+                    points.append([teff, logg, feh])
+                    data.append(spec.flux.value)
+
         self.fluxes = fluxes
 
-        # Save the wavelength array
-        self.wavelength = spec.wavelength
+        if spec is not None:
+            self.wavelength = spec.wavelength
+            self.unit = spec.flux.unit
+        else:
+            self.wavelength = None
+            self.unit = u.dimensionless_unscaled
+
+        if points:
+            self.points = np.array(points)
+            self.data = np.vstack(data)
+            self.interpolator = NearestNDInterpolator(self.points, self.data)
+        else:
+            self.points = np.empty((0, 3))
+            self.data = np.empty((0,))
+            self.interpolator = None
 
     def get_spectrum(self, teff, logg, feh, interpolate=True):
         """
@@ -923,6 +947,20 @@ class SpectralGrid(object):
                 if not b:
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
+
+        if self.model_grid in ["newera_gaia", "newera_jwst", "newera_lowres"]:
+            if self.interpolator is None:
+                raise ValueError("SpectralGrid contains no spectra")
+
+            point = np.array([teff, logg, feh])
+
+            if interpolate:
+                flux = self.interpolator(point)
+            else:
+                idx = np.argmin(np.sum((self.points - point) ** 2, axis=1))
+                flux = self.data[idx]
+
+            return flux * self.unit
 
         # If not interpolating, then just return the closest point in the grid.
         if not interpolate:

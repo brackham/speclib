@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.0b5] - 2025-06-26
 
 ### Fixed
 - Automatically trigger NewEra tarball download when loading a wavelength array for the first time.
   `load_newera_wavelength_array()` now calls `download_newera_grid()` if the expected `.txt` file is missing.
 - Corrected the metallicity list for the MPS-Atlas grid in `utils.py` where `-0.95 - 0.9` was accidentally
   combined into a single entry.
+- Fixed a bug in `SpectralGrid` that caused interpolation to fail with sparsely sampled NewEra grids. Now uses `NearestNDInterpolator` to support these cases. ([#34](https://github.com/brackham/speclib/pull/34))
 
 ### Added
 - Example SPHINX spectra under `tests/data/sphinx/` for offline testing.
