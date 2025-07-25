@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 0.1.0b6 – 2025-07-25
+
+### Changed
+- Relaxed `astropy` version constraint to support `astropy>=6.0.0,<8.0.0` (previously `<6.0.0`), enabling compatibility with newer releases.
+- Confirmed full test suite passes with `astropy 6.x`.
+
+### Testing
+- Verified flux conservation after resampling spectra with `Spectrum.resample()`.
+- Manually tested interpolation behavior in `Spectrum.from_grid()` and `SpectralGrid.get_spectrum()`.
+
+
 ## [0.1.0b5] - 2025-06-26
 
 ### Fixed

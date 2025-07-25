@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "speclib"
-version = "0.1.0b5"
+version = "0.1.0b6"
 description = "Tools for working with stellar spectral libraries."
 authors = [
   { name = "Benjamin V. Rackham" }
@@ -13,7 +13,7 @@ license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.9,<3.12"
 dependencies = [
-  "astropy>=5.2.2,<6.0.0",
+  "astropy>=6.0.0,<8.0.0",
   "specutils (>=1.9.1,<2.0.0)",
   "pysynphot>=2.0.0,<3.0.0",
   "numpy<2.0",
