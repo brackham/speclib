@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## 0.1.0b6 – 2025-07-25
+## [0.1.0b7] - 2025-08-15
+
+### Changed
+- ✨ Switched from `pysynphot` to `synphot` throughout the codebase, including `Spectrum.resample()` and filter application routines. ([#41](https://github.com/brackham/speclib/pull/41))
+- 🧹 Removed compatibility workarounds for `pysynphot` imports and deprecated `warnings.catch_warnings()` block in `core.py`.
+- 🔧 Updated `README.md` to reference `synphot` instead of `pysynphot`.
+- 🔧 Relaxed Python version constraint to `>=3.11,<3.14`(previously `<3.12`) to support Python 3.12 and upcoming 3.13.
+- ⬆️ Upgraded `astropy` from `6.0.1` to `7.1.0` and relaxed the version constraint to `>=6.0,<8.0`.
+- ⬆️ Upgraded `matplotlib` from `3.7.5` to `3.10.5`, with updated constraint to `>=3.8,<4.0`.
+- 🔧 Updated version constraints for `specutils`, `synphot`, `numpy`, `scipy`, `pooch`, and `tqdm` to reflect compatibility with newer Python and package versions.
+- 📦 Synced `poetry.lock` to reflect updated and removed packages.
+
+### Fixed
+- 🐛 Replaced deprecated `np.trapz` calls with `np.trapezoid` to avoid warnings in NumPy 2.0+.
+
+### Development
+- 🧪 Removed deprecated warning filters in `pytest.ini` related to `pysynphot`.
+- ✅ Confirmed compatibility with Python 3.11+ and current dependency stack.
+
+
+## [0.1.0b6] – 2025-07-25
 
 ### Changed
 - Relaxed `astropy` version constraint to support `astropy>=6.0.0,<8.0.0` (previously `<6.0.0`), enabling compatibility with newer releases.
@@ -78,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## \[0.1.0-beta.1] - 2024-05-16
+## [0.1.0-beta.1] - 2024-05-16
 
 ### Added
 
