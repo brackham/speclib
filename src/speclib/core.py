@@ -8,9 +8,7 @@ from scipy.interpolate import NearestNDInterpolator
 
 import warnings
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import pysynphot as psp
+import synphot as sp
 
 __all__ = ["Spectrum", "BinnedSpectrum", "SpectralGrid", "BinnedSpectralGrid"]
 
@@ -22,7 +20,7 @@ class Spectrum(Spectrum1D):
 
     This class adds capabilities to:
     - Load and interpolate spectra from various model grids
-    - Resample spectra using `pysynphot` to conserve flux
+    - Resample spectra using `synphot` to conserve flux
     - Convolve spectra to lower resolution
     - Bin spectra into custom wavelength intervals
 
@@ -576,23 +574,29 @@ class Spectrum(Spectrum1D):
         else:
             force = None
         # Convert wavelengths arrays to same unit
-        wave_old = self.wavelength.to(u.AA).value
-        wave_new = wavelength.to(u.AA).value
-        waveunits = "angstrom"
+        wave_old = self.wavelength.to(u.AA)
+        wave_new = wavelength.to(u.AA)
+        # waveunits = "angstrom"
 
         # The input value without a unit
         flux_old = self.flux.value
 
-        # Make an observation object with pysynphot
-        spectrum = psp.spectrum.ArraySourceSpectrum(wave=wave_old, flux=flux_old)
-        throughput = np.ones(len(wave_old))
-        filt = psp.spectrum.ArraySpectralElement(
-            wave_old, throughput, waveunits=waveunits
+        # Make an observation object with synphot
+        spectrum = sp.spectrum.SourceSpectrum(
+            sp.models.Empirical1D, points=wave_old, lookup_table=flux_old
         )
-        obs = psp.observation.Observation(spectrum, filt, binset=wave_new, force=force)
+        throughput = np.ones(len(wave_old)) * u.dimensionless_unscaled
+        filt = sp.spectrum.SpectralElement(
+            sp.models.Empirical1D,
+            points=wave_old,
+            lookup_table=throughput,
+        )
+        obs = sp.observation.Observation(spectrum, filt, binset=wave_new, force=force)
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
-        spec_new = Spectrum(spectral_axis=wavelength, flux=obs.binflux * self.flux.unit)
+        spec_new = Spectrum(
+            spectral_axis=wavelength, flux=obs.binflux.value * self.flux.unit
+        )
 
         return spec_new
 
@@ -683,7 +687,9 @@ class Spectrum(Spectrum1D):
             scale_factor = (upper - lower) / (wavelength[idx][-1] - wavelength[idx][0])
 
             binned_flux = (
-                scale_factor * np.trapz(flux[idx], wavelength[idx]) / (upper - lower)
+                scale_factor
+                * np.trapezoid(flux[idx], wavelength[idx])
+                / (upper - lower)
             )
             binned_fluxes.append(binned_flux)
         binned_fluxes = u.Quantity(binned_fluxes)
