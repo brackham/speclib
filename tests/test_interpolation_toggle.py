@@ -16,21 +16,21 @@ def spectral_grid():
     )
 
 
-def test_spectral_grid_get_spectrum_nearest_exact_match(spectral_grid):
-    spec_interp = spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=True)
-    spec_nearest = spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=False)
+def test_spectral_grid_get_flux_nearest_exact_match(spectral_grid):
+    spec_interp = spectral_grid.get_flux(3000, 4.0, 0.0, interpolate=True)
+    spec_nearest = spectral_grid.get_flux(3000, 4.0, 0.0, interpolate=False)
     np.testing.assert_allclose(spec_interp.value, spec_nearest.value, rtol=1e-5)
 
 
-def test_spectral_grid_get_spectrum_nearest_off_grid(spectral_grid):
-    spec_nearest = spectral_grid.get_spectrum(3000, 4.25, 0.0, interpolate=False)
-    spec_base = spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=False)
+def test_spectral_grid_get_flux_nearest_off_grid(spectral_grid):
+    spec_nearest = spectral_grid.get_flux(3000, 4.25, 0.0, interpolate=False)
+    spec_base = spectral_grid.get_flux(3000, 4.0, 0.0, interpolate=False)
     assert np.allclose(spec_nearest.value, spec_base.value)
 
 
 def test_interpolated_vs_nearest_spectrum_differ(spectral_grid):
-    spec_interp = spectral_grid.get_spectrum(3000, 4.25, 0.0, interpolate=True)
-    spec_nearest = spectral_grid.get_spectrum(3000, 4.25, 0.0, interpolate=False)
+    spec_interp = spectral_grid.get_flux(3000, 4.25, 0.0, interpolate=True)
+    spec_nearest = spectral_grid.get_flux(3000, 4.25, 0.0, interpolate=False)
     assert not np.allclose(spec_interp.value, spec_nearest.value)
 
 
@@ -52,3 +52,8 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
     spec_nearest = grid.get_spectrum(3000, 4.25, 0.0, interpolate=False)
 
     assert not np.allclose(spec_interp.value, spec_nearest.value)
+
+
+def test_get_spectrum_deprecated_alias(spectral_grid):
+    with pytest.deprecated_call():
+        spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=False)

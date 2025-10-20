@@ -753,8 +753,8 @@ class SpectralGrid(object):
 
     Methods
     -------
-    get_spectrum(teff, logg, feh, interpolate=True)
-        Returns a binned spectrum for the given teff, logg, and feh.
+    get_flux(teff, logg, feh, interpolate=True)
+        Returns an interpolated flux array for the given teff, logg, and feh.
 
     """
 
@@ -895,7 +895,7 @@ class SpectralGrid(object):
             self.data = np.empty((0,))
             self.interpolator = None
 
-    def get_spectrum(self, teff, logg, feh, interpolate=True):
+    def get_flux(self, teff, logg, feh, interpolate=True):
         """
         Parameters
         ----------
@@ -964,6 +964,22 @@ class SpectralGrid(object):
             (self.teffs, self.loggs, self.fehs),
             (teff, logg, feh),
         )
+
+    def get_spectrum(self, teff, logg, feh, interpolate=True):
+        """Deprecated alias for :meth:`get_flux`.
+
+        .. deprecated:: 0.1.0
+            Use :meth:`get_flux` instead.
+        """
+
+        warnings.warn(
+            "SpectralGrid.get_spectrum is deprecated and will be removed in a "
+            "future release. Use SpectralGrid.get_flux instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self.get_flux(teff, logg, feh, interpolate=interpolate)
 
 
 class BinnedSpectralGrid(object):
