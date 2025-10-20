@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Renamed `SpectralGrid.get_spectrum()` to `SpectralGrid.get_flux()` for clearer semantics and consistency across the API.
+
+### Deprecated
+- `SpectralGrid.get_spectrum()` remains available as a deprecated alias that raises a `DeprecationWarning` and will be removed in a future release.
+
+### Testing
+- Updated `tests/test_interpolation_toggle.py` to cover the new method name and deprecated alias.
+
+
 ## [0.1.0b8] – 2025-10-20
 ### Added
 - Allow environment variable `SPECLIB_LIBRARY_PATH` to override the default `~/.speclib/libraries` path.
