@@ -428,7 +428,7 @@ def load_flux_array(fname, cache_dir, ftp_url):
     except FileNotFoundError:
         feh_folder = "Z" + fname[13:17]
         flux_remote_path = os.path.join(
-            ftp_url, "HiResFITS/PHOENIX-ACES-COND-2011", feh_folder, fname
+            ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
         )
         try:
             download_file(flux_remote_path, flux_local_path)
