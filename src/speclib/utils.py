@@ -26,16 +26,47 @@ __all__ = [
     "nearest",
     "vac2air",
     "air2vac",
+    "get_library_root",
+    "set_library_root",
 ]
+
+
+LIBRARY_ENVVAR = "SPECLIB_LIBRARY_PATH"
+_LIBRARY_ROOT: Path | None = None
+
+
+def get_library_root() -> Path:
+    """Return the directory where spectral libraries are cached."""
+    if _LIBRARY_ROOT is not None:
+        return _LIBRARY_ROOT
+    env = os.environ.get(LIBRARY_ENVVAR)
+    if env:
+        return Path(env).expanduser()
+    return Path.home() / ".speclib" / "libraries"
+
+
+def set_library_root(path: str | Path | None) -> Path:
+    """Set a custom cache directory for spectral libraries.
+
+    Passing ``None`` clears any previously set value and reverts to using the
+    environment variable or default location.
+    """
+    global _LIBRARY_ROOT
+    if path is None:
+        _LIBRARY_ROOT = None
+    else:
+        _LIBRARY_ROOT = Path(path).expanduser()
+    return get_library_root()
 
 
 def download_newera_file(
     teff, logg, zscale, alpha_scale, cache_dir=None, verbose=False
 ):
     if cache_dir is None:
-        cache_dir = os.path.join(os.path.expanduser("~"), ".speclib/libraries/newera/")
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
+        cache_dir = get_library_root() / "newera"
+    else:
+        cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Format parameter strings
     teff_str = f"{teff:05.0f}"
@@ -48,9 +79,9 @@ def download_newera_file(
     # Compose filename
     fname = f"lte{teff_str}{logg_str}{feh_str}{alpha_str}.PHOENIX-NewEra-ACES-COND-2023.HSR.h5"
     url = f"https://www.fdr.uni-hamburg.de/record/16738/files/{fname}?download=1"
-    local_path = os.path.join(cache_dir, fname)
+    local_path = cache_dir / fname
 
-    if not os.path.exists(local_path):
+    if not local_path.exists():
         download_file(url, local_path, verbose=verbose)
 
     return local_path
@@ -108,8 +139,8 @@ def download_newera_grid(
     url = NEWERA_URLS[grid_name]
     known_hash = NEWERA_HASHES[grid_name]
 
-    # Cache location: ~/.speclib/libraries/{grid_name}/
-    cache_dir = Path.home() / ".speclib" / "libraries" / grid_name
+    # Cache location: ~/.speclib/libraries/{grid_name}/ or custom path
+    cache_dir = get_library_root() / grid_name
     cache_dir.mkdir(parents=True, exist_ok=True)
     tar_path = cache_dir / filename
 
@@ -174,9 +205,8 @@ def download_file(remote_path, local_path, verbose=True):
 def download_phoenix_grid(overwrite=False):
     # Define the remote and local paths
     ftp_url = "ftp://phoenix.astro.physik.uni-goettingen.de"
-    cache_dir = os.path.join(os.path.expanduser("~"), ".speclib/libraries/phoenix/")
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
+    cache_dir = get_library_root() / "phoenix"
+    cache_dir.mkdir(parents=True, exist_ok=True)
     fname_str = (
         "lte{:05.0f}-{:0.2f}{:+0.1f}." + "PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
     )
@@ -187,7 +217,7 @@ def download_phoenix_grid(overwrite=False):
     # Iterate through the parameter space
     for combo in param_combos:
         fname = fname_str.format(*combo)
-        local_path = os.path.join(cache_dir, fname)
+        local_path = cache_dir / fname
         feh_folder = "Z" + fname[13:17]
         remote_path = os.path.join(
             ftp_url, "HiResFITS/PHOENIX-ACES-AGSS-COND-2011", feh_folder, fname
@@ -249,9 +279,8 @@ def download_newera_hsr_subset(
     import numpy as np
     import warnings
 
-    cache_dir = os.path.join(os.path.expanduser("~"), ".speclib/libraries/newera/")
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
+    cache_dir = get_library_root() / "newera"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Define grid step sizes
     delta_teff = 100
@@ -301,12 +330,12 @@ def download_newera_hsr_subset(
             feh_str = f"{feh:+.1f}".replace("+0.0", "-0.0")
             alpha_str = f".alpha={alpha:+.1f}" if alpha != 0.0 else ""
             fname = f"lte{teff_str}{logg_str}{feh_str}{alpha_str}.PHOENIX-NewEra-ACES-COND-2023.HSR.h5"
-            local_path = os.path.join(cache_dir, fname)
+            local_path = cache_dir / fname
 
             if verbose:
                 print(f"⬇ Downloading {fname}")
 
-            if overwrite or not os.path.exists(local_path):
+            if overwrite or not local_path.exists():
                 url = f"https://www.fdr.uni-hamburg.de/record/16738/files/{fname}?download=1"
                 download_file(url, local_path, verbose=verbose)
         except Exception as e:
@@ -391,8 +420,8 @@ def load_flux_array(fname, cache_dir, ftp_url):
     """
     Load a flux array.
     """
-    # Look for a local file first
-    flux_local_path = os.path.join(cache_dir, fname)
+    cache_dir = Path(cache_dir)
+    flux_local_path = cache_dir / fname
     try:
         flux = fits.getdata(flux_local_path)
     # If that doesn't work, download the remote file
@@ -453,7 +482,7 @@ def load_newera_wavelength_array(
             UserWarning,
         )
     if library_root is None:
-        library_root = Path.home() / ".speclib" / "libraries"
+        library_root = get_library_root()
     else:
         library_root = Path(library_root)
 
@@ -557,7 +586,7 @@ def load_newera_flux_array(
         If no matching model is found in the file.
     """
     if library_root is None:
-        library_root = Path.home() / ".speclib" / "libraries"
+        library_root = get_library_root()
     else:
         library_root = Path(library_root)
 

@@ -2,6 +2,7 @@ import astropy.units as u
 import astropy.io.fits as fits
 import numpy as np
 import os
+from pathlib import Path
 import speclib.utils as utils
 from specutils import Spectrum1D
 from scipy.interpolate import NearestNDInterpolator
@@ -116,11 +117,8 @@ class Spectrum(Spectrum1D):
         if self.model_grid == "phoenix":
             lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^3)")
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/phoenix/"
-            )
-            if not os.path.exists(cache_dir):
-                os.makedirs(cache_dir)
+            cache_dir = utils.get_library_root() / "phoenix"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
             ftp_url = "ftp://phoenix.astro.physik.uni-goettingen.de"
             fname_str = (
@@ -134,9 +132,7 @@ class Spectrum(Spectrum1D):
                 feh = -0.0
 
             # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
-            )
+            wave_local_path = cache_dir / "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
             try:
                 wave_lib = fits.getdata(wave_local_path)
             except FileNotFoundError:
@@ -194,11 +190,8 @@ class Spectrum(Spectrum1D):
 
             lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg / (s * cm^3)")
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/newera/"
-            )
-            if not os.path.exists(cache_dir):
-                os.makedirs(cache_dir)
+            cache_dir = utils.get_library_root() / "newera"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Ensure feh is float-compatible with naming convention
             if feh == 0:
@@ -299,11 +292,8 @@ class Spectrum(Spectrum1D):
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
             lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/drift-phoenix/"
-            )
-            if not os.path.exists(cache_dir):
-                os.makedirs(cache_dir)
+            cache_dir = utils.get_library_root() / "drift-phoenix"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
             fname_str = "lte_{:4.0f}_{:0.1f}{:+0.1f}.7.dat.txt"
 
@@ -313,7 +303,7 @@ class Spectrum(Spectrum1D):
                 feh = -0.0
 
             # Load the wavelength array
-            wave_local_path = os.path.join(cache_dir, "lte_1000_3.0-0.0.7.dat.txt")
+            wave_local_path = cache_dir / "lte_1000_3.0-0.0.7.dat.txt"
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
             teff_in_grid = teff in self.grid_teffs
@@ -342,7 +332,7 @@ class Spectrum(Spectrum1D):
                         for ff in feh_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir + fname, unpack=True, usecols=1
+                                cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
@@ -352,24 +342,19 @@ class Spectrum(Spectrum1D):
             elif model_in_grid:
                 # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                wave_lib, flux = load_wave_flux(fname)
+                wave_lib, flux = np.loadtxt(cache_dir / fname, unpack=True)
 
         elif self.model_grid == "nextgen-solar":
             # Only works if the user has already cached the NextGen model grid
             lib_wave_unit = u.AA
             lib_flux_unit = u.Unit("erg/(s * cm^2 * angstrom)")
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/nextgen-solar/"
-            )
-            if not os.path.exists(cache_dir):
-                os.makedirs(cache_dir)
+            cache_dir = utils.get_library_root() / "nextgen-solar"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
             fname_str = "lte{:05.0f}_{:+0.1f}_{:+.1f}_NextGen-solar.dat"
 
             # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "lte01600_+5.5_+0.0_NextGen-solar.dat"
-            )
+            wave_local_path = cache_dir / "lte01600_+5.5_+0.0_NextGen-solar.dat"
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
             teff_in_grid = teff in self.grid_teffs
@@ -398,7 +383,7 @@ class Spectrum(Spectrum1D):
                         for ff in feh_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir + fname, unpack=True, usecols=1
+                                cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
@@ -408,24 +393,22 @@ class Spectrum(Spectrum1D):
             elif model_in_grid:
                 # Load the wavelength and flux arrays
                 fname = fname_str.format(teff, logg, feh)
-                wave_lib, flux = load_wave_flux(fname)
+                wave_lib, flux = np.loadtxt(cache_dir / fname, unpack=True)
 
         elif self.model_grid == "sphinx":
             # Only works if the user has already cached the SPHINX model grid
             lib_wave_unit = u.micron
             lib_flux_unit = u.Unit("W/(m^2 * m)")
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/sphinx/"
-            )
-            if not os.path.exists(cache_dir):
-                os.makedirs(cache_dir)
+            cache_dir = utils.get_library_root() / "sphinx"
+            cache_dir.mkdir(parents=True, exist_ok=True)
 
             # CtoO = 0.5  # Not varying this for now
             # fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_{:0.1f}_spectra.txt"
             fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_0.5_spectra.txt"
 
             def load_wave_flux(fname):
-                wave, flux = np.loadtxt(cache_dir + fname, unpack=True)
+                path = cache_dir / fname
+                wave, flux = np.loadtxt(path, unpack=True)
                 return wave, flux
 
             teff_in_grid = teff in self.grid_teffs
@@ -454,7 +437,7 @@ class Spectrum(Spectrum1D):
                         for ff in feh_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir + fname, unpack=True, usecols=1
+                                cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
@@ -472,14 +455,13 @@ class Spectrum(Spectrum1D):
             lib_flux_unit = (
                 u.Unit("erg / (s * cm^2 * Hz^1)") * (u.AU / u.R_sun).cgs ** 2
             )
-            cache_dir = os.path.join(
-                os.path.expanduser("~"), ".speclib/libraries/mps-atlas/"
-            )
+            cache_dir = utils.get_library_root() / "mps-atlas"
+            cache_dir.mkdir(parents=True, exist_ok=True)
             fname_str = "MH{:+0.2f}/teff{:4.0f}/logg{:0.1f}/mpsa_flux_spectra.dat"
 
             # Load the wavelength array
-            wave_local_path = os.path.join(
-                cache_dir, "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
+            wave_local_path = (
+                cache_dir / "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
             )
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
@@ -509,7 +491,7 @@ class Spectrum(Spectrum1D):
                         for ff in feh_bds:
                             fname = fname_str.format(ff, tt, gg)
                             flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir + fname, unpack=True, usecols=1
+                                cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
@@ -519,7 +501,7 @@ class Spectrum(Spectrum1D):
             elif model_in_grid:
                 # Load the flux array
                 fname = fname_str.format(feh, teff, logg)
-                flux = np.loadtxt(cache_dir + fname, unpack=True, usecols=1)
+                flux = np.loadtxt(cache_dir / fname, unpack=True, usecols=1)
 
         # Load `~speclib.Spectrum` object
         spec = Spectrum(
@@ -1115,9 +1097,9 @@ class BinnedSpectralGrid(object):
             for logg in self.loggs:
                 fluxes[teff][logg] = {}
                 for feh in self.fehs:
-                    bs = Spectrum.from_grid(teff, logg, feh, **kwargs).bin(
-                        center, width
-                    )
+                    bs = Spectrum.from_grid(
+                        teff, logg, feh, model_grid=self.model_grid, **kwargs
+                    ).bin(center, width)
                     fluxes[teff][logg][feh] = bs.flux
         self.fluxes = fluxes
 

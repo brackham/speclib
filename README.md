@@ -45,6 +45,13 @@ flux = apply_filter(spec, filt)
 print(f"J-band flux: {flux:.2e}")
 ```
 
+### Custom library cache location
+
+Downloaded spectral libraries are stored in `~/.speclib/libraries` by default.
+Set the ``SPECLIB_LIBRARY_PATH`` environment variable or call
+``speclib.utils.set_library_root("/path/to/cache")`` to use a different
+location.
+
 ---
 
 ## License

@@ -1,4 +1,5 @@
 from speclib.utils import nearest, trilinear_interpolate
+import speclib.utils as utils
 
 
 def test_nearest_simple():
@@ -22,3 +23,19 @@ def test_trilinear_interpolate_basic():
 
     result = trilinear_interpolate(fluxes, ([1, 2], [3, 4], [5, 6]), (1.5, 3.5, 5.5))
     assert result == 10.5
+
+
+def test_library_root_env(monkeypatch, tmp_path):
+    custom = tmp_path / "cache"
+    monkeypatch.setenv("SPECLIB_LIBRARY_PATH", str(custom))
+    utils.set_library_root(None)
+    assert utils.get_library_root() == custom
+
+
+def test_set_library_root(tmp_path):
+    custom = tmp_path / "other"
+    utils.set_library_root(custom)
+    try:
+        assert utils.get_library_root() == custom
+    finally:
+        utils.set_library_root(None)

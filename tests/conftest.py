@@ -5,10 +5,9 @@ import shutil
 import pytest
 import numpy as np
 
-from speclib import utils
-
 # Add the `src/` directory to sys.path so `speclib` is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+from speclib import utils
 
 
 @pytest.fixture(scope="session", autouse=True)

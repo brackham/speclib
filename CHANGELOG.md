@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0b8] – 2025-10-20
+### Added
+- Allow environment variable `SPECLIB_LIBRARY_PATH` to override the default `~/.speclib/libraries` path.
+- Add `speclib.utils.set_library_root()` helper to otherwise change the path.
+- Documentation updates and regression tests for custom cache paths.
+
+
 ## [0.1.0b7] - 2025-08-15
 
 ### Changed
