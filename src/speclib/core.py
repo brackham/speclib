@@ -460,7 +460,9 @@ class Spectrum(Spectrum1D):
             fname_str = "MH{:+0.2f}/teff{:4.0f}/logg{:0.1f}/mpsa_flux_spectra.dat"
 
             # Load the wavelength array
-            wave_local_path = cache_dir / "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
+            wave_local_path = (
+                cache_dir / "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
+            )
             wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
 
             teff_in_grid = teff in self.grid_teffs
