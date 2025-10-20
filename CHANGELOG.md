@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 - Verified flux conservation after resampling spectra with `Spectrum.resample()`.
-- Manually tested interpolation behavior in `Spectrum.from_grid()` and `SpectralGrid.get_spectrum()`.
+- Manually tested interpolation behavior in `Spectrum.from_grid()` and `SpectralGrid.get_flux()`.
 
 
 ## [0.1.0b5] - 2025-06-26
