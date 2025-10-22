@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Renamed `SpectralGrid.get_spectrum()` to `SpectralGrid.get_flux()` for clearer semantics and consistency across the API.
+- Updated NewEra helpers to use the V3.4 release (record 17935), including dynamic archive resolution and metadata parsing for HSR downloads.
 
 ### Deprecated
 - `SpectralGrid.get_spectrum()` remains available as a deprecated alias that raises a `DeprecationWarning` and will be removed in a future release.
