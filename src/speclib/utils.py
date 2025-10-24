@@ -38,32 +38,11 @@ LIBRARY_ENVVAR = "SPECLIB_LIBRARY_PATH"
 NEWERA_RECORD_ENVVAR = "SPECLIB_NEWERA_RECORD_ID"
 NEWERA_DEFAULT_RECORD_ID = "17935"
 
-NEWERA_INDEX_FILENAMES = [
-    "list_of_available_NewEraV3.4_models.txt",
-    "list_of_available_NewEraV2_models.txt",
-    "list_of_available_NewEra_models.txt",
-]
-
-NEWERA_TARBALL_CANDIDATES: dict[str, list[str]] = {
-    "newera_gaia": [
-        "PHOENIX-NewEraV3.4-GAIA-DR4_v3.4-SPECTRA.tar.gz",
-        "PHOENIX-NewEraV3.4-GAIA-DR4-SPECTRA.tar.gz",
-        "PHOENIX-NewEraV2-GAIA-DR4_v3.4-SPECTRA.tar.gz",
-        "PHOENIX-NewEraV2-GAIA-DR4-SPECTRA.tar.gz",
-        "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA.tar.gz",
-        "NewEra_for_GAIA_DR4.tar",
-    ],
-    "newera_jwst": [
-        "PHOENIX-NewEraV3.4-JWST-SPECTRA.tar.gz",
-        "PHOENIX-NewEraV3.4-JWST-SPECTRA.tar",
-        "PHOENIX-NewEraV2-JWST-SPECTRA.tar.gz",
-        "PHOENIX-NewEra-JWST-SPECTRA.tar.gz",
-    ],
-    "newera_lowres": [
-        "PHOENIX-NewEraV3.4-LowRes-SPECTRA.tar.gz",
-        "PHOENIX-NewEraV2-LowRes-SPECTRA.tar.gz",
-        "PHOENIX-NewEra-LowRes-SPECTRA.tar.gz",
-    ],
+NEWERA_INDEX_FILENAME = "list_of_available_NewEraV3_models.txt"
+NEWERA_TARBALLS: dict[str, str] = {
+    "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA.tar.gz",
+    "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA.tar.gz",
+    "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA.tar.gz",
 }
 
 _LIBRARY_ROOT: Path | None = None
@@ -120,7 +99,9 @@ def _get_newera_file_url(filename: str, record_id: str | None = None) -> str:
     return f"{_get_newera_base_url(record_id)}/{filename}?download=1"
 
 
-def _normalize_newera_key(teff: float, logg: float, feh: float, alpha: float) -> tuple[int, float, float, float]:
+def _normalize_newera_key(
+    teff: float, logg: float, feh: float, alpha: float
+) -> tuple[int, float, float, float]:
     teff_key = int(round(teff))
     logg_key = round(float(logg), 2)
     feh_key = round(float(feh), 1)
@@ -137,37 +118,33 @@ def _normalize_newera_key(teff: float, logg: float, feh: float, alpha: float) ->
 
 
 def _ensure_newera_index(cache_dir: Path, record_id: str) -> Path:
+    """Ensure the NewEra index file is present locally, downloading if needed."""
     existing = sorted(cache_dir.glob("list_of_available_NewEra*.txt"), reverse=True)
     if existing:
         return existing[0]
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     base_url = _get_newera_base_url(record_id)
-    last_error: Exception | None = None
+    url = f"{base_url}/{NEWERA_INDEX_FILENAME}?download=1"
 
-    for candidate in NEWERA_INDEX_FILENAMES:
-        url = f"{base_url}/{candidate}?download=1"
-        try:
-            pooch.retrieve(
-                url=url,
-                fname=candidate,
-                path=cache_dir,
-                known_hash=None,
-                progressbar=True,
-            )
-            return cache_dir / candidate
-        except Exception as exc:  # pragma: no cover - network dependent
-            last_error = exc
-            continue
-
-    message = "Unable to download NewEra model list"
-    if last_error:
-        message += f": {last_error}"
-    raise FileNotFoundError(message)
+    try:
+        pooch.retrieve(
+            url=url,
+            fname=NEWERA_INDEX_FILENAME,
+            path=cache_dir,
+            known_hash=None,
+            progressbar=True,
+        )
+        return cache_dir / NEWERA_INDEX_FILENAME
+    except Exception as exc:  # pragma: no cover - network dependent
+        raise FileNotFoundError(f"Unable to download NewEra model list: {exc}")
 
 
 def load_newera_model_list(
-    *, library_root: str | Path | None = None, cache_dir: str | Path | None = None, record_id: str | None = None
+    *,
+    library_root: str | Path | None = None,
+    cache_dir: str | Path | None = None,
+    record_id: str | None = None,
 ) -> dict:
     """Return metadata for available NewEra high-resolution spectra.
 
@@ -231,40 +208,34 @@ def load_newera_model_list(
 def _resolve_newera_tarball(
     grid_name: str, cache_dir: Path, record_id: str, overwrite: bool = False
 ) -> Path:
-    candidates = NEWERA_TARBALL_CANDIDATES[grid_name]
+    """Ensure the NewEra tarball for the given grid is present locally, downloading if needed."""
+    tarball_name = NEWERA_TARBALLS[grid_name]
+    tar_path = cache_dir / tarball_name
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    for candidate in candidates:
-        tar_path = cache_dir / candidate
-        if tar_path.exists():
-            if overwrite:
-                print(f"🔁 Overwriting existing tarball: {tar_path.name}")
-                tar_path.unlink()
-            else:
-                return tar_path
+    if tar_path.exists():
+        if overwrite:
+            print(f"🔁 Overwriting existing tarball: {tar_path.name}")
+            tar_path.unlink()
+        else:
+            return tar_path
 
-    last_error: Exception | None = None
-    for candidate in candidates:
-        url = _get_newera_file_url(candidate, record_id)
-        try:
-            print(f"⬇ Downloading {candidate} from {url}")
-            path_str = pooch.retrieve(
-                url=url,
-                fname=candidate,
-                path=cache_dir,
-                known_hash=None,
-                processor=None,
-                progressbar=True,
-            )
-            return Path(path_str)
-        except Exception as exc:  # pragma: no cover - network dependent
-            last_error = exc
-            continue
-
-    message = f"Unable to download NewEra archive for '{grid_name}'"
-    if last_error:
-        message += f": {last_error}"
-    raise FileNotFoundError(message)
+    url = _get_newera_file_url(tarball_name, record_id)
+    try:
+        print(f"⬇ Downloading {tarball_name} from {url}")
+        path_str = pooch.retrieve(
+            url=url,
+            fname=tarball_name,
+            path=cache_dir,
+            known_hash=None,
+            processor=None,
+            progressbar=True,
+        )
+        return Path(path_str)
+    except Exception as exc:  # pragma: no cover - network dependent
+        raise FileNotFoundError(
+            f"Unable to download NewEra archive for '{grid_name}': {exc}"
+        )
 
 
 def download_newera_file(
@@ -323,23 +294,28 @@ def download_newera_grid(
     NewEra **V3.4** release (record 17935) hosted by FDR Hamburg, suitable for
     most applications (e.g., forward modeling, calibration).
     """
-    if grid_name not in NEWERA_TARBALL_CANDIDATES:
+    if grid_name not in NEWERA_TARBALLS:
         raise ValueError(
-            f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_TARBALL_CANDIDATES.keys())}"
+            f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_TARBALLS.keys())}"
         )
 
-    # Cache location: ~/.speclib/libraries/{grid_name}/ or custom path
+    # Cache location: ~/.speclib/libraries/{grid_name}/  (or custom path)
     cache_dir = get_library_root() / grid_name
     cache_dir.mkdir(parents=True, exist_ok=True)
     record_id = get_newera_record_id()
 
-    existing_before = any((cache_dir / candidate).exists() for candidate in NEWERA_TARBALL_CANDIDATES[grid_name])
-    tar_path = _resolve_newera_tarball(grid_name, cache_dir, record_id, overwrite=overwrite)
+    tarball_name = NEWERA_TARBALLS[grid_name]
+    tar_path = cache_dir / tarball_name
+    existing_before = tar_path.exists()
+
+    tar_path = _resolve_newera_tarball(
+        grid_name, cache_dir, record_id, overwrite=overwrite
+    )
 
     if existing_before and tar_path.exists():
         print(f"✅ Using cached NewEra archive: {tar_path.name}")
 
-    # Extract tarball if needed
+    # Extract tarball if requested
     if extract:
         print(f"🗂 Extracting archive to: {cache_dir}")
         extract_missing_txt_files(tar_path, cache_dir)
@@ -672,9 +648,9 @@ def load_newera_wavelength_array(
 
     # Construct file name
     prefix = {
-        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
@@ -776,9 +752,9 @@ def load_newera_flux_array(
 
     # Construct file name
     prefix = {
-        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)

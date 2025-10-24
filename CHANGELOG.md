@@ -7,20 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.0b9] - 2025-10-24
+
+### Added
+
+- `docs/requirements.txt` specifying Sphinx dependencies (`myst-parser`, `furo`).
 
 ### Changed
+
 - Renamed `SpectralGrid.get_spectrum()` to `SpectralGrid.get_flux()` for clearer semantics and consistency across the API.
-- Updated NewEra helpers to use the V3.4 release (record 17935), including dynamic archive resolution and metadata parsing for HSR downloads.
+- Updated `.readthedocs.yml` to install documentation requirements explicitly, ensuring Read the Docs builds succeed without missing extensions.
+- Updated NewEra helpers to use the V3.4 release (record 17935).
 
 ### Deprecated
+
 - `SpectralGrid.get_spectrum()` remains available as a deprecated alias that raises a `DeprecationWarning` and will be removed in a future release.
 
+### Fixed
+
+- Documentation build failures on Read the Docs caused by missing `myst_parser` import errors.
+- Improved local build reproducibility using `sphinx-build -b html docs _build/html`.
+
 ### Testing
+
 - Updated `tests/test_interpolation_toggle.py` to cover the new method name and deprecated alias.
 
 
 ## [0.1.0b8] – 2025-10-20
+
 ### Added
 - Allow environment variable `SPECLIB_LIBRARY_PATH` to override the default `~/.speclib/libraries` path.
 - Add `speclib.utils.set_library_root()` helper to otherwise change the path.
