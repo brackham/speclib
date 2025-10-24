@@ -916,7 +916,7 @@ class SpectralGrid(object):
         Returns
         -------
         flux : `~astropy.units.Quantity`
-            The interpolated flux array.
+            The interpolated flux array as a 1-D vector aligned to ``self.wavelength``.
         """
 
         # First check that the values are within the grid
@@ -947,6 +947,12 @@ class SpectralGrid(object):
             else:
                 idx = np.argmin(np.sum((self.points - point) ** 2, axis=1))
                 flux = self.data[idx]
+
+            flux = np.atleast_1d(np.squeeze(np.asarray(flux)))
+            if flux.ndim != 1:
+                raise ValueError(
+                    "Interpolated flux has unexpected shape; expected a 1-D array"
+                )
 
             return flux * self.unit
 

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **SpectralGrid.get_flux(interp=True)** now always returns a **1-D flux array** aligned with `self.wavelength`.
+
+  * Previously, for NewEra grids (`newera_jwst`, `newera_gaia`, `newera_lowres`), the interpolated flux was returned as shape `(1, N)` instead of `(N,)`, causing downstream shape mismatches.
+  * Implemented normalization via `np.atleast_1d(np.squeeze(...))` and validation of the resulting dimension.
+  * Added explicit docstring clarification that `get_flux` returns a 1-D vector.
+
+### Added
+
+- **Unit test:** `test_newera_flux_shape_is_1d` in `tests/test_interpolation_toggle.py` to ensure both interpolated and nearest fluxes are 1-D for NewEra grids.
+- **DummyInterpolator** helper class to simplify isolated shape tests.
+
+### Verified
+
+- All model grids (`phoenix`, `newera_jwst`, `newera_gaia`, `newera_lowres`) now pass shape consistency checks.
+- Regression test confirms matching wavelength/flux lengths and no extra leading dimension.
+
+### Related issues
+
+- Closes #51: *🐛 Bug: Some model grids return flux with the wrong shape (extra leading dimension) when using `SpectralGrid.get_flux(interp=True)`*.
+
+
 ## [0.1.0b9] - 2025-10-24
 
 ### Added
