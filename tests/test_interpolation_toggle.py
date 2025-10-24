@@ -57,3 +57,30 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
 def test_get_spectrum_deprecated_alias(spectral_grid):
     with pytest.deprecated_call():
         spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=False)
+
+
+class _DummyInterpolator:
+    def __init__(self, flux):
+        self._flux = flux
+
+    def __call__(self, point):
+        return self._flux
+
+
+def test_newera_flux_shape_is_1d():
+    grid = SpectralGrid.__new__(SpectralGrid)
+    grid.model_grid = "newera_jwst"
+    grid.interpolator = _DummyInterpolator(np.array([[1.0, 2.0, 3.0]]))
+    grid.points = np.array([[1500.0, 4.5, 0.0]])
+    grid.data = np.array([[1.0, 2.0, 3.0]])
+    grid.unit = u.erg / (u.s * u.cm**2 * u.AA)
+    grid.wavelength = np.linspace(1.0, 3.0, 3) * u.AA
+    grid.teff_bds = (1400.0, 1600.0)
+    grid.logg_bds = (4.0, 5.0)
+    grid.feh_bds = (-0.5, 0.5)
+
+    flux_interp = grid.get_flux(1500.0, 4.5, 0.0, interpolate=True)
+    flux_nearest = grid.get_flux(1500.0, 4.5, 0.0, interpolate=False)
+
+    assert flux_interp.shape == (3,)
+    assert flux_nearest.shape == (3,)
