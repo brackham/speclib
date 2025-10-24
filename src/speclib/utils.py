@@ -5,6 +5,7 @@ import itertools
 import numpy as np
 import os
 import pooch
+import re
 import shutil
 import tarfile
 import urllib
@@ -18,6 +19,8 @@ __all__ = [
     "download_file",
     "download_phoenix_grid",
     "download_newera_grid",
+    "get_newera_record_id",
+    "load_newera_model_list",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -32,7 +35,29 @@ __all__ = [
 
 
 LIBRARY_ENVVAR = "SPECLIB_LIBRARY_PATH"
+NEWERA_RECORD_ENVVAR = "SPECLIB_NEWERA_RECORD_ID"
+NEWERA_DEFAULT_RECORD_ID = "17935"
+
+NEWERA_INDEX_FILENAME = "list_of_available_NewEraV3_models.txt"
+NEWERA_TARBALLS: dict[str, str] = {
+    "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA.tar.gz",
+    "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA.tar.gz",
+    "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA.tar.gz",
+}
+
 _LIBRARY_ROOT: Path | None = None
+_NEWERA_INDEX_CACHE: dict[tuple[Path, str], dict] = {}
+
+_NEWERA_MODEL_LINE_RE = re.compile(
+    r"(?P<filename>"
+    r"lte(?P<teff>\d{5})"
+    r"(?P<logg_sign>[+-])(?P<logg>\d\.\d{2})"
+    r"(?P<feh_sign>[+-])(?P<feh>\d\.\d)"
+    r"(?:\.alpha=(?P<alpha_sign>[+-])(?P<alpha>\d\.\d))?"
+    r"\.PHOENIX-NewEra(?:V[0-9.]+)?-ACES-COND-(?P<year>\d{4})\.HSR\.h5"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def get_library_root() -> Path:
@@ -59,6 +84,160 @@ def set_library_root(path: str | Path | None) -> Path:
     return get_library_root()
 
 
+def get_newera_record_id() -> str:
+    """Return the record ID hosting the NewEra V3.4 release."""
+
+    return os.environ.get(NEWERA_RECORD_ENVVAR, NEWERA_DEFAULT_RECORD_ID)
+
+
+def _get_newera_base_url(record_id: str | None = None) -> str:
+    record = record_id or get_newera_record_id()
+    return f"https://www.fdr.uni-hamburg.de/record/{record}/files"
+
+
+def _get_newera_file_url(filename: str, record_id: str | None = None) -> str:
+    return f"{_get_newera_base_url(record_id)}/{filename}?download=1"
+
+
+def _normalize_newera_key(
+    teff: float, logg: float, feh: float, alpha: float
+) -> tuple[int, float, float, float]:
+    teff_key = int(round(teff))
+    logg_key = round(float(logg), 2)
+    feh_key = round(float(feh), 1)
+    alpha_key = round(float(alpha), 1)
+
+    if logg_key == -0.0:
+        logg_key = 0.0
+    if feh_key == -0.0:
+        feh_key = 0.0
+    if alpha_key == -0.0:
+        alpha_key = 0.0
+
+    return teff_key, logg_key, feh_key, alpha_key
+
+
+def _ensure_newera_index(cache_dir: Path, record_id: str) -> Path:
+    """Ensure the NewEra index file is present locally, downloading if needed."""
+    existing = sorted(cache_dir.glob("list_of_available_NewEra*.txt"), reverse=True)
+    if existing:
+        return existing[0]
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    base_url = _get_newera_base_url(record_id)
+    url = f"{base_url}/{NEWERA_INDEX_FILENAME}?download=1"
+
+    try:
+        pooch.retrieve(
+            url=url,
+            fname=NEWERA_INDEX_FILENAME,
+            path=cache_dir,
+            known_hash=None,
+            progressbar=True,
+        )
+        return cache_dir / NEWERA_INDEX_FILENAME
+    except Exception as exc:  # pragma: no cover - network dependent
+        raise FileNotFoundError(f"Unable to download NewEra model list: {exc}")
+
+
+def load_newera_model_list(
+    *,
+    library_root: str | Path | None = None,
+    cache_dir: str | Path | None = None,
+    record_id: str | None = None,
+) -> dict:
+    """Return metadata for available NewEra high-resolution spectra.
+
+    Parameters
+    ----------
+    library_root : str or Path, optional
+        Base library directory. If omitted, the configured library root is used.
+    cache_dir : str or Path, optional
+        Directory containing the HSR cache. Defaults to ``library_root / "newera"``.
+    record_id : str, optional
+        Override the FDR Hamburg record identifier. Defaults to :func:`get_newera_record_id`.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys ``"entries"`` (mapping parameter tuples to filenames),
+        ``"path"`` (the index file path), and ``"record_id"``.
+    """
+
+    if cache_dir is None:
+        if library_root is None:
+            base = get_library_root()
+        else:
+            base = Path(library_root).expanduser()
+        cache_dir = base / "newera"
+    else:
+        cache_dir = Path(cache_dir).expanduser()
+
+    record = record_id or get_newera_record_id()
+    cache_key = (cache_dir.resolve(), record)
+    if cache_key in _NEWERA_INDEX_CACHE:
+        return _NEWERA_INDEX_CACHE[cache_key]
+
+    index_path = _ensure_newera_index(cache_dir, record)
+
+    entries: dict[tuple[int, float, float, float], str] = {}
+    with open(index_path, "r") as handle:
+        for line in handle:
+            match = _NEWERA_MODEL_LINE_RE.search(line)
+            if not match:
+                continue
+
+            teff = int(match.group("teff"))
+            logg = -float(match.group("logg_sign") + match.group("logg"))
+            feh = float(match.group("feh_sign") + match.group("feh"))
+
+            alpha_sign = match.group("alpha_sign")
+            if alpha_sign:
+                alpha = float(alpha_sign + match.group("alpha"))
+            else:
+                alpha = 0.0
+
+            key = _normalize_newera_key(teff, logg, feh, alpha)
+            entries[key] = match.group("filename")
+
+    result = {"entries": entries, "path": index_path, "record_id": record}
+    _NEWERA_INDEX_CACHE[cache_key] = result
+    return result
+
+
+def _resolve_newera_tarball(
+    grid_name: str, cache_dir: Path, record_id: str, overwrite: bool = False
+) -> Path:
+    """Ensure the NewEra tarball for the given grid is present locally, downloading if needed."""
+    tarball_name = NEWERA_TARBALLS[grid_name]
+    tar_path = cache_dir / tarball_name
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if tar_path.exists():
+        if overwrite:
+            print(f"🔁 Overwriting existing tarball: {tar_path.name}")
+            tar_path.unlink()
+        else:
+            return tar_path
+
+    url = _get_newera_file_url(tarball_name, record_id)
+    try:
+        print(f"⬇ Downloading {tarball_name} from {url}")
+        path_str = pooch.retrieve(
+            url=url,
+            fname=tarball_name,
+            path=cache_dir,
+            known_hash=None,
+            processor=None,
+            progressbar=True,
+        )
+        return Path(path_str)
+    except Exception as exc:  # pragma: no cover - network dependent
+        raise FileNotFoundError(
+            f"Unable to download NewEra archive for '{grid_name}': {exc}"
+        )
+
+
 def download_newera_file(
     teff, logg, zscale, alpha_scale, cache_dir=None, verbose=False
 ):
@@ -68,20 +247,22 @@ def download_newera_file(
         cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Format parameter strings
-    teff_str = f"{teff:05.0f}"
-    logg_str = f"{-logg:.2f}"  # Minus sign before logg
-    feh_str = f"{zscale:+.1f}".replace("+0.0", "-0.0").replace(
-        "-0.0", "-0.0"
-    )  # Always show sign
-    alpha_str = f".alpha={alpha_scale:+.1f}" if alpha_scale != 0.0 else ""
+    record_id = get_newera_record_id()
+    model_list = load_newera_model_list(cache_dir=cache_dir, record_id=record_id)
+    key = _normalize_newera_key(teff, logg, zscale, alpha_scale)
 
-    # Compose filename
-    fname = f"lte{teff_str}{logg_str}{feh_str}{alpha_str}.PHOENIX-NewEra-ACES-COND-2023.HSR.h5"
-    url = f"https://www.fdr.uni-hamburg.de/record/16738/files/{fname}?download=1"
+    try:
+        fname = model_list["entries"][key]
+    except KeyError as exc:
+        raise FileNotFoundError(
+            "Requested NewEra model is not listed in the available V3.4 grid: "
+            f"Teff={teff}, logg={logg}, [M/H]={zscale}, [alpha/Fe]={alpha_scale}"
+        ) from exc
+
     local_path = cache_dir / fname
 
     if not local_path.exists():
+        url = _get_newera_file_url(fname, record_id)
         download_file(url, local_path, verbose=verbose)
 
     return local_path
@@ -109,61 +290,32 @@ def download_newera_grid(
 
     Note
     ----
-    This function fetches reduced-resolution NewEra grids from published `.tar.gz` archives,
-    suitable for most applications (e.g., forward modeling, calibration).
+    This function fetches reduced-resolution NewEra grids from the PHOENIX/1D
+    NewEra **V3.4** release (record 17935) hosted by FDR Hamburg, suitable for
+    most applications (e.g., forward modeling, calibration).
     """
-    NEWERA_FILES = {
-        "newera_gaia": "NewEra_for_GAIA_DR4.tar",
-        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA.tar.gz",
-        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA.tar.gz",
-    }
-
-    NEWERA_URLS = {
-        "newera_gaia": "https://www.fdr.uni-hamburg.de/record/17156/files/NewEra_for_GAIA_DR4.tar?download=1",
-        "newera_lowres": "https://www.fdr.uni-hamburg.de/record/17156/files/PHOENIX-NewEra-LowRes-SPECTRA.tar.gz?download=1",
-        "newera_jwst": "https://www.fdr.uni-hamburg.de/record/17156/files/PHOENIX-NewEra-JWST-SPECTRA.tar.gz?download=1",
-    }
-
-    NEWERA_HASHES = {
-        "newera_gaia": "26f788339bc34f972a30150bcdbd2db179baed7a5158ea050b04c48d39d05153",
-        "newera_jwst": "fa2cb3df4cda39672093a7a0f3aa5366a70d1d8d9fc6e84b2d9a020c63ccb645",
-        "newera_lowres": "44276e3db8c7062a4bc4de06a3e0909e925c684f45f5d2c790065b1e4330a306",
-    }
-
-    if grid_name not in NEWERA_FILES:
+    if grid_name not in NEWERA_TARBALLS:
         raise ValueError(
-            f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_FILES.keys())}"
+            f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_TARBALLS.keys())}"
         )
 
-    filename = NEWERA_FILES[grid_name]
-    url = NEWERA_URLS[grid_name]
-    known_hash = NEWERA_HASHES[grid_name]
-
-    # Cache location: ~/.speclib/libraries/{grid_name}/ or custom path
+    # Cache location: ~/.speclib/libraries/{grid_name}/  (or custom path)
     cache_dir = get_library_root() / grid_name
     cache_dir.mkdir(parents=True, exist_ok=True)
-    tar_path = cache_dir / filename
+    record_id = get_newera_record_id()
 
-    # Delete tarball if overwrite requested
-    if overwrite and tar_path.exists():
-        print(f"🔁 Overwriting existing tarball: {tar_path.name}")
-        tar_path.unlink()
+    tarball_name = NEWERA_TARBALLS[grid_name]
+    tar_path = cache_dir / tarball_name
+    existing_before = tar_path.exists()
 
-    # Download if not already present
-    if not tar_path.exists():
-        print(f"⬇ Downloading {filename} from {url}")
-        tar_path = pooch.retrieve(
-            url=url,
-            fname=filename,
-            path=cache_dir,
-            known_hash=known_hash,
-            processor=None,
-            progressbar=True,
-        )
-    else:
-        print(f"✅ Tarball already present: {tar_path.name}")
+    tar_path = _resolve_newera_tarball(
+        grid_name, cache_dir, record_id, overwrite=overwrite
+    )
 
-    # Extract tarball if needed
+    if existing_before and tar_path.exists():
+        print(f"✅ Using cached NewEra archive: {tar_path.name}")
+
+    # Extract tarball if requested
     if extract:
         print(f"🗂 Extracting archive to: {cache_dir}")
         extract_missing_txt_files(tar_path, cache_dir)
@@ -279,8 +431,12 @@ def download_newera_hsr_subset(
     import numpy as np
     import warnings
 
+    record_id = get_newera_record_id()
     cache_dir = get_library_root() / "newera"
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    model_list = load_newera_model_list(cache_dir=cache_dir, record_id=record_id)
+    entries = model_list["entries"]
 
     # Define grid step sizes
     delta_teff = 100
@@ -323,24 +479,23 @@ def download_newera_hsr_subset(
         if alpha != 0.0 and not (-2.0 <= feh <= 0.0):
             continue
 
-        try:
-            # Format filename using the validated helper
-            teff_str = f"{teff:05.0f}"
-            logg_str = f"{-logg:.2f}"
-            feh_str = f"{feh:+.1f}".replace("+0.0", "-0.0")
-            alpha_str = f".alpha={alpha:+.1f}" if alpha != 0.0 else ""
-            fname = f"lte{teff_str}{logg_str}{feh_str}{alpha_str}.PHOENIX-NewEra-ACES-COND-2023.HSR.h5"
-            local_path = cache_dir / fname
+        key = _normalize_newera_key(teff, logg, feh, alpha)
+        fname = entries.get(key)
+        if not fname:
+            continue
 
-            if verbose:
-                print(f"⬇ Downloading {fname}")
+        local_path = cache_dir / fname
 
-            if overwrite or not local_path.exists():
-                url = f"https://www.fdr.uni-hamburg.de/record/16738/files/{fname}?download=1"
+        if verbose:
+            print(f"⬇ Downloading {fname}")
+
+        if overwrite or not local_path.exists():
+            url = _get_newera_file_url(fname, record_id)
+            try:
                 download_file(url, local_path, verbose=verbose)
-        except Exception as e:
-            if verbose:
-                print(f"⚠ Failed to download {fname}: {e}")
+            except Exception as e:
+                if verbose:
+                    print(f"⚠ Failed to download {fname}: {e}")
 
 
 def find_bounds(array, value):
@@ -493,9 +648,9 @@ def load_newera_wavelength_array(
 
     # Construct file name
     prefix = {
-        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
@@ -597,9 +752,9 @@ def load_newera_flux_array(
 
     # Construct file name
     prefix = {
-        "newera_gaia": "PHOENIX-NewEra-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEra-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEra-LowRes-SPECTRA",
+        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
+        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
+        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
