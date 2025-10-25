@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SpectralGrid** now clips user-specified temperature, gravity, and metallicity bounds to the available model grid range, emitting a `UserWarning` when truncation occurs to prevent zero-size array errors during initialization.
 - **SpectralGrid.get_flux(interp=True)** now always returns a **1-D flux array** aligned with `self.wavelength`.
 
   * Previously, for NewEra grids (`newera_jwst`, `newera_gaia`, `newera_lowres`), the interpolated flux was returned as shape `(1, N)` instead of `(N,)`, causing downstream shape mismatches.
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Unit test:** `test_spectral_grid_clips_bounds_to_available_grid` validating that out-of-range bounds are truncated with warnings while still loading the expected spectra.
 - **Unit test:** `test_newera_flux_shape_is_1d` in `tests/test_interpolation_toggle.py` to ensure both interpolated and nearest fluxes are 1-D for NewEra grids.
 - **DummyInterpolator** helper class to simplify isolated shape tests.
 

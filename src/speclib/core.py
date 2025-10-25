@@ -758,6 +758,68 @@ class SpectralGrid(object):
 
     """
 
+    def _clip_bounds_to_grid(
+        self,
+        bounds,
+        grid_values: np.ndarray,
+        param_name: str,
+    ) -> tuple[float, float]:
+        """Clip the requested bounds to the available grid range.
+
+        Parameters
+        ----------
+        bounds : iterable
+            Two-element sequence specifying the requested lower and upper bound.
+        grid_values : `numpy.ndarray`
+            The discrete grid values available for the parameter.
+        param_name : str
+            Name of the parameter, used in warning messages.
+
+        Returns
+        -------
+        tuple of float
+            The bounds snapped to valid grid values.
+        """
+
+        values = np.asarray(bounds, dtype=float)
+        if values.shape != (2,):
+            raise ValueError(f"{param_name} must contain exactly two bounds.")
+
+        lower = float(values[0])
+        upper = float(values[1])
+        if lower > upper:
+            raise ValueError(
+                f"{param_name} lower bound {lower} exceeds upper bound {upper}."
+            )
+
+        grid_min = float(np.min(grid_values))
+        grid_max = float(np.max(grid_values))
+
+        clipped_lower = float(np.clip(lower, grid_min, grid_max))
+        clipped_upper = float(np.clip(upper, grid_min, grid_max))
+
+        lower_candidates = grid_values[grid_values <= clipped_lower]
+        if lower_candidates.size:
+            aligned_lower = float(lower_candidates.max())
+        else:
+            aligned_lower = grid_min
+
+        upper_candidates = grid_values[grid_values >= clipped_upper]
+        if upper_candidates.size:
+            aligned_upper = float(upper_candidates.min())
+        else:
+            aligned_upper = grid_max
+
+        clipped_bounds = (aligned_lower, aligned_upper)
+
+        if clipped_lower != lower or clipped_upper != upper:
+            warnings.warn(
+                f"{param_name} {(lower, upper)} truncated to valid range {clipped_bounds}",
+                UserWarning,
+            )
+
+        return clipped_bounds
+
     def __init__(
         self,
         teff_bds,
@@ -805,26 +867,9 @@ class SpectralGrid(object):
         self.grid_fehs = self.grid_points["grid_fehs"]
 
         # Then ensure that the bounds given are valid.
-        teff_bds = np.array(teff_bds)
-        teff_bds = (
-            self.grid_teffs[self.grid_teffs <= teff_bds.min()].max(),
-            self.grid_teffs[self.grid_teffs >= teff_bds.max()].min(),
-        )
-        self.teff_bds = teff_bds
-
-        logg_bds = np.array(logg_bds)
-        logg_bds = (
-            self.grid_loggs[self.grid_loggs <= logg_bds.min()].max(),
-            self.grid_loggs[self.grid_loggs >= logg_bds.max()].min(),
-        )
-        self.logg_bds = logg_bds
-
-        feh_bds = np.array(feh_bds)
-        feh_bds = (
-            self.grid_fehs[self.grid_fehs <= feh_bds.min()].max(),
-            self.grid_fehs[self.grid_fehs >= feh_bds.max()].min(),
-        )
-        self.feh_bds = feh_bds
+        self.teff_bds = self._clip_bounds_to_grid(teff_bds, self.grid_teffs, "teff_bds")
+        self.logg_bds = self._clip_bounds_to_grid(logg_bds, self.grid_loggs, "logg_bds")
+        self.feh_bds = self._clip_bounds_to_grid(feh_bds, self.grid_fehs, "feh_bds")
 
         # Define the values covered in the grid
         subset = np.logical_and(
