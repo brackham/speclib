@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Updated tox configuration to test only supported Python versions (3.11–3.13). All tests now pass cleanly across these environments.
 - **SpectralGrid** now clips user-specified temperature, gravity, and metallicity bounds to the available model grid range, emitting a `UserWarning` when truncation occurs to prevent zero-size array errors during initialization.
 - **SpectralGrid.get_flux(interp=True)** now always returns a **1-D flux array** aligned with `self.wavelength`.
 
