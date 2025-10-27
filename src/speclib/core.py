@@ -219,6 +219,12 @@ class Spectrum(Spectrum1D):
 
                 return wl, flux_per_cm
 
+            if not model_in_grid and not interpolate:
+                teff = utils.nearest(self.grid_teffs, teff)
+                logg = utils.nearest(self.grid_loggs, logg)
+                feh = utils.nearest(self.grid_fehs, feh)
+                model_in_grid = True
+
             if not model_in_grid:
                 teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 logg_bds = utils.find_bounds(self.grid_loggs, logg)
@@ -263,6 +269,12 @@ class Spectrum(Spectrum1D):
                 return utils.load_newera_wavelength_array(
                     teff_, logg_, feh_, alpha_, grid_name
                 )
+
+            if not model_in_grid and not interpolate:
+                teff = utils.nearest(self.grid_teffs, teff)
+                logg = utils.nearest(self.grid_loggs, logg)
+                feh = utils.nearest(self.grid_fehs, feh)
+                model_in_grid = True
 
             if not model_in_grid:
                 teff_bds = utils.find_bounds(self.grid_teffs, teff)
@@ -982,24 +994,32 @@ class SpectralGrid(object):
             raise ValueError(message)
 
         if self.model_grid in ["newera_gaia", "newera_jwst", "newera_lowres"]:
-            if self.interpolator is None:
+            if self.interpolator is None or not self.points.size:
                 raise ValueError("SpectralGrid contains no spectra")
 
-            point = np.array([teff, logg, feh])
-
-            if interpolate:
-                flux = self.interpolator(point)
+            if not interpolate:
+                teff = utils.nearest(self.teffs, teff)
+                logg = utils.nearest(self.loggs, logg)
+                feh = utils.nearest(self.fehs, feh)
+                flux = self.fluxes[teff][logg][feh]
             else:
-                idx = np.argmin(np.sum((self.points - point) ** 2, axis=1))
-                flux = self.data[idx]
+                flux = utils.trilinear_interpolate(
+                    self.fluxes,
+                    (self.teffs, self.loggs, self.fehs),
+                    (teff, logg, feh),
+                )
 
-            flux = np.atleast_1d(np.squeeze(np.asarray(flux)))
+            if not isinstance(flux, u.Quantity):
+                flux = u.Quantity(flux, unit=self.unit, copy=False)
+            else:
+                flux = flux.to(self.unit)
+
             if flux.ndim != 1:
                 raise ValueError(
                     "Interpolated flux has unexpected shape; expected a 1-D array"
                 )
 
-            return flux * self.unit
+            return flux
 
         # If not interpolating, then just return the closest point in the grid.
         if not interpolate:

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Previously, for NewEra grids (`newera_jwst`, `newera_gaia`, `newera_lowres`), the interpolated flux was returned as shape `(1, N)` instead of `(N,)`, causing downstream shape mismatches.
   * Implemented normalization via `np.atleast_1d(np.squeeze(...))` and validation of the resulting dimension.
   * Added explicit docstring clarification that `get_flux` returns a 1-D vector.
+- **NewEra grids** now respect the `interpolate` flag in both `Spectrum.from_grid` and `SpectralGrid.get_flux`, restoring parity with PHOENIX interpolation behavior.
 
 ### Added
 
