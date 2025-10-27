@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Closes #40: Interpolation does not work with newera_jwst grid
 - Closes #51: 🐛 Bug: Some model grids return flux with the wrong shape (extra leading dimension) when using `SpectralGrid.get_flux(interp=True)`*.
-- CLoses #57: 🐛 Bug: Inconsistent interpolation behavior for NewEra grids in speclib
+- Closes #57: 🐛 Bug: Inconsistent interpolation behavior for NewEra grids in speclib
 
 
 ## [0.1.0b9] - 2025-10-24
