@@ -998,21 +998,27 @@ class SpectralGrid(object):
                 raise ValueError("SpectralGrid contains no spectra")
 
             if not interpolate:
-                teff = utils.nearest(self.teffs, teff)
-                logg = utils.nearest(self.loggs, logg)
-                feh = utils.nearest(self.fehs, feh)
-                flux = self.fluxes[teff][logg][feh]
+                flux = self.interpolator((teff, logg, feh))
             else:
-                flux = utils.trilinear_interpolate(
-                    self.fluxes,
-                    (self.teffs, self.loggs, self.fehs),
-                    (teff, logg, feh),
-                )
+                try:
+                    flux = utils.trilinear_interpolate(
+                        self.fluxes,
+                        (self.teffs, self.loggs, self.fehs),
+                        (teff, logg, feh),
+                    )
+                except KeyError:
+                    # Fall back to nearest-neighbour evaluation for sparse grids
+                    flux = self.interpolator((teff, logg, feh))
 
             if not isinstance(flux, u.Quantity):
                 flux = u.Quantity(flux, unit=self.unit, copy=False)
             else:
                 flux = flux.to(self.unit)
+
+            if flux.ndim > 1:
+                # Some interpolators (e.g., nearest-neighbour fallbacks) can return
+                # fluxes with a leading singleton dimension; flatten to a 1-D vector.
+                flux = flux.reshape(-1)
 
             if flux.ndim != 1:
                 raise ValueError(
