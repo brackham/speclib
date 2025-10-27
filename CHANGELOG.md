@@ -7,17 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.0b10] - 2025-10-27
 
 ### Fixed
 
 - Updated tox configuration to test only supported Python versions (3.11–3.13). All tests now pass cleanly across these environments.
 - **SpectralGrid** now clips user-specified temperature, gravity, and metallicity bounds to the available model grid range, emitting a `UserWarning` when truncation occurs to prevent zero-size array errors during initialization.
 - **SpectralGrid.get_flux(interp=True)** now always returns a **1-D flux array** aligned with `self.wavelength`.
-
   * Previously, for NewEra grids (`newera_jwst`, `newera_gaia`, `newera_lowres`), the interpolated flux was returned as shape `(1, N)` instead of `(N,)`, causing downstream shape mismatches.
   * Implemented normalization via `np.atleast_1d(np.squeeze(...))` and validation of the resulting dimension.
   * Added explicit docstring clarification that `get_flux` returns a 1-D vector.
+- **NewEra grids** now respect the `interpolate` flag in both `Spectrum.from_grid` and `SpectralGrid.get_flux`, restoring parity with PHOENIX interpolation behavior.
 
 ### Added
 
@@ -29,10 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - All model grids (`phoenix`, `newera_jwst`, `newera_gaia`, `newera_lowres`) now pass shape consistency checks.
 - Regression test confirms matching wavelength/flux lengths and no extra leading dimension.
+- Verified with full test suite: `poetry run pytest` and `poetry run tox` both pass.
 
 ### Related issues
 
-- Closes #51: *🐛 Bug: Some model grids return flux with the wrong shape (extra leading dimension) when using `SpectralGrid.get_flux(interp=True)`*.
+- Closes #40: Interpolation does not work with newera_jwst grid
+- Closes #51: 🐛 Bug: Some model grids return flux with the wrong shape (extra leading dimension) when using `SpectralGrid.get_flux(interp=True)`*.
+- Closes #57: 🐛 Bug: Inconsistent interpolation behavior for NewEra grids in speclib
 
 
 ## [0.1.0b9] - 2025-10-24
