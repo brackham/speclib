@@ -268,6 +268,19 @@ def download_newera_file(
     return local_path
 
 
+def _clear_directory(path: Path) -> None:
+    """Remove all files and subdirectories within *path* without deleting *path* itself."""
+
+    if not path.exists():
+        return
+
+    for child in path.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
 def download_newera_grid(
     grid_name: str, extract: bool = True, overwrite: bool = False
 ) -> Path:
@@ -281,7 +294,8 @@ def download_newera_grid(
     extract : bool, optional
         If True, extract the tarball after download. Default is True.
     overwrite : bool, optional
-        If True, force re-download of the tarball even if already present. Default is False.
+        If True, remove any existing files in the cache directory and re-download the
+        tarball. Default is False.
 
     Returns
     -------
@@ -308,11 +322,15 @@ def download_newera_grid(
     tar_path = cache_dir / tarball_name
     existing_before = tar_path.exists()
 
+    if overwrite:
+        print(f"🧹 Removing existing files in: {cache_dir}")
+        _clear_directory(cache_dir)
+
     tar_path = _resolve_newera_tarball(
         grid_name, cache_dir, record_id, overwrite=overwrite
     )
 
-    if existing_before and tar_path.exists():
+    if existing_before and tar_path.exists() and not overwrite:
         print(f"✅ Using cached NewEra archive: {tar_path.name}")
 
     # Extract tarball if requested
