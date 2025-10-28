@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Added `download_newera_grid()` convenience helper that downloads and optionally
+  refreshes NewEra model grids (`newera_gaia`, `newera_jwst`, `newera_lowres`) while
+  clearing outdated files when `overwrite=True`.
+
 ## [0.1.0b10] - 2025-10-27
 
 ### Fixed
