@@ -47,6 +47,7 @@ NEWERA_TARBALLS: dict[str, str] = {
 
 _LIBRARY_ROOT: Path | None = None
 _NEWERA_INDEX_CACHE: dict[tuple[Path, str], dict] = {}
+_NEWERA_TAR_MEMBER_CACHE: dict[Path, dict[str, str]] = {}
 
 _NEWERA_MODEL_LINE_RE = re.compile(
     r"(?P<filename>"
@@ -385,15 +386,23 @@ def extract_member_from_tar(
     """
     extract_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tar_path, "r:*") as tar:
-        for member in tar.getmembers():
-            if Path(member.name).name == member_name:
-                print(f"📦 Extracting: {member.name}")
-                tar.extract(member, path=extract_dir)
-                return extract_dir / Path(member.name).name
+        try:
+            member = tar.getmember(member_name)
+        except KeyError:
+            cached = _NEWERA_TAR_MEMBER_CACHE.get(tar_path)
+            if cached is None:
+                cached = {Path(name).name: name for name in tar.getnames()}
+                _NEWERA_TAR_MEMBER_CACHE[tar_path] = cached
+            full_name = cached.get(member_name)
+            if full_name is None:
+                raise FileNotFoundError(
+                    f"Member '{member_name}' not found in archive: {tar_path}"
+                )
+            member = tar.getmember(full_name)
 
-    raise FileNotFoundError(
-        f"Member '{member_name}' not found in archive: {tar_path}"
-    )
+        print(f"📦 Extracting: {member.name}")
+        tar.extract(member, path=extract_dir)
+        return extract_dir / Path(member.name).name
 
 
 def extract_missing_txt_files(tar_path: Path, extract_dir: Path) -> None:

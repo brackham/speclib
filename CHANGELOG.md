@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extract only the required `.txt` file on demand.
 - `download_newera_grid()` now supports `extract="all"` for users who want to
   explicitly unpack the full grid.
+- NewEra tar extraction now resolves the requested member directly (with cached
+  name lookups) to avoid repeated full scans of tar members.
 
 ## [0.1.0b10] - 2025-10-27
 
