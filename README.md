@@ -52,6 +52,23 @@ Set the ``SPECLIB_LIBRARY_PATH`` environment variable or call
 ``speclib.utils.set_library_root("/path/to/cache")`` to use a different
 location.
 
+### NewEra grid caching and extraction
+
+NewEra grid downloads now keep the tarball cached without unpacking by default.
+When a specific metallicity file is needed, it is extracted on demand from the
+cached archive. To explicitly extract the full grid (for offline usage or bulk
+access), use the ``extract="all"`` option:
+
+```python
+from speclib.utils import download_newera_grid
+
+# Cache the tarball only (default behavior)
+download_newera_grid("newera_jwst")
+
+# Extract all members from the tarball
+download_newera_grid("newera_jwst", extract="all")
+```
+
 ---
 
 ## License

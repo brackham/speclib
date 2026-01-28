@@ -282,25 +282,32 @@ def _clear_directory(path: Path) -> None:
 
 
 def download_newera_grid(
-    grid_name: str, extract: bool = True, overwrite: bool = False
+    grid_name: str,
+    extract: bool | str = False,
+    overwrite: bool = False,
+    library_root: str | Path | None = None,
 ) -> Path:
     """
-    Download and extract a NewEra tarball if not already cached.
+    Download a NewEra tarball if not already cached.
 
     Parameters
     ----------
     grid_name : str
         One of "newera_gaia", "newera_lowres", or "newera_jwst".
-    extract : bool, optional
-        If True, extract the tarball after download. Default is True.
+    extract : bool or {"missing", "all"}, optional
+        Controls extraction behavior. ``False`` (default) keeps the tarball cached
+        without unpacking. ``True`` or ``"missing"`` extracts only missing ``.txt``
+        members. ``"all"`` extracts every member in the archive.
     overwrite : bool, optional
         If True, remove any existing files in the cache directory and re-download the
         tarball. Default is False.
+    library_root : str or Path, optional
+        Base cache directory. Defaults to :func:`get_library_root`.
 
     Returns
     -------
     Path
-        Path to the extracted directory (e.g., ~/.speclib/libraries/newera_jwst).
+        Path to the cached directory (e.g., ~/.speclib/libraries/newera_jwst).
 
     Note
     ----
@@ -313,8 +320,25 @@ def download_newera_grid(
             f"Unknown grid_name '{grid_name}'. Must be one of {list(NEWERA_TARBALLS.keys())}"
         )
 
+    extract_mode = "none"
+    if isinstance(extract, str):
+        extract_mode = extract.lower()
+    elif extract:
+        extract_mode = "missing"
+
+    if extract_mode not in {"none", "missing", "all"}:
+        raise ValueError(
+            "extract must be False, True, 'missing', or 'all' "
+            f"(received: {extract})"
+        )
+
+    if library_root is None:
+        library_root = get_library_root()
+    else:
+        library_root = Path(library_root)
+
     # Cache location: ~/.speclib/libraries/{grid_name}/  (or custom path)
-    cache_dir = get_library_root() / grid_name
+    cache_dir = library_root / grid_name
     cache_dir.mkdir(parents=True, exist_ok=True)
     record_id = get_newera_record_id()
 
@@ -334,11 +358,42 @@ def download_newera_grid(
         print(f"✅ Using cached NewEra archive: {tar_path.name}")
 
     # Extract tarball if requested
-    if extract:
+    if extract_mode != "none":
         print(f"🗂 Extracting archive to: {cache_dir}")
-        extract_missing_txt_files(tar_path, cache_dir)
+        if extract_mode == "all":
+            extract_all_members(tar_path, cache_dir)
+        else:
+            extract_missing_txt_files(tar_path, cache_dir)
 
     return cache_dir
+
+
+def extract_member_from_tar(
+    tar_path: Path, member_name: str, extract_dir: Path
+) -> Path:
+    """
+    Extract a single tar member into extract_dir.
+
+    Parameters
+    ----------
+    tar_path : Path
+        Path to the tar archive.
+    member_name : str
+        The member filename to extract (basename match).
+    extract_dir : Path
+        Directory to extract into.
+    """
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(tar_path, "r:*") as tar:
+        for member in tar.getmembers():
+            if Path(member.name).name == member_name:
+                print(f"📦 Extracting: {member.name}")
+                tar.extract(member, path=extract_dir)
+                return extract_dir / Path(member.name).name
+
+    raise FileNotFoundError(
+        f"Member '{member_name}' not found in archive: {tar_path}"
+    )
 
 
 def extract_missing_txt_files(tar_path: Path, extract_dir: Path) -> None:
@@ -359,6 +414,38 @@ def extract_missing_txt_files(tar_path: Path, extract_dir: Path) -> None:
                 if not target_file.exists():
                     print(f"📦 Extracting: {member.name}")
                     tar.extract(member, path=extract_dir)
+
+
+def extract_all_members(tar_path: Path, extract_dir: Path) -> None:
+    """
+    Extract all tar members into extract_dir.
+
+    Parameters
+    ----------
+    tar_path : Path
+        Path to the tar archive.
+    extract_dir : Path
+        Directory to extract into.
+    """
+    with tarfile.open(tar_path, "r:*") as tar:
+        for member in tar.getmembers():
+            print(f"📦 Extracting: {member.name}")
+            tar.extract(member, path=extract_dir)
+
+
+def _ensure_newera_txt_file(
+    grid_name: str, filename: str, grid_dir: Path, library_root: Path
+) -> Path:
+    tar_path = grid_dir / NEWERA_TARBALLS[grid_name]
+    if not tar_path.exists():
+        download_newera_grid(
+            grid_name, extract=False, library_root=library_root, overwrite=False
+        )
+
+    if not tar_path.exists():
+        raise FileNotFoundError(f"NewEra archive not found: {tar_path}")
+
+    return extract_member_from_tar(tar_path, filename, grid_dir)
 
 
 def download_file(remote_path, local_path, verbose=True):
@@ -644,7 +731,8 @@ def load_newera_wavelength_array(
     Raises
     ------
     FileNotFoundError
-        If the expected file is missing.
+        If the expected file is missing and cannot be extracted from the cached
+        tarball.
     ValueError
         If a valid header is not found.
     """
@@ -683,11 +771,9 @@ def load_newera_wavelength_array(
 
     filepath = grid_dir / fname
 
-    # Trigger download and extraction if file is missing
     if not filepath.exists():
-        download_newera_grid(grid_name)
+        _ensure_newera_txt_file(grid_name, fname, grid_dir, library_root)
 
-    # Raise error if the file still doesn't exist.
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
 
@@ -755,6 +841,9 @@ def load_newera_flux_array(
 
     Raises
     ------
+    FileNotFoundError
+        If the expected file is missing and cannot be extracted from the cached
+        tarball.
     ValueError
         If no matching model is found in the file.
     """
@@ -786,6 +875,9 @@ def load_newera_flux_array(
         fname = f"{prefix}.{z_str}.{alpha_str}.txt"
 
     filepath = grid_dir / fname
+
+    if not filepath.exists():
+        _ensure_newera_txt_file(grid_name, fname, grid_dir, library_root)
 
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
