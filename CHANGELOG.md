@@ -7,13 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.0b11] - 2026-01-28
 
 ### Added
 
 - Added `download_newera_grid()` convenience helper that downloads and optionally
   refreshes NewEra model grids (`newera_gaia`, `newera_jwst`, `newera_lowres`) while
   clearing outdated files when `overwrite=True`.
+- Documented NewEra tarball caching with on-demand extraction in `README.md`.
+
+### Changed
+
+- NewEra grid downloads now cache tarballs without unpacking by default; loaders
+  extract only the required `.txt` file on demand.
+- `download_newera_grid()` now supports `extract="all"` for users who want to
+  explicitly unpack the full grid.
+- NewEra tar extraction now resolves the requested member directly (with cached
+  name lookups) to avoid repeated full scans of tar members.
+
+### Related issues
+
+- Closes #61: Avoid unpacking full NewEra tarballs by default; extract only required files
+
 
 ## [0.1.0b10] - 2025-10-27
 
