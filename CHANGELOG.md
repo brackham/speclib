@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.0b11] - 2026-01-28
 
 ### Added
 
@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicitly unpack the full grid.
 - NewEra tar extraction now resolves the requested member directly (with cached
   name lookups) to avoid repeated full scans of tar members.
+
+### Related issues
+
+- Closes #61: Avoid unpacking full NewEra tarballs by default; extract only required files
+
 
 ## [0.1.0b10] - 2025-10-27
 
