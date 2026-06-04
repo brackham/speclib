@@ -1,0 +1,38 @@
+{
+  "title": "speclib",
+  "upload_type": "software",
+  "description": "Tools for working with stellar spectral libraries.",
+  "creators": [
+    {
+      "name": "Rackham, Benjamin V.",
+      "orcid": "0000-0002-3627-1676"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Berta-Thompson, Zachory K.",
+      "type": "Other",
+      "orcid": "0000-0002-3321-4924"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "astronomy",
+    "stellar spectra",
+    "spectral libraries",
+    "synthetic photometry",
+    "exoplanets"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.3847/1538-3881/ad5833",
+      "relation": "references",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/brackham/speclib",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

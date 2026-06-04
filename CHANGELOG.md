@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Documentation
+
+- Added citation metadata for the software and Rackham & de Wit (2024).
+- Added Zenodo creator/contributor metadata distinguishing Benjamin V. Rackham as creator and Zachory K. Berta-Thompson as contributor.
+- Added contributor-credit policy documentation.
+
 ## [0.1.0b11] - 2026-01-28
 
 ### Added

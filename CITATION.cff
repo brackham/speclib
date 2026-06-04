@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use speclib in published work, please cite both the archived Zenodo software release corresponding to the version used and Rackham & de Wit (2024)."
+title: "speclib"
+doi: "10.5281/zenodo.7868049"
+authors:
+  - family-names: Rackham
+    given-names: Benjamin V.
+    orcid: "https://orcid.org/0000-0002-3627-1676"
+repository-code: "https://github.com/brackham/speclib"
+license: MIT
+references:
+  - type: article
+    authors:
+      - family-names: Rackham
+        given-names: Benjamin V.
+        orcid: "https://orcid.org/0000-0002-3627-1676"
+      - family-names: de Wit
+        given-names: Julien
+    title: "Toward Robust Corrections for Stellar Contamination in JWST Exoplanet Transmission Spectra"
+    journal: "The Astronomical Journal"
+    year: 2024
+    volume: 168
+    issue: 2
+    doi: "10.3847/1538-3881/ad5833"
+    url: "https://doi.org/10.3847/1538-3881/ad5833"
