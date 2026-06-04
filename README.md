@@ -24,6 +24,17 @@ pip install git+https://github.com/brackham/speclib.git
 
 ---
 
+## Citation
+
+If you use `speclib` in published work, please cite both:
+
+1. the archived Zenodo release corresponding to the version of `speclib` used in your work ([doi:10.5281/zenodo.7868049](https://doi.org/10.5281/zenodo.7868049)), and
+2. Rackham & de Wit (2024), [doi:10.3847/1538-3881/ad5833](https://doi.org/10.3847/1538-3881/ad5833).
+
+The Zenodo citation provides a persistent software DOI, while Rackham & de Wit (2024) describes the scientific motivation and methodology. The contribution-credit policy is described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+---
+
 ## Requirements
 
 * Python 3.11 to 3.13
