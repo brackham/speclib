@@ -4,7 +4,7 @@ import numpy as np
 import os
 from pathlib import Path
 import speclib.utils as utils
-from specutils import Spectrum1D
+from specutils import Spectrum
 from scipy.interpolate import NearestNDInterpolator
 
 import warnings
@@ -14,9 +14,9 @@ import synphot as sp
 __all__ = ["Spectrum", "BinnedSpectrum", "SpectralGrid", "BinnedSpectralGrid"]
 
 
-class Spectrum(Spectrum1D):
+class Spectrum(Spectrum):
     """
-    A wrapper class for `~specutils.Spectrum1D` with extended functionality for
+    A wrapper class for `~specutils.Spectrum` with extended functionality for
     working with stellar model spectra.
 
     This class adds capabilities to:
@@ -28,7 +28,7 @@ class Spectrum(Spectrum1D):
     Parameters
     ----------
     **kwargs : dict
-        Arguments passed to the base `Spectrum1D` initializer.
+        Arguments passed to the base `Spectrum` initializer.
 
     Methods
     -------

@@ -14,7 +14,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "astropy>=6.0,<8.0",
-  "specutils>=1.9.1,<2.0",
+  "specutils>=2.0",
   "synphot>=1.4,<2.0",
   "numpy>=2.0,<3.0",
   "h5py>=3.13,<4.0",
