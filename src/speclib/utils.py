@@ -1004,7 +1004,7 @@ VALID_MODELS = [
 
 # Shared grid values for all NewEra subtypes
 newera_grid = {
-    "grid_teffs": np.arange(2300, 12001, 100),
+    "grid_teffs": np.append(np.arange(2300, 8000, 100), np.arange(8000, 12001, 200)),
     "grid_loggs": np.arange(0.0, 6.1, 0.5),
     "grid_fehs": np.array([-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]),
     # α-enhanced models only for -2.0 ≤ [M/H] ≤ 0.0
