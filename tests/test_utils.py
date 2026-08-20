@@ -80,7 +80,7 @@ def test_download_newera_grid_overwrite_cleans_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(utils, "get_newera_record_id", lambda: "record")
 
     try:
-        result = utils.download_newera_grid(grid_name, overwrite=True)
+        result = utils.download_newera_grid(grid_name, extract=True, overwrite=True)
     finally:
         utils.set_library_root(None)
 
@@ -120,13 +120,44 @@ def test_download_newera_grid_preserves_cache_when_not_overwriting(monkeypatch, 
     monkeypatch.setattr(utils, "get_newera_record_id", lambda: "record")
 
     try:
-        result = utils.download_newera_grid(grid_name, overwrite=False)
+        result = utils.download_newera_grid(grid_name, extract=True, overwrite=False)
     finally:
         utils.set_library_root(None)
 
     assert result == cache_dir
     assert leftover_file.exists()
     assert extracted["args"] == (tar_path, cache_dir)
+
+
+def test_download_newera_grid_skips_extraction_by_default(monkeypatch, tmp_path):
+    grid_name = "newera_lowres"
+    cache_dir = tmp_path / grid_name
+    tar_path = cache_dir / utils.NEWERA_TARBALLS[grid_name]
+    extracted = []
+
+    def fake_resolve(name, target_cache, record_id, overwrite):
+        assert name == grid_name
+        assert target_cache == cache_dir
+        assert overwrite is False
+        return tar_path
+
+    monkeypatch.setattr(utils, "_resolve_newera_tarball", fake_resolve)
+    monkeypatch.setattr(
+        utils,
+        "extract_missing_txt_files",
+        lambda *args: extracted.append(("missing", args)),
+    )
+    monkeypatch.setattr(
+        utils,
+        "extract_all_members",
+        lambda *args: extracted.append(("all", args)),
+    )
+    monkeypatch.setattr(utils, "get_newera_record_id", lambda: "record")
+
+    result = utils.download_newera_grid(grid_name, library_root=tmp_path)
+
+    assert result == cache_dir
+    assert extracted == []
 
 
 def test_download_newera_grid_public_alias():
