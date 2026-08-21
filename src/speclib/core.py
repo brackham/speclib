@@ -1,17 +1,232 @@
-import astropy.units as u
-import astropy.io.fits as fits
-import numpy as np
+import copy
 import os
 from pathlib import Path
+
+import astropy.io.fits as fits
+import astropy.units as u
+import numpy as np
 import speclib.utils as utils
-from specutils import Spectrum1D
 from scipy.interpolate import NearestNDInterpolator
+from specutils import Spectrum1D
 
 import warnings
 
 import synphot as sp
 
 __all__ = ["Spectrum", "BinnedSpectrum", "SpectralGrid", "BinnedSpectralGrid"]
+
+
+_FWHM_TO_SIGMA = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+_SAMPLES_PER_FWHM = 10
+_MIN_SAMPLES_PER_FWHM = 2
+# Limit the estimated peak working set for temporary coordinate/flux arrays.
+# Eight float64-sized arrays per temporary point is deliberately conservative.
+_MAX_TEMPORARY_WORKING_BYTES = 512 * 1024**2
+_ESTIMATED_BYTES_PER_TEMPORARY_POINT = 8 * np.dtype(float).itemsize
+
+
+def _validate_delta_lambda(delta_lambda):
+    """Return a positive scalar wavelength FWHM in Angstrom."""
+    if not isinstance(delta_lambda, u.Quantity):
+        raise TypeError(
+            "delta_lambda must be an astropy Quantity with wavelength units"
+        )
+    if not delta_lambda.unit.is_equivalent(u.AA):
+        raise u.UnitsError("delta_lambda must have wavelength units")
+
+    value = np.asarray(delta_lambda.to_value(u.AA))
+    if value.ndim != 0:
+        raise ValueError("delta_lambda must be a scalar")
+    value = float(value)
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError("delta_lambda must be finite and positive")
+    return value
+
+
+def _validate_resolving_power(resolving_power):
+    """Return a positive scalar dimensionless resolving power."""
+    if isinstance(resolving_power, u.Quantity):
+        if not resolving_power.unit.is_equivalent(u.dimensionless_unscaled):
+            raise u.UnitsError("resolving_power must be dimensionless")
+        value = np.asarray(resolving_power.to_value(u.dimensionless_unscaled))
+    else:
+        if isinstance(resolving_power, (bool, np.bool_)):
+            raise TypeError("resolving_power must be a real scalar")
+        value = np.asarray(resolving_power)
+
+    if value.ndim != 0:
+        raise ValueError("resolving_power must be a scalar")
+    if np.iscomplexobj(value):
+        raise TypeError("resolving_power must be a real scalar")
+    try:
+        value = float(value)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("resolving_power must be a real scalar") from exc
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError("resolving_power must be finite and positive")
+    return value
+
+
+def _build_gaussian_convolution_plan(
+    wavelength,
+    *,
+    delta_lambda=None,
+    resolving_power=None,
+):
+    """Build reusable coordinate and kernel information for Gaussian smoothing."""
+    if (delta_lambda is None) == (resolving_power is None):
+        raise ValueError("Specify exactly one resolution mode")
+
+    wave = np.asarray(wavelength.to_value(u.AA), dtype=float)
+    if wave.ndim != 1 or wave.size < 2:
+        raise ValueError("The wavelength axis must contain at least two points")
+    if not np.all(np.isfinite(wave)):
+        raise ValueError("The wavelength axis must contain only finite values")
+
+    differences = np.diff(wave)
+    if np.all(differences > 0):
+        order = np.arange(wave.size)
+    elif np.all(differences < 0):
+        order = np.arange(wave.size - 1, -1, -1)
+    else:
+        raise ValueError("The wavelength axis must be strictly monotonic")
+
+    wave_ascending = wave[order]
+    if resolving_power is None:
+        coordinate = wave_ascending
+        coordinate_fwhm = delta_lambda
+        logarithmic = False
+    else:
+        if np.any(wave_ascending <= 0):
+            raise ValueError(
+                "Wavelengths must be positive for resolving-power convolution"
+            )
+        coordinate = np.log(wave_ascending)
+        coordinate_fwhm = 2.0 * np.arcsinh(1.0 / (2.0 * resolving_power))
+        logarithmic = True
+
+    coordinate_differences = np.diff(coordinate)
+    maximum_spacing = np.max(coordinate_differences)
+    required_fwhm = _MIN_SAMPLES_PER_FWHM * maximum_spacing
+    if coordinate_fwhm < required_fwhm:
+        resolution_name = (
+            "resolving power" if logarithmic else "wavelength resolution"
+        )
+        raise ValueError(
+            f"Requested {resolution_name} is under-sampled by the input grid: "
+            f"the target FWHM in the convolution coordinate is "
+            f"{coordinate_fwhm:.6g}, but at least {required_fwhm:.6g} is "
+            f"required for {_MIN_SAMPLES_PER_FWHM} samples per FWHM."
+        )
+
+    span = coordinate[-1] - coordinate[0]
+    target_spacing = min(
+        coordinate_fwhm / _SAMPLES_PER_FWHM,
+        np.min(coordinate_differences),
+    )
+    interval_count_float = span / target_spacing
+    maximum_temporary_points = (
+        _MAX_TEMPORARY_WORKING_BYTES
+        // _ESTIMATED_BYTES_PER_TEMPORARY_POINT
+    )
+    if (
+        not np.isfinite(interval_count_float)
+        or interval_count_float + 1 > maximum_temporary_points
+    ):
+        estimated_mib = (
+            (interval_count_float + 1)
+            * _ESTIMATED_BYTES_PER_TEMPORARY_POINT
+            / 1024**2
+        )
+        raise ValueError(
+            "Temporary convolution grid is impractical: the estimated "
+            f"working set is {estimated_mib:.1f} MiB, exceeding the "
+            f"{_MAX_TEMPORARY_WORKING_BYTES / 1024**2:.0f} MiB safety limit."
+        )
+
+    interval_count = max(1, int(np.ceil(interval_count_float)))
+    uniform_coordinate = np.linspace(
+        coordinate[0], coordinate[-1], interval_count + 1
+    )
+    uniform_spacing = uniform_coordinate[1] - uniform_coordinate[0]
+    sigma_pixels = coordinate_fwhm * _FWHM_TO_SIGMA / uniform_spacing
+    kernel_points = int(np.ceil(8.0 * sigma_pixels)) + 1
+    estimated_bytes = (
+        uniform_coordinate.size * _ESTIMATED_BYTES_PER_TEMPORARY_POINT
+        + kernel_points * np.dtype(float).itemsize
+    )
+    if estimated_bytes > _MAX_TEMPORARY_WORKING_BYTES:
+        raise ValueError(
+            "Temporary convolution grid is impractical: the estimated "
+            f"working set is {estimated_bytes / 1024**2:.1f} MiB, exceeding "
+            f"the {_MAX_TEMPORARY_WORKING_BYTES / 1024**2:.0f} MiB safety limit."
+        )
+
+    return {
+        "coordinate": coordinate,
+        "logarithmic": logarithmic,
+        "order": order,
+        "uniform_coordinate": uniform_coordinate,
+        "sigma_pixels": sigma_pixels,
+        "wave_ascending": wave_ascending,
+    }
+
+
+def _apply_gaussian_convolution_plan(flux, plan):
+    """Apply a prepared Gaussian convolution plan to one flux vector."""
+    from astropy.convolution import Gaussian1DKernel, convolve
+
+    values = np.asarray(flux, dtype=float)
+    if values.ndim != 1 or values.size != plan["order"].size:
+        raise ValueError(
+            "Flux must be one-dimensional and match the wavelength axis"
+        )
+
+    values_ascending = values[plan["order"]]
+    if plan["logarithmic"]:
+        # d(lambda) = lambda d(ln(lambda)), so lambda * F_lambda is the
+        # appropriate density to convolve when preserving wavelength-integrated
+        # flux in the continuous, unbounded-domain limit.
+        density = plan["wave_ascending"] * values_ascending
+    else:
+        density = values_ascending
+
+    uniform_density = np.interp(
+        plan["uniform_coordinate"],
+        plan["coordinate"],
+        density,
+    )
+
+    kernel = Gaussian1DKernel(plan["sigma_pixels"])
+    convolved_density = convolve(uniform_density, kernel, boundary="extend")
+    output_density = np.interp(
+        plan["coordinate"],
+        plan["uniform_coordinate"],
+        convolved_density,
+        left=convolved_density[0],
+        right=convolved_density[-1],
+    )
+
+    if plan["logarithmic"]:
+        output_ascending = output_density / plan["wave_ascending"]
+    else:
+        output_ascending = output_density
+
+    output = np.empty_like(output_ascending)
+    output[plan["order"]] = output_ascending
+    return output
+
+
+def _validate_spectrum_convolution_state(spectrum):
+    """Reject ancillary state that cannot be propagated scientifically."""
+    if spectrum.mask is not None:
+        raise NotImplementedError(
+            "Spectral convolution does not yet support masked spectra"
+        )
+    if spectrum.uncertainty is not None:
+        raise NotImplementedError(
+            "Spectral convolution does not yet propagate uncertainties"
+        )
 
 
 class Spectrum(Spectrum1D):
@@ -622,33 +837,98 @@ class Spectrum(Spectrum1D):
 
         return spec_new
 
-    @u.quantity_input(spectral_resolution=u.AA)
-    def set_spectral_resolution(self, spectral_resolution):
+    def set_spectral_resolution(self, delta_lambda):
         """
-        Set the spectral resolution by convolution with a Gaussian.
+        Return a spectrum with constant Gaussian wavelength resolution.
 
         Parameters
         ----------
-        spectral_resolution : `~astropy.units.Quantity`
-            The spectral resolution.
+        delta_lambda : `~astropy.units.Quantity`
+            Positive scalar Gaussian FWHM with wavelength units.
 
         Returns
         -------
         spec_new : `~speclib.Spectrum`
-            A spectrum with the desired spectral resolution.
+            A new spectrum on the original spectral axis. The input spectrum is
+            not modified.
+
+        Notes
+        -----
+        The intrinsic input line width is assumed to be negligible relative to
+        ``delta_lambda``. No deconvolution or correction for finite input
+        resolution is performed. The input must provide at least two samples
+        per requested FWHM across every wavelength interval. Internally, the
+        temporary grid has at least ten samples per FWHM and is no coarser than
+        the finest input interval.
+
+        Features within four Gaussian standard deviations of a boundary can
+        lose flux or have a truncated profile because no spectrum is invented
+        outside the observed range. Masked spectra and spectra with uncertainty
+        arrays are rejected because propagating that state is outside the scope
+        of this operation.
         """
-        from astropy.convolution import convolve, Gaussian1DKernel
+        _validate_spectrum_convolution_state(self)
+        delta_lambda_value = _validate_delta_lambda(delta_lambda)
+        plan = _build_gaussian_convolution_plan(
+            self.wavelength,
+            delta_lambda=delta_lambda_value,
+        )
+        convolved_flux = _apply_gaussian_convolution_plan(self.flux.value, plan)
+        return Spectrum(
+            spectral_axis=self.spectral_axis.copy(),
+            flux=convolved_flux * self.flux.unit,
+            meta=copy.deepcopy(self.meta),
+        )
 
-        # # First, check if grid spacing is regular
-        # delta_lambdas = np.unique(self.wavelength.diff())
-        delta_lambda = np.unique(self.wavelength.diff()).min()
+    def set_spectral_resolving_power(self, resolving_power):
+        """Return a spectrum broadened to constant resolving power.
 
-        kernel_size = (spectral_resolution / delta_lambda).value  # resolution elements
-        kernel = Gaussian1DKernel(kernel_size)
-        convolved_flux = convolve(self.flux, kernel, boundary="extend")
-        spec_new = Spectrum(spectral_axis=self.wavelength, flux=convolved_flux)
+        Parameters
+        ----------
+        resolving_power : float or `~astropy.units.Quantity`
+            Positive scalar resolving power, :math:`R = \\lambda/\\Delta\\lambda`.
+            A quantity must be dimensionless.
 
-        return spec_new
+        Returns
+        -------
+        spec_new : `~speclib.Spectrum`
+            A new spectrum on the original spectral axis. The input spectrum is
+            not modified.
+
+        Notes
+        -----
+        Convolution is evaluated on a uniform log-wavelength grid. To use the
+        physical wavelength-flux measure, ``lambda * F_lambda`` is convolved
+        and the result is divided by wavelength afterward. This preserves
+        wavelength-integrated flux in the continuous, unbounded-domain limit;
+        finite boundaries and numerical remapping limit exact conservation.
+
+        The stationary Gaussian therefore applies to flux per logarithmic
+        wavelength interval. Expressed as ``F_lambda``, an isolated feature has
+        a log-normal-like profile that is not exactly symmetric in linear
+        wavelength. This distinction is small at ordinary astronomical
+        resolving powers. The input must provide at least two samples per
+        requested log-wavelength FWHM across every interval.
+
+        The intrinsic input line width is assumed to be negligible relative to
+        the requested broadening. Wavelength-dependent resolving power is not
+        supported. Features within four Gaussian standard deviations of a
+        boundary do not have the same flux or resolution guarantees as interior
+        features. Masked spectra and spectra with uncertainty arrays are
+        rejected.
+        """
+        _validate_spectrum_convolution_state(self)
+        resolving_power_value = _validate_resolving_power(resolving_power)
+        plan = _build_gaussian_convolution_plan(
+            self.wavelength,
+            resolving_power=resolving_power_value,
+        )
+        convolved_flux = _apply_gaussian_convolution_plan(self.flux.value, plan)
+        return Spectrum(
+            spectral_axis=self.spectral_axis.copy(),
+            flux=convolved_flux * self.flux.unit,
+            meta=copy.deepcopy(self.meta),
+        )
 
     @u.quantity_input(center=u.AA, width=u.AA)
     def bin(self, center, width):
@@ -840,6 +1120,7 @@ class SpectralGrid(object):
         wavelength=None,
         spectral_resolution=None,
         model_grid="phoenix",
+        spectral_resolving_power=None,
         **kwargs,
     ):
         """
@@ -858,11 +1139,27 @@ class SpectralGrid(object):
             Wavelengths of the interpolated spectrum.
 
         spectral_resolution : `~astropy.units.Quantity`
-            The spectral resolution.
+            Constant Gaussian FWHM in wavelength to apply to every spectrum.
+
+        spectral_resolving_power : float or `~astropy.units.Quantity`, optional
+            Constant resolving power to apply to every spectrum.
 
         model_grid : str, optional
             Name of the model grid.
         """
+        if (
+            spectral_resolution is not None
+            and spectral_resolving_power is not None
+        ):
+            raise ValueError(
+                "Specify only one of spectral_resolution or "
+                "spectral_resolving_power."
+            )
+        if spectral_resolution is not None:
+            _validate_delta_lambda(spectral_resolution)
+        if spectral_resolving_power is not None:
+            _validate_resolving_power(spectral_resolving_power)
+
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
         if self.model_grid not in utils.VALID_MODELS:
@@ -921,11 +1218,6 @@ class SpectralGrid(object):
                         # Skip combinations that do not exist in sparse grids
                         continue
 
-                    # Set spectral resolution if specified
-                    if spectral_resolution is not None:
-                        spec = spec.regularize()
-                        spec = spec.set_spectral_resolution(spectral_resolution)
-
                     # Resample the spectrum to the desired wavelength array
                     if wavelength is not None:
                         spec = spec.resample(wavelength)
@@ -951,6 +1243,125 @@ class SpectralGrid(object):
             self.points = np.empty((0, 3))
             self.data = np.empty((0,))
             self.interpolator = None
+
+        if spectral_resolution is not None:
+            resolved_grid = self.set_spectral_resolution(spectral_resolution)
+            self.fluxes = resolved_grid.fluxes
+            self.data = resolved_grid.data
+            self.interpolator = resolved_grid.interpolator
+        elif spectral_resolving_power is not None:
+            resolved_grid = self.set_spectral_resolving_power(
+                spectral_resolving_power
+            )
+            self.fluxes = resolved_grid.fluxes
+            self.data = resolved_grid.data
+            self.interpolator = resolved_grid.interpolator
+
+    def _with_gaussian_convolution(self, plan):
+        """Return an in-memory copy with a convolution plan applied."""
+        if self.wavelength is None or not self.points.size:
+            raise ValueError("SpectralGrid contains no spectra")
+
+        new_fluxes = {
+            teff: {
+                logg: dict(fluxes_by_feh)
+                for logg, fluxes_by_feh in fluxes_by_logg.items()
+            }
+            for teff, fluxes_by_logg in self.fluxes.items()
+        }
+        new_rows = []
+        for teff, logg, feh in self.points:
+            flux = self.fluxes[teff][logg][feh].to(self.unit)
+            convolved_values = _apply_gaussian_convolution_plan(flux.value, plan)
+            convolved_flux = convolved_values * self.unit
+            new_fluxes[teff][logg][feh] = convolved_flux
+            new_rows.append(convolved_values)
+
+        new_grid = copy.copy(self)
+        for attribute in (
+            "wavelength",
+            "points",
+            "teffs",
+            "loggs",
+            "fehs",
+            "grid_teffs",
+            "grid_loggs",
+            "grid_fehs",
+        ):
+            if hasattr(self, attribute):
+                value = getattr(self, attribute)
+                setattr(
+                    new_grid,
+                    attribute,
+                    value.copy() if hasattr(value, "copy") else copy.copy(value),
+                )
+        if hasattr(self, "grid_points"):
+            new_grid.grid_points = copy.deepcopy(self.grid_points)
+        new_grid.fluxes = new_fluxes
+        new_grid.data = np.vstack(new_rows)
+        new_grid.interpolator = NearestNDInterpolator(
+            new_grid.points, new_grid.data
+        )
+        return new_grid
+
+    def set_spectral_resolution(self, delta_lambda):
+        """Return a new grid with constant Gaussian wavelength resolution.
+
+        Parameters
+        ----------
+        delta_lambda : `~astropy.units.Quantity`
+            Positive scalar Gaussian FWHM with wavelength units.
+
+        Returns
+        -------
+        grid_new : `~speclib.SpectralGrid`
+            A new grid containing the convolved spectra.
+
+        Notes
+        -----
+        Every stored spectrum is convolved to the requested wavelength FWHM.
+        The original grid and its wavelength sampling are unchanged.
+        Intrinsic input line widths are assumed to be negligible. Sampling and
+        boundary behavior match :meth:`Spectrum.set_spectral_resolution`.
+        """
+        if self.wavelength is None or not self.points.size:
+            raise ValueError("SpectralGrid contains no spectra")
+        delta_lambda_value = _validate_delta_lambda(delta_lambda)
+        plan = _build_gaussian_convolution_plan(
+            self.wavelength,
+            delta_lambda=delta_lambda_value,
+        )
+        return self._with_gaussian_convolution(plan)
+
+    def set_spectral_resolving_power(self, resolving_power):
+        """Return a new grid with constant resolving power.
+
+        Parameters
+        ----------
+        resolving_power : float or `~astropy.units.Quantity`
+            Positive scalar dimensionless resolving power.
+
+        Returns
+        -------
+        grid_new : `~speclib.SpectralGrid`
+            A new grid containing the convolved spectra.
+
+        Notes
+        -----
+        Every stored spectrum is convolved on the same internal log-wavelength
+        grid. The original grid and its wavelength sampling are unchanged.
+        Intrinsic input line widths are assumed to be negligible. Flux,
+        sampling, and boundary conventions match
+        :meth:`Spectrum.set_spectral_resolving_power`.
+        """
+        if self.wavelength is None or not self.points.size:
+            raise ValueError("SpectralGrid contains no spectra")
+        resolving_power_value = _validate_resolving_power(resolving_power)
+        plan = _build_gaussian_convolution_plan(
+            self.wavelength,
+            resolving_power=resolving_power_value,
+        )
+        return self._with_gaussian_convolution(plan)
 
     def get_flux(self, teff, logg, feh, interpolate=True):
         """
