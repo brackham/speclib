@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0b12] - 2026-08-21
+
+### Added
+
+- Added constant spectral-resolving-power convolution with
+  `set_spectral_resolving_power(resolving_power)` on both `Spectrum` and
+  `SpectralGrid`, alongside matching
+  `set_spectral_resolution(delta_lambda)` APIs.
+- Added validation for under-sampled requests and excessive temporary-grid
+  memory use.
+
+### Changed
+
+- Constant spectral-resolution convolution now correctly applies a fixed
+  Gaussian wavelength FWHM, while constant resolving power is evaluated on a
+  uniform log-wavelength grid.
+- Both convolution modes support nonuniform wavelength grids internally while
+  preserving the original wavelength sampling, and `SpectralGrid` no longer
+  calls `regularize()` implicitly.
+
+### Testing
+
+- Added quantitative regression tests for constant wavelength FWHM, constant
+  resolving power, nonuniform sampling, API consistency, and input validation.
+
+### Documentation
+
+- Documented the revised resolution APIs, numerical conventions, sampling
+  requirements, flux treatment, and current limitations.
+
+### Related issues
+
+- Closes #36: Correct spectral-resolution handling and add constant resolving
+  power
+
+
 ## [0.1.0b11] - 2026-01-28
 
 ### Added
