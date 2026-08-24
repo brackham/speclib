@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Added wavelength-dependent Gaussian resolving-power support for `Spectrum`
+  and `SpectralGrid` with `set_variable_resolving_power()`.
+
+
 ## [0.1.0b12] - 2026-08-21
 
 ### Added

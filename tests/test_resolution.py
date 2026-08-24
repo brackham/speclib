@@ -3,9 +3,11 @@ import numpy as np
 import pytest
 from astropy.nddata import StdDevUncertainty
 from scipy.interpolate import NearestNDInterpolator
+from scipy.special import ndtr
 
 from speclib import Spectrum
 from speclib import utils
+from speclib import core
 from speclib.core import SpectralGrid
 
 
@@ -54,6 +56,31 @@ def _line_area_and_centroid(wavelength, flux):
     area = np.trapezoid(flux, wavelength)
     centroid = np.trapezoid(wavelength * flux, wavelength) / area
     return area, centroid
+
+
+def _direct_variable_resolving_power(wavelength, flux, curve_wave, curve_r):
+    """Small independent finite-volume reference for variable-R tests."""
+    coordinate = np.log(wavelength)
+    edges = np.empty(coordinate.size + 1)
+    edges[0] = coordinate[0]
+    edges[-1] = coordinate[-1]
+    edges[1:-1] = 0.5 * (coordinate[:-1] + coordinate[1:])
+    widths = np.diff(edges)
+    resolving_power = np.interp(wavelength, curve_wave, curve_r)
+    sigma = (
+        2.0
+        * np.arcsinh(1.0 / (2.0 * resolving_power))
+        / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    )
+    source_mass = wavelength * flux * widths
+    output_mass = np.zeros(wavelength.size)
+    for source_index in range(wavelength.size):
+        probabilities = np.diff(
+            ndtr((edges - coordinate[source_index]) / sigma[source_index])
+        )
+        probabilities /= probabilities.sum()
+        output_mass += source_mass[source_index] * probabilities
+    return output_mass / widths / wavelength
 
 
 def _make_grid():
@@ -125,6 +152,126 @@ def test_spectrum_set_spectral_resolving_power_has_constant_r():
     assert result is not spectrum
 
 
+def test_spectrum_set_variable_resolving_power_follows_sampled_curve():
+    spectrum = _synthetic_spectrum()
+    curve_wavelength = np.array([4300.0, 5000.0, 5800.0, 6700.0]) * u.AA
+    curve_resolving_power = np.array([900.0, 1800.0, 1200.0, 2200.0])
+
+    result = spectrum.set_variable_resolving_power(
+        curve_wavelength,
+        curve_resolving_power,
+    )
+
+    widths = np.array(
+        [
+            _measure_fwhm(result.wavelength.value, result.flux.value, center)
+            for center in LINE_CENTERS
+        ]
+    )
+    expected = np.interp(
+        LINE_CENTERS,
+        curve_wavelength.value,
+        curve_resolving_power,
+    )
+    np.testing.assert_allclose(LINE_CENTERS / widths, expected, rtol=0.03)
+    np.testing.assert_array_equal(result.spectral_axis, spectrum.spectral_axis)
+
+
+def test_constant_variable_resolving_power_matches_constant_method():
+    spectrum = _synthetic_spectrum()
+
+    constant = spectrum.set_spectral_resolving_power(1500.0)
+    variable = spectrum.set_variable_resolving_power(
+        np.array([4300.0, 6700.0]) * u.AA,
+        np.array([1500.0, 1500.0]),
+    )
+
+    np.testing.assert_allclose(variable.flux, constant.flux, rtol=1e-12)
+
+
+def test_variable_resolving_power_preserves_interior_line_flux_and_centroid():
+    wavelength = np.arange(4000.0, 8000.01, 0.05)
+    center = 6000.13
+    flux = np.exp(-0.5 * ((wavelength - center) / 0.08) ** 2)
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=flux * FLUX_UNIT,
+    )
+
+    result = spectrum.set_variable_resolving_power(
+        np.array([4000.0, 8000.0]) * u.AA,
+        np.array([1000.0, 2000.0]),
+    )
+
+    input_integral, input_centroid = _line_area_and_centroid(wavelength, flux)
+    output_integral, output_centroid = _line_area_and_centroid(
+        wavelength,
+        result.flux.value,
+    )
+    assert output_integral == pytest.approx(input_integral, rel=5e-4)
+    assert output_centroid == pytest.approx(input_centroid, abs=5e-3)
+
+
+def test_variable_resolving_power_matches_direct_source_centered_reference():
+    wavelength = np.linspace(4900.0, 5100.0, 801)
+    center = 5000.13
+    flux = np.exp(-0.5 * ((wavelength - center) / 0.12) ** 2)
+    curve_wavelength = np.array([4900.0, 5000.0, 5100.0])
+    curve_resolving_power = np.array([500.0, 510.0, 505.0])
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=flux * FLUX_UNIT,
+    )
+
+    result = spectrum.set_variable_resolving_power(
+        curve_wavelength * u.AA,
+        curve_resolving_power,
+    )
+    reference = _direct_variable_resolving_power(
+        wavelength,
+        flux,
+        curve_wavelength,
+        curve_resolving_power,
+    )
+
+    relative_l1_error = np.trapezoid(
+        np.abs(result.flux.value - reference),
+        wavelength,
+    ) / np.trapezoid(reference, wavelength)
+    assert relative_l1_error < 2e-3
+    reference_area, reference_centroid = _line_area_and_centroid(
+        wavelength,
+        reference,
+    )
+    result_area, result_centroid = _line_area_and_centroid(
+        wavelength,
+        result.flux.value,
+    )
+    assert result_area == pytest.approx(reference_area, rel=1e-4)
+    assert result_centroid == pytest.approx(reference_centroid, abs=1e-3)
+
+
+def test_variable_resolving_power_preserves_smooth_interior_continuum():
+    wavelength = np.linspace(4900.0, 5100.0, 2001)
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=np.ones(wavelength.size) * FLUX_UNIT,
+    )
+
+    result = spectrum.set_variable_resolving_power(
+        np.array([4900.0, 5000.0, 5100.0]) * u.AA,
+        np.array([500.0, 510.0, 520.0]),
+    )
+
+    interior = (wavelength > 4940.0) & (wavelength < 5060.0)
+    np.testing.assert_allclose(
+        result.flux.value[interior],
+        1.0,
+        rtol=5e-4,
+        atol=0.0,
+    )
+
+
 def test_phase_shifted_lines_preserve_centroids():
     wavelength = np.arange(4900.0, 5100.001, 0.01)
     input_sigma = 0.02
@@ -185,6 +332,28 @@ def test_edge_line_has_no_interior_flux_guarantee():
     assert output_integral < 0.8 * input_integral
 
 
+def test_variable_resolving_power_has_finite_flux_conserving_edge_behavior():
+    wavelength = np.arange(5000.0, 5100.001, 0.05)
+    flux = np.exp(-0.5 * ((wavelength - 5000.2) / 0.03) ** 2)
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=flux * FLUX_UNIT,
+    )
+
+    result = spectrum.set_variable_resolving_power(
+        np.array([5000.0, 5100.0]) * u.AA,
+        np.array([500.0, 520.0]),
+    )
+
+    assert np.all(np.isfinite(result.flux.value))
+    input_integral, _ = _line_area_and_centroid(wavelength, flux)
+    output_integral, _ = _line_area_and_centroid(
+        wavelength,
+        result.flux.value,
+    )
+    assert output_integral == pytest.approx(input_integral, rel=1e-4)
+
+
 def test_spectrum_resolution_methods_support_descending_wavelengths():
     spectrum = _synthetic_spectrum()
     descending = Spectrum(
@@ -194,6 +363,35 @@ def test_spectrum_resolution_methods_support_descending_wavelengths():
 
     ascending_result = spectrum.set_spectral_resolving_power(1500.0)
     descending_result = descending.set_spectral_resolving_power(1500.0)
+
+    np.testing.assert_array_equal(
+        descending_result.spectral_axis,
+        descending.spectral_axis,
+    )
+    np.testing.assert_allclose(
+        descending_result.flux[::-1],
+        ascending_result.flux,
+        rtol=1e-12,
+    )
+
+
+def test_variable_resolving_power_supports_descending_axes_and_curves():
+    spectrum = _synthetic_spectrum()
+    curve_wavelength = np.array([4300.0, 5000.0, 5800.0, 6700.0]) * u.AA
+    curve_resolving_power = np.array([900.0, 1800.0, 1200.0, 2200.0])
+    descending = Spectrum(
+        spectral_axis=spectrum.spectral_axis[::-1].copy(),
+        flux=spectrum.flux[::-1].copy(),
+    )
+
+    ascending_result = spectrum.set_variable_resolving_power(
+        curve_wavelength,
+        curve_resolving_power,
+    )
+    descending_result = descending.set_variable_resolving_power(
+        curve_wavelength[::-1],
+        curve_resolving_power[::-1],
+    )
 
     np.testing.assert_array_equal(
         descending_result.spectral_axis,
@@ -217,6 +415,16 @@ def test_spectrum_resolution_methods_return_independent_objects():
     assert spectrum.spectral_axis[0] != result.spectral_axis[0]
     assert spectrum.meta["nested"]["value"] == 1
 
+    variable_result = spectrum.set_variable_resolving_power(
+        np.array([4300.0, 6700.0]) * u.AA,
+        np.array([1400.0, 1600.0]),
+    )
+    variable_result.spectral_axis[0] = 4100.0 * u.AA
+    variable_result.meta["nested"]["value"] = 3
+
+    assert spectrum.spectral_axis[0] != variable_result.spectral_axis[0]
+    assert spectrum.meta["nested"]["value"] == 1
+
 
 def test_spectrum_resolution_methods_reject_masks_and_uncertainties():
     spectrum = _synthetic_spectrum()
@@ -235,6 +443,16 @@ def test_spectrum_resolution_methods_reject_masks_and_uncertainties():
         masked.set_spectral_resolution(4.0 * u.AA)
     with pytest.raises(NotImplementedError, match="uncertainties"):
         uncertain.set_spectral_resolving_power(1500.0)
+    with pytest.raises(NotImplementedError, match="masked"):
+        masked.set_variable_resolving_power(
+            np.array([4300.0, 6700.0]) * u.AA,
+            np.array([1400.0, 1600.0]),
+        )
+    with pytest.raises(NotImplementedError, match="uncertainties"):
+        uncertain.set_variable_resolving_power(
+            np.array([4300.0, 6700.0]) * u.AA,
+            np.array([1400.0, 1600.0]),
+        )
 
 
 def test_spectrum_rejects_under_sampled_wavelength_resolution():
@@ -262,6 +480,20 @@ def test_spectrum_rejects_under_sampled_resolving_power():
         spectrum.set_spectral_resolving_power(3000.0)
 
 
+def test_spectrum_rejects_locally_under_sampled_variable_resolving_power():
+    wavelength = np.arange(5000.0, 5101.0, 1.0)
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=np.ones(wavelength.size) * FLUX_UNIT,
+    )
+
+    with pytest.raises(ValueError, match="under-sampled"):
+        spectrum.set_variable_resolving_power(
+            np.array([5000.0, 5100.0]) * u.AA,
+            np.array([1000.0, 3000.0]),
+        )
+
+
 def test_spectrum_rejects_impractical_temporary_grid():
     wavelength = 5000.0 + np.concatenate(
         ([0.0, 1e-8], np.arange(1.0, 101.0))
@@ -273,6 +505,16 @@ def test_spectrum_rejects_impractical_temporary_grid():
 
     with pytest.raises(ValueError, match="safety limit"):
         spectrum.set_spectral_resolution(3.0 * u.AA)
+
+
+def test_variable_resolving_power_rejects_impractical_sparse_plan(monkeypatch):
+    monkeypatch.setattr(core, "_MAX_VARIABLE_KERNEL_NONZEROS", 10)
+
+    with pytest.raises(ValueError, match="work or memory safety limit"):
+        _synthetic_spectrum().set_variable_resolving_power(
+            np.array([4300.0, 6700.0]) * u.AA,
+            np.array([1400.0, 1600.0]),
+        )
 
 
 @pytest.mark.parametrize("value", [0.0 * u.AA, -1.0 * u.AA, np.nan * u.AA])
@@ -297,6 +539,96 @@ def test_spectrum_resolution_methods_reject_invalid_units_and_shapes():
         spectrum.set_spectral_resolving_power(1500.0 * u.AA)
     with pytest.raises(ValueError):
         spectrum.set_spectral_resolving_power(np.array([1000.0, 1500.0]))
+
+
+def test_variable_resolving_power_rejects_invalid_curve_inputs():
+    spectrum = _synthetic_spectrum()
+    valid_wavelength = np.array([4300.0, 6700.0]) * u.AA
+
+    with pytest.raises(TypeError, match="astropy Quantity"):
+        spectrum.set_variable_resolving_power(
+            np.array([4300.0, 6700.0]),
+            np.array([1000.0, 1500.0]),
+        )
+    with pytest.raises(u.UnitsError, match="wavelength units"):
+        spectrum.set_variable_resolving_power(
+            np.array([1.0, 2.0]) * u.s,
+            np.array([1000.0, 1500.0]),
+        )
+    with pytest.raises(ValueError, match="matching shapes"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([1000.0]),
+        )
+    with pytest.raises(ValueError, match="strictly monotonic"):
+        spectrum.set_variable_resolving_power(
+            np.array([4300.0, 5000.0, 4900.0, 6700.0]) * u.AA,
+            np.array([1000.0, 1200.0, 1300.0, 1500.0]),
+        )
+    with pytest.raises(ValueError, match="positive values"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([1000.0, 0.0]),
+        )
+    with pytest.raises(u.UnitsError, match="dimensionless"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([1000.0, 1500.0]) * u.AA,
+        )
+    with pytest.raises(TypeError, match="real values"):
+        spectrum.set_variable_resolving_power(
+            np.array([4300.0 + 1.0j, 6700.0]) * u.AA,
+            np.array([1000.0, 1500.0]),
+        )
+    with pytest.raises(TypeError, match="real values"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([1000.0 + 1.0j, 1500.0]),
+        )
+    with pytest.raises(ValueError, match="finite values"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([1000.0, np.inf]),
+        )
+    with pytest.raises(ValueError, match="strictly monotonic"):
+        spectrum.set_variable_resolving_power(
+            np.array([4300.0, 4300.0, 6700.0]) * u.AA,
+            np.array([1000.0, 1200.0, 1500.0]),
+        )
+    with pytest.raises(ValueError, match="finite values"):
+        spectrum.set_variable_resolving_power(
+            np.array([4300.0, np.nan]) * u.AA,
+            np.array([1000.0, 1500.0]),
+        )
+    with pytest.raises(TypeError, match="real values"):
+        spectrum.set_variable_resolving_power(
+            valid_wavelength,
+            np.array([True, False]),
+        )
+
+
+def test_variable_resolving_power_rejects_incomplete_curve_coverage():
+    spectrum = _synthetic_spectrum()
+
+    with pytest.raises(ValueError, match="full wavelength range"):
+        spectrum.set_variable_resolving_power(
+            np.array([4400.0, 6600.0]) * u.AA,
+            np.array([1000.0, 1500.0]),
+        )
+
+
+def test_variable_resolving_power_does_not_hide_material_endpoint_gap():
+    wavelength = 1e10 + np.arange(101.0)
+    spectrum = Spectrum(
+        spectral_axis=wavelength * u.AA,
+        flux=np.ones(wavelength.size) * FLUX_UNIT,
+    )
+
+    with pytest.raises(ValueError, match="full wavelength range"):
+        spectrum.set_variable_resolving_power(
+            np.array([wavelength[0], wavelength[-1] - 1e-3]) * u.AA,
+            np.array([10.0, 10.1]),
+        )
 
 
 @pytest.mark.parametrize(
@@ -372,6 +704,47 @@ def test_spectral_grid_result_has_independent_mutable_state():
     np.testing.assert_array_equal(grid.points, original_points)
     np.testing.assert_array_equal(grid.teffs, original_teffs)
     np.testing.assert_array_equal(grid.fluxes[3000.0][4.0][0.0], original_flux)
+
+
+def test_spectral_grid_variable_resolving_power_matches_spectrum_method():
+    grid = _make_grid()
+    original_data = grid.data.copy()
+    original_fluxes = [
+        grid.fluxes[teff][logg][feh].value.copy()
+        for teff, logg, feh in grid.points
+    ]
+    curve_wavelength = np.array([4300.0, 5000.0, 5800.0, 6700.0]) * u.AA
+    curve_resolving_power = np.array([900.0, 1800.0, 1200.0, 2200.0])
+
+    result = grid.set_variable_resolving_power(
+        curve_wavelength,
+        curve_resolving_power,
+    )
+
+    expected = Spectrum(
+        spectral_axis=grid.wavelength,
+        flux=grid.fluxes[3000.0][4.0][0.0],
+    ).set_variable_resolving_power(
+        curve_wavelength,
+        curve_resolving_power,
+    )
+    np.testing.assert_allclose(result.data[0], expected.flux.value)
+    np.testing.assert_array_equal(result.wavelength, grid.wavelength)
+    _assert_grid_unchanged(grid, original_data, original_fluxes)
+
+    for row, (teff, logg, feh) in zip(result.data, result.points):
+        expected = Spectrum(
+            spectral_axis=grid.wavelength,
+            flux=grid.fluxes[teff][logg][feh],
+        ).set_variable_resolving_power(
+            curve_wavelength,
+            curve_resolving_power,
+        )
+        np.testing.assert_allclose(row, expected.flux.value)
+        np.testing.assert_array_equal(
+            row,
+            result.fluxes[teff][logg][feh].value,
+        )
 
 
 @pytest.fixture
