@@ -80,6 +80,36 @@ download_newera_grid("newera_jwst")
 download_newera_grid("newera_jwst", extract="all")
 ```
 
+### SPHINX I V4
+
+Download and extract the SPHINX I V4 spectra from Zenodo record 11392341:
+
+```python
+from speclib import Spectrum, SpectralGrid, download_sphinx_grid
+
+download_sphinx_grid()
+
+spec = Spectrum.from_grid(
+    teff=3000,
+    logg=4.5,
+    feh=0.0,
+    co_ratio=0.5,
+    model_grid="sphinx",
+)
+
+grid = SpectralGrid(
+    teff_bds=(2800, 3200),
+    logg_bds=(4.0, 5.0),
+    feh_bds=(-0.5, 0.5),
+    co_ratio=0.5,
+    model_grid="sphinx",
+)
+```
+
+SPHINX filenames call the metallicity parameter ``logZ``; it is selected
+through speclib's existing ``feh`` argument. A C/O ratio must be supplied
+explicitly and remains fixed within each three-dimensional ``SpectralGrid``.
+
 ---
 
 ## License

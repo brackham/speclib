@@ -13,6 +13,7 @@ def spectral_grid():
         logg_bds=(4.0, 4.5),
         feh_bds=(0.0, 0.0),
         model_grid="sphinx",
+        co_ratio=0.5,
         wavelength=np.linspace(1.0, 2.0, 100) * u.micron,
     )
 
@@ -46,6 +47,7 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
         center=center,
         width=width,
         model_grid="sphinx",
+        co_ratio=0.5,
         wavelength=spectral_grid.wavelength,
     )
 

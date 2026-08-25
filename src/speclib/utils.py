@@ -12,19 +12,22 @@ import urllib
 import warnings
 from astropy.io import fits
 from contextlib import closing
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.error import URLError
 
 __all__ = [
     "download_file",
     "download_phoenix_grid",
     "download_newera_grid",
+    "download_sphinx_grid",
     "get_newera_record_id",
     "load_newera_model_list",
     "find_bounds",
     "interpolate",
     "load_flux_array",
     "load_gaia_format_spectrum",
+    "load_sphinx_model_list",
+    "load_sphinx_spectrum",
     "trilinear_interpolate",
     "nearest",
     "vac2air",
@@ -45,9 +48,18 @@ NEWERA_TARBALLS: dict[str, str] = {
     "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA.tar.gz",
 }
 
+SPHINX_RECORD_ID = "11392341"
+SPHINX_ARCHIVE_FILENAME = "SPHINX_MAY2024_CLOUDFREE_UPDATED.tar.gz"
+SPHINX_ARCHIVE_HASH = "md5:63d8dd8da5bca66c2384ce3059a29e01"
+SPHINX_ARCHIVE_URL = (
+    f"https://zenodo.org/api/records/{SPHINX_RECORD_ID}/files/"
+    f"{SPHINX_ARCHIVE_FILENAME}/content"
+)
+
 _LIBRARY_ROOT: Path | None = None
 _NEWERA_INDEX_CACHE: dict[tuple[Path, str], dict] = {}
 _NEWERA_TAR_MEMBER_CACHE: dict[Path, dict[str, str]] = {}
+_SPHINX_INDEX_CACHE: dict[Path, dict] = {}
 
 _NEWERA_MODEL_LINE_RE = re.compile(
     r"(?P<filename>"
@@ -58,6 +70,13 @@ _NEWERA_MODEL_LINE_RE = re.compile(
     r"\.PHOENIX-NewEra(?:V[0-9.]+)?-ACES-COND-(?P<year>\d{4})\.HSR\.h5"
     r")",
     re.IGNORECASE,
+)
+
+_SPHINX_MODEL_FILENAME_RE = re.compile(
+    r"^Teff_(?P<teff>\d+(?:\.\d+)?)"
+    r"_logg_(?P<logg>\d+(?:\.\d+)?)"
+    r"_logZ_(?P<metallicity>[+-]\d+(?:\.\d+)?)"
+    r"_CtoO_(?P<co_ratio>\d+(?:\.\d+)?)\.txt$"
 )
 
 
@@ -280,6 +299,164 @@ def _clear_directory(path: Path) -> None:
             shutil.rmtree(child)
         else:
             child.unlink()
+
+
+def _extract_sphinx_spectra(tar_path: Path, cache_dir: Path) -> None:
+    """Safely extract only SPHINX spectrum files from the V4 tarball."""
+
+    cache_root = cache_dir.resolve()
+    with tarfile.open(tar_path, "r:gz") as archive:
+        for member in archive.getmembers():
+            if not member.isfile():
+                continue
+
+            member_path = PurePosixPath(member.name)
+            if (
+                member_path.is_absolute()
+                or ".." in member_path.parts
+                or not _SPHINX_MODEL_FILENAME_RE.fullmatch(member_path.name)
+            ):
+                continue
+
+            target = cache_dir.joinpath(*member_path.parts)
+            if not target.resolve().is_relative_to(cache_root):
+                raise ValueError(f"Unsafe path in SPHINX archive: {member.name}")
+            if target.exists():
+                continue
+
+            source = archive.extractfile(member)
+            if source is None:  # pragma: no cover - guarded by member.isfile()
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with source, open(target, "wb") as destination:
+                shutil.copyfileobj(source, destination)
+
+
+def download_sphinx_grid(
+    overwrite: bool = False,
+    library_root: str | Path | None = None,
+) -> Path:
+    """Download and extract the SPHINX I V4 spectral grid.
+
+    The V4 archive is fetched from Zenodo record 11392341 and verified against
+    the checksum published by Zenodo. Only spectrum ``.txt`` files are
+    extracted; the downloaded tarball remains in the cache.
+
+    Parameters
+    ----------
+    overwrite : bool, optional
+        Remove the existing SPHINX cache before downloading and extracting it.
+    library_root : str or Path, optional
+        Base cache directory. Defaults to :func:`get_library_root`.
+
+    Returns
+    -------
+    Path
+        The SPHINX cache directory.
+    """
+
+    root = get_library_root() if library_root is None else Path(library_root)
+    cache_dir = root.expanduser() / "sphinx"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if overwrite:
+        _clear_directory(cache_dir)
+
+    archive_path = Path(
+        pooch.retrieve(
+            url=SPHINX_ARCHIVE_URL,
+            fname=SPHINX_ARCHIVE_FILENAME,
+            path=cache_dir,
+            known_hash=SPHINX_ARCHIVE_HASH,
+            processor=None,
+            progressbar=True,
+        )
+    )
+    _extract_sphinx_spectra(archive_path, cache_dir)
+    _SPHINX_INDEX_CACHE.pop(cache_dir.resolve(), None)
+    return cache_dir
+
+
+def _normalize_sphinx_key(
+    teff: float, logg: float, metallicity: float, co_ratio: float
+) -> tuple[float, float, float, float]:
+    return tuple(
+        round(float(value), 8) for value in (teff, logg, metallicity, co_ratio)
+    )
+
+
+def load_sphinx_model_list(
+    *,
+    library_root: str | Path | None = None,
+    cache_dir: str | Path | None = None,
+) -> dict:
+    """Index the exact parameter combinations in an extracted SPHINX I V4 grid."""
+
+    if cache_dir is None:
+        root = get_library_root() if library_root is None else Path(library_root)
+        cache_dir = root.expanduser() / "sphinx"
+    else:
+        cache_dir = Path(cache_dir).expanduser()
+
+    cache_key = cache_dir.resolve()
+    cached = _SPHINX_INDEX_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    entries: dict[tuple[float, float, float, float], Path] = {}
+    for path in cache_dir.rglob("*.txt") if cache_dir.exists() else ():
+        match = _SPHINX_MODEL_FILENAME_RE.fullmatch(path.name)
+        if match is None:
+            continue
+        key = _normalize_sphinx_key(
+            match.group("teff"),
+            match.group("logg"),
+            match.group("metallicity"),
+            match.group("co_ratio"),
+        )
+        entries[key] = path
+
+    if not entries:
+        raise FileNotFoundError(
+            f"No extracted SPHINX I V4 spectra found in {cache_dir}. "
+            "Run download_sphinx_grid() first."
+        )
+
+    combinations = np.array(sorted(entries), dtype=float)
+    result = {
+        "entries": entries,
+        "combinations": combinations,
+        "grid_teffs": np.unique(combinations[:, 0]),
+        "grid_loggs": np.unique(combinations[:, 1]),
+        "grid_fehs": np.unique(combinations[:, 2]),
+        "grid_co_ratios": np.unique(combinations[:, 3]),
+    }
+    _SPHINX_INDEX_CACHE[cache_key] = result
+    return result
+
+
+def load_sphinx_spectrum(
+    teff: float,
+    logg: float,
+    metallicity: float,
+    co_ratio: float,
+    *,
+    library_root: str | Path | None = None,
+) -> tuple[u.Quantity, u.Quantity]:
+    """Load one exact SPHINX I V4 model spectrum with physical units."""
+
+    model_list = load_sphinx_model_list(library_root=library_root)
+    key = _normalize_sphinx_key(teff, logg, metallicity, co_ratio)
+    try:
+        path = model_list["entries"][key]
+    except KeyError as exc:
+        raise ValueError(
+            "SPHINX I V4 has no model for "
+            f"Teff={teff}, logg={logg}, logZ={metallicity}, C/O={co_ratio}."
+        ) from exc
+
+    wavelength, flux = np.loadtxt(path, unpack=True)
+    return wavelength * u.micron, flux * (u.W / (u.m**2 * u.m))
 
 
 def download_newera_grid(
@@ -1117,13 +1294,13 @@ GRID_POINTS = {
         "grid_fehs": np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0]),
     },
     "sphinx": {
-        # Grid of effective temperatures
+        # Distinct values found in SPHINX I V4 filenames. The exact available
+        # combinations are indexed from extracted files at runtime.
         "grid_teffs": np.arange(2000.0, 4100.0, 100),
-        # Grid of surface gravities
-        "grid_loggs": np.arange(4.0, 5.75, 0.25),
-        # Grid of metallicities
+        "grid_loggs": np.array(
+            [4.0, 4.2, 4.25, 4.5, 4.7, 4.75, 5.0, 5.2, 5.25, 5.5]
+        ),
         "grid_fehs": np.arange(-1, 1.25, 0.25),
-        # # Grid of CtoOs
-        # 'grid_CtoOs': np.array([0.3, 0.5, 0.7, 0.9]),
+        "grid_co_ratios": np.array([0.3, 0.5, 0.7, 0.9]),
     },
 }

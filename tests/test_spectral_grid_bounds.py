@@ -12,6 +12,7 @@ def test_spectral_grid_clips_bounds_to_available_grid():
             logg_bds=(3.5, 5.5),
             feh_bds=(-0.5, 0.5),
             model_grid="sphinx",
+            co_ratio=0.5,
             wavelength=np.linspace(1.0, 2.0, 10) * u.micron,
         )
 

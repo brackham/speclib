@@ -29,6 +29,47 @@ _ESTIMATED_BYTES_PER_SPARSE_NONZERO = 24
 _MAX_VARIABLE_KERNEL_NONZEROS = 20_000_000
 
 
+def _sphinx_grid_slice(co_ratio):
+    """Return grid axes and exact combinations for one SPHINX C/O slice."""
+
+    if co_ratio is None:
+        raise ValueError(
+            "co_ratio must be specified for the SPHINX I V4 model grid. "
+            "Available values are 0.3, 0.5, 0.7, and 0.9."
+        )
+
+    model_list = utils.load_sphinx_model_list()
+    combinations = model_list["combinations"]
+    combinations = combinations[np.isclose(combinations[:, 3], co_ratio)]
+    if not combinations.size:
+        raise ValueError(
+            f"C/O={co_ratio} is not available in SPHINX I V4. "
+            f"Available values are {model_list['grid_co_ratios'].tolist()}."
+        )
+
+    grid_points = {
+        "grid_teffs": np.unique(combinations[:, 0]),
+        "grid_loggs": np.unique(combinations[:, 1]),
+        "grid_fehs": np.unique(combinations[:, 2]),
+        "grid_co_ratios": model_list["grid_co_ratios"],
+    }
+    return grid_points, combinations
+
+
+def _nearest_sphinx_index(points, requested):
+    """Return the nearest actual SPHINX combination in grid-step units."""
+
+    scales = []
+    for axis in range(3):
+        values = np.unique(points[:, axis])
+        scales.append(np.median(np.diff(values)) if len(values) > 1 else 1.0)
+    distances = np.sum(
+        ((points - np.asarray(requested, dtype=float)) / np.asarray(scales)) ** 2,
+        axis=1,
+    )
+    return int(np.argmin(distances))
+
+
 def _validate_delta_lambda(delta_lambda):
     """Return a positive scalar wavelength FWHM in Angstrom."""
     if not isinstance(delta_lambda, u.Quantity):
@@ -674,7 +715,7 @@ class Spectrum(Spectrum1D):
         logg,
         feh=0,
         alpha=0.0,
-        # CtoO=0.5,
+        co_ratio=None,
         wavelength=None,
         wl_min=None,
         wl_max=None,
@@ -694,7 +735,12 @@ class Spectrum(Spectrum1D):
             Surface gravity of the model in cgs units.
 
         feh : float
-            [Fe/H] of the model.
+            [Fe/H] of the model. For SPHINX this selects the filename's
+            ``logZ`` metallicity parameter.
+
+        co_ratio : float, optional
+            Carbon-to-oxygen ratio. Required when ``model_grid="sphinx"`` and
+            ignored by other model grids.
 
         wavelength : `~astropy.units.Quantity`, optional
             Wavelengths of the interpolated spectrum.
@@ -730,8 +776,13 @@ class Spectrum(Spectrum1D):
                 + str(utils.VALID_MODELS)
             )
 
-        # Define grid points
-        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        # Define grid points. SPHINX is sparse, so derive the selected C/O slice
+        # from the exact filenames in the extracted V4 archive.
+        sphinx_combinations = None
+        if self.model_grid == "sphinx":
+            self.grid_points, sphinx_combinations = _sphinx_grid_slice(co_ratio)
+        else:
+            self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
         self.grid_fehs = self.grid_points["grid_fehs"]
@@ -1030,25 +1081,33 @@ class Spectrum(Spectrum1D):
                 wave_lib, flux = np.loadtxt(cache_dir / fname, unpack=True)
 
         elif self.model_grid == "sphinx":
-            # Only works if the user has already cached the SPHINX model grid
             lib_wave_unit = u.micron
             lib_flux_unit = u.Unit("W/(m^2 * m)")
-            cache_dir = utils.get_library_root() / "sphinx"
-            cache_dir.mkdir(parents=True, exist_ok=True)
 
-            # CtoO = 0.5  # Not varying this for now
-            # fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_{:0.1f}_spectra.txt"
-            fname_str = "Teff_{:04.1f}_logg_{:0.2f}_logZ_{:+0.2f}_CtoO_0.5_spectra.txt"
-
-            def load_wave_flux(fname):
-                path = cache_dir / fname
-                wave, flux = np.loadtxt(path, unpack=True)
-                return wave, flux
+            def load_wave_flux(teff_, logg_, metallicity_):
+                wavelength_, flux_ = utils.load_sphinx_spectrum(
+                    teff_, logg_, metallicity_, co_ratio
+                )
+                return (
+                    wavelength_.to_value(lib_wave_unit),
+                    flux_.to_value(lib_flux_unit),
+                )
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
             feh_in_grid = feh in self.grid_fehs
             model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            requested = np.array([teff, logg, feh], dtype=float)
+            exact_combinations = sphinx_combinations[:, :3]
+            model_in_grid = model_in_grid and np.any(
+                np.all(np.isclose(exact_combinations, requested), axis=1)
+            )
+            if not model_in_grid and not interpolate:
+                nearest_index = _nearest_sphinx_index(
+                    exact_combinations, requested
+                )
+                teff, logg, feh = exact_combinations[nearest_index]
+                model_in_grid = True
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
@@ -1064,24 +1123,28 @@ class Spectrum(Spectrum1D):
                     feh_bds = utils.find_bounds(self.grid_fehs, feh)
 
                 flux_dict = {}
+                wave_lib = None
                 for tt in teff_bds:
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
                         for ff in feh_bds:
-                            fname = fname_str.format(tt, gg, ff)
-                            flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir / fname, unpack=True, usecols=1
-                            )
+                            wavelength_, flux_ = load_wave_flux(tt, gg, ff)
+                            if wave_lib is None:
+                                wave_lib = wavelength_
+                            elif not np.array_equal(wave_lib, wavelength_):
+                                raise ValueError(
+                                    "SPHINX spectra required for interpolation "
+                                    "do not share a wavelength grid."
+                                )
+                            flux_dict[tt][gg][ff] = flux_
 
                 flux = utils.trilinear_interpolate(
                     flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
                 )
 
             elif model_in_grid:
-                # Load the wavelength and flux arrays
-                fname = fname_str.format(teff, logg, feh)
-                wave_lib, flux = load_wave_flux(fname)
+                wave_lib, flux = load_wave_flux(teff, logg, feh)
 
         elif self.model_grid == "mps-atlas":
             # Only works if the user has already cached the MPS-Atlas model grid
@@ -1577,6 +1640,7 @@ class SpectralGrid(object):
         spectral_resolution=None,
         model_grid="phoenix",
         spectral_resolving_power=None,
+        co_ratio=None,
         **kwargs,
     ):
         """
@@ -1602,6 +1666,10 @@ class SpectralGrid(object):
 
         model_grid : str, optional
             Name of the model grid.
+
+        co_ratio : float, optional
+            Fixed carbon-to-oxygen ratio for a SPHINX grid instance. Required
+            for ``model_grid="sphinx"`` and ignored for other grids.
         """
         if (
             spectral_resolution is not None
@@ -1625,8 +1693,11 @@ class SpectralGrid(object):
                 + str(utils.VALID_MODELS)
             )
 
-        # Define grid points
-        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        self.co_ratio = co_ratio
+        if self.model_grid == "sphinx":
+            self.grid_points, _ = _sphinx_grid_slice(co_ratio)
+        else:
+            self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
         self.grid_fehs = self.grid_points["grid_fehs"]
@@ -1657,6 +1728,9 @@ class SpectralGrid(object):
         points = []
         data = []
         spec = None
+        spectrum_kwargs = dict(kwargs)
+        if self.model_grid == "sphinx":
+            spectrum_kwargs["co_ratio"] = co_ratio
         for teff in self.teffs:
             fluxes[teff] = {}
             for logg in self.loggs:
@@ -1668,7 +1742,7 @@ class SpectralGrid(object):
                             logg,
                             feh,
                             model_grid=self.model_grid,
-                            **kwargs,
+                            **spectrum_kwargs,
                         )
                     except ValueError:
                         # Skip combinations that do not exist in sparse grids
@@ -1900,12 +1974,23 @@ class SpectralGrid(object):
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
 
-        if self.model_grid in ["newera_gaia", "newera_jwst", "newera_lowres"]:
+        if self.model_grid in [
+            "newera_gaia",
+            "newera_jwst",
+            "newera_lowres",
+            "sphinx",
+        ]:
             if self.interpolator is None or not self.points.size:
                 raise ValueError("SpectralGrid contains no spectra")
 
             if not interpolate:
-                flux = self.interpolator((teff, logg, feh))
+                if self.model_grid == "sphinx":
+                    nearest_index = _nearest_sphinx_index(
+                        self.points, (teff, logg, feh)
+                    )
+                    flux = self.data[nearest_index]
+                else:
+                    flux = self.interpolator((teff, logg, feh))
             else:
                 try:
                     flux = utils.trilinear_interpolate(
@@ -1914,6 +1999,11 @@ class SpectralGrid(object):
                         (teff, logg, feh),
                     )
                 except KeyError:
+                    if self.model_grid == "sphinx":
+                        raise ValueError(
+                            "Cannot interpolate this SPHINX point because the "
+                            "selected C/O slice lacks a required corner model."
+                        ) from None
                     # Fall back to nearest-neighbour evaluation for sparse grids
                     flux = self.interpolator((teff, logg, feh))
 
@@ -2042,7 +2132,11 @@ class BinnedSpectralGrid(object):
             )
 
         # Define grid points
-        self.grid_points = utils.GRID_POINTS[self.model_grid]
+        if self.model_grid == "sphinx":
+            co_ratio = kwargs.get("co_ratio")
+            self.grid_points, _ = _sphinx_grid_slice(co_ratio)
+        else:
+            self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
         self.grid_fehs = self.grid_points["grid_fehs"]
