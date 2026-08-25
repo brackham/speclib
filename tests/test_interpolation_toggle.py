@@ -142,6 +142,23 @@ def test_newera_spectrum_respects_interpolate_flag(mock_newera_grid):
     assert not np.allclose(interp.flux.value, nearest.flux.value)
 
 
+def test_from_grid_preserves_positional_wavelength_argument(mock_newera_grid):
+    wavelength = np.array([985.0, 995.0]) * u.nm
+
+    spectrum = Spectrum.from_grid(
+        2300.0,
+        5.0,
+        0.0,
+        0.0,
+        wavelength,
+        model_grid="newera_jwst",
+    )
+
+    np.testing.assert_allclose(
+        spectrum.wavelength.to_value(u.nm), wavelength.to_value(u.nm)
+    )
+
+
 def test_newera_spectral_grid_respects_interpolate_flag(mock_newera_grid):
     grid = SpectralGrid(
         teff_bds=(2300.0, 2400.0),

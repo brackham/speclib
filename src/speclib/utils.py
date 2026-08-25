@@ -8,6 +8,7 @@ import pooch
 import re
 import shutil
 import tarfile
+import tempfile
 import urllib
 import warnings
 from astropy.io import fits
@@ -328,8 +329,22 @@ def _extract_sphinx_spectra(tar_path: Path, cache_dir: Path) -> None:
             if source is None:  # pragma: no cover - guarded by member.isfile()
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
-            with source, open(target, "wb") as destination:
-                shutil.copyfileobj(source, destination)
+            temporary_path = None
+            try:
+                with source, tempfile.NamedTemporaryFile(
+                    mode="wb",
+                    dir=target.parent,
+                    prefix=f".{target.name}.",
+                    suffix=".tmp",
+                    delete=False,
+                ) as destination:
+                    temporary_path = Path(destination.name)
+                    shutil.copyfileobj(source, destination)
+                os.replace(temporary_path, target)
+            except BaseException:
+                if temporary_path is not None:
+                    temporary_path.unlink(missing_ok=True)
+                raise
 
 
 def download_sphinx_grid(

@@ -7,7 +7,7 @@ import pytest
 
 from speclib import download_sphinx_grid as public_download_sphinx_grid
 from speclib import utils
-from speclib.core import Spectrum, SpectralGrid
+from speclib.core import BinnedSpectralGrid, Spectrum, SpectralGrid
 
 
 def _spectrum_text(scale=1.0):
@@ -88,6 +88,34 @@ def test_download_sphinx_grid_public_alias():
     assert public_download_sphinx_grid is utils.download_sphinx_grid
 
 
+def test_sphinx_extraction_failure_does_not_leave_final_file(monkeypatch, tmp_path):
+    archive_path = tmp_path / "sphinx.tar.gz"
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    _write_test_archive(archive_path)
+    target = (
+        cache_dir
+        / "NEWCORRECTED_CLOUDFREE"
+        / "Teff_3000.0_logg_4.0_logZ_+0.0_CtoO_0.5.txt"
+    )
+    original_copyfileobj = utils.shutil.copyfileobj
+
+    def interrupted_copy(source, destination):
+        destination.write(b"partial")
+        raise OSError("interrupted extraction")
+
+    monkeypatch.setattr(utils.shutil, "copyfileobj", interrupted_copy)
+    with pytest.raises(OSError, match="interrupted extraction"):
+        utils._extract_sphinx_spectra(archive_path, cache_dir)
+
+    assert not target.exists()
+    assert list(target.parent.glob(f".{target.name}.*.tmp")) == []
+
+    monkeypatch.setattr(utils.shutil, "copyfileobj", original_copyfileobj)
+    utils._extract_sphinx_spectra(archive_path, cache_dir)
+    assert target.read_text().startswith("# Wavelength")
+
+
 def test_sphinx_filename_index_loading_units_and_missing_model(tmp_path):
     cache_dir = tmp_path / "sphinx"
     expected_path = _write_spectrum(cache_dir, 3000.0, 4.0, 0.0, 0.5)
@@ -137,6 +165,24 @@ def test_sphinx_spectrum_and_grid_select_explicit_co_slice(tmp_path):
         assert spectrum.wavelength.unit == u.AA
         assert spectrum.flux.unit.is_equivalent(u.erg / (u.s * u.cm**2 * u.AA))
 
+        canonical = Spectrum.from_grid(
+            3000.0,
+            4.0,
+            0.0,
+            model_grid="sphinx",
+            co_ratio=0.500004,
+            interpolate=False,
+        )
+        exact = Spectrum.from_grid(
+            3000.0,
+            4.0,
+            0.0,
+            model_grid="sphinx",
+            co_ratio=0.5,
+            interpolate=False,
+        )
+        np.testing.assert_allclose(canonical.flux.value, exact.flux.value)
+
         grid_05 = SpectralGrid(
             (3000.0, 3000.0),
             (4.0, 4.5),
@@ -151,6 +197,13 @@ def test_sphinx_spectrum_and_grid_select_explicit_co_slice(tmp_path):
             model_grid="sphinx",
             co_ratio=0.7,
         )
+        canonical_grid = SpectralGrid(
+            (3000.0, 3000.0),
+            (4.0, 4.5),
+            (0.0, 0.0),
+            model_grid="sphinx",
+            co_ratio=0.500004,
+        )
     finally:
         utils.set_library_root(None)
 
@@ -159,6 +212,43 @@ def test_sphinx_spectrum_and_grid_select_explicit_co_slice(tmp_path):
     np.testing.assert_allclose(flux_07.value, 2.0 * flux_05.value)
     nearest = grid_05.get_flux(3000.0, 4.25, 0.0, interpolate=False)
     assert not np.allclose(nearest.value, flux_05.value)
+    assert canonical_grid.co_ratio == 0.5
+
+
+def test_sphinx_irregular_axis_uses_true_flanking_models(tmp_path):
+    cache_dir = tmp_path / "sphinx"
+    _write_spectrum(cache_dir, 3000.0, 4.0, 0.5, 0.9, scale=1.0)
+    _write_spectrum(cache_dir, 3000.0, 4.2, 0.5, 0.9, scale=3.0)
+    _write_spectrum(cache_dir, 3000.0, 4.25, 0.5, 0.9, scale=100.0)
+
+    utils.set_library_root(tmp_path)
+    try:
+        lower = Spectrum.from_grid(
+            3000.0, 4.0, 0.5, model_grid="sphinx", co_ratio=0.9
+        )
+        upper = Spectrum.from_grid(
+            3000.0, 4.2, 0.5, model_grid="sphinx", co_ratio=0.9
+        )
+        interpolated = Spectrum.from_grid(
+            3000.0, 4.19, 0.5, model_grid="sphinx", co_ratio=0.9
+        )
+        grid = SpectralGrid(
+            (3000.0, 3000.0),
+            (4.0, 4.25),
+            (0.5, 0.5),
+            model_grid="sphinx",
+            co_ratio=0.9,
+        )
+    finally:
+        utils.set_library_root(None)
+
+    weight = (4.19 - 4.0) / (4.2 - 4.0)
+    expected = lower.flux + weight * (upper.flux - lower.flux)
+    np.testing.assert_allclose(interpolated.flux.value, expected.value)
+    np.testing.assert_allclose(
+        grid.get_flux(3000.0, 4.19, 0.5).value,
+        expected.value,
+    )
 
 
 def test_sphinx_sparse_grid_interpolation_error(tmp_path):
@@ -182,3 +272,33 @@ def test_sphinx_sparse_grid_interpolation_error(tmp_path):
         grid.get_flux(3050.0, 4.25, 0.0, interpolate=True)
     nearest = grid.get_flux(3050.0, 4.25, 0.0, interpolate=False)
     assert nearest.shape == (3,)
+
+
+def test_binned_sphinx_grid_uses_only_actual_sparse_combinations(tmp_path):
+    cache_dir = tmp_path / "sphinx"
+    _write_spectrum(cache_dir, 3000.0, 4.0, 0.0, 0.7)
+    _write_spectrum(cache_dir, 3100.0, 4.5, 0.0, 0.7, scale=2.0)
+    center = np.array([1.5, 2.5]) * u.micron
+    width = np.ones(2) * u.micron
+
+    utils.set_library_root(tmp_path)
+    try:
+        grid = BinnedSpectralGrid(
+            (3000.0, 3100.0),
+            (4.0, 4.5),
+            (0.0, 0.0),
+            center,
+            width,
+            model_grid="sphinx",
+            co_ratio=0.7,
+        )
+    finally:
+        utils.set_library_root(None)
+
+    assert grid.points.shape == (2, 3)
+    exact = grid.get_spectrum(3000.0, 4.0, 0.0)
+    nearest = grid.get_spectrum(3050.0, 4.25, 0.0, interpolate=False)
+    assert exact.shape == (2,)
+    assert nearest.shape == (2,)
+    with pytest.raises(ValueError, match="lacks a required corner"):
+        grid.get_spectrum(3050.0, 4.25, 0.0, interpolate=True)

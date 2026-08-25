@@ -39,21 +39,33 @@ def _sphinx_grid_slice(co_ratio):
         )
 
     model_list = utils.load_sphinx_model_list()
-    combinations = model_list["combinations"]
-    combinations = combinations[np.isclose(combinations[:, 3], co_ratio)]
-    if not combinations.size:
+    available_co_ratios = model_list["grid_co_ratios"]
+    matches = np.flatnonzero(np.isclose(available_co_ratios, co_ratio))
+    if not matches.size:
         raise ValueError(
             f"C/O={co_ratio} is not available in SPHINX I V4. "
-            f"Available values are {model_list['grid_co_ratios'].tolist()}."
+            f"Available values are {available_co_ratios.tolist()}."
         )
+    canonical_co_ratio = float(available_co_ratios[matches[0]])
+    combinations = model_list["combinations"]
+    combinations = combinations[combinations[:, 3] == canonical_co_ratio]
 
     grid_points = {
         "grid_teffs": np.unique(combinations[:, 0]),
         "grid_loggs": np.unique(combinations[:, 1]),
         "grid_fehs": np.unique(combinations[:, 2]),
-        "grid_co_ratios": model_list["grid_co_ratios"],
+        "grid_co_ratios": available_co_ratios,
     }
-    return grid_points, combinations
+    return grid_points, combinations, canonical_co_ratio
+
+
+def _sphinx_flanking_values(grid, value):
+    """Return the true lower and upper SPHINX grid values around a query."""
+
+    grid = np.asarray(grid)
+    lower = grid[grid <= value].max() if np.any(grid <= value) else grid.min()
+    upper = grid[grid >= value].min() if np.any(grid >= value) else grid.max()
+    return np.array([lower, upper])
 
 
 def _nearest_sphinx_index(points, requested):
@@ -715,13 +727,14 @@ class Spectrum(Spectrum1D):
         logg,
         feh=0,
         alpha=0.0,
-        co_ratio=None,
         wavelength=None,
         wl_min=None,
         wl_max=None,
         model_grid="phoenix",
         interpolate=True,
         verbose=False,
+        *,
+        co_ratio=None,
     ):
         """
         Load a model spectrum from a library.
@@ -780,7 +793,9 @@ class Spectrum(Spectrum1D):
         # from the exact filenames in the extracted V4 archive.
         sphinx_combinations = None
         if self.model_grid == "sphinx":
-            self.grid_points, sphinx_combinations = _sphinx_grid_slice(co_ratio)
+            self.grid_points, sphinx_combinations, co_ratio = _sphinx_grid_slice(
+                co_ratio
+            )
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
@@ -1112,15 +1127,15 @@ class Spectrum(Spectrum1D):
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
+                    teff_bds = _sphinx_flanking_values(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
+                    logg_bds = _sphinx_flanking_values(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                    feh_bds = _sphinx_flanking_values(self.grid_fehs, feh)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1695,7 +1710,7 @@ class SpectralGrid(object):
 
         self.co_ratio = co_ratio
         if self.model_grid == "sphinx":
-            self.grid_points, _ = _sphinx_grid_slice(co_ratio)
+            self.grid_points, _, self.co_ratio = _sphinx_grid_slice(co_ratio)
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
@@ -1730,7 +1745,7 @@ class SpectralGrid(object):
         spec = None
         spectrum_kwargs = dict(kwargs)
         if self.model_grid == "sphinx":
-            spectrum_kwargs["co_ratio"] = co_ratio
+            spectrum_kwargs["co_ratio"] = self.co_ratio
         for teff in self.teffs:
             fluxes[teff] = {}
             for logg in self.loggs:
@@ -2132,9 +2147,15 @@ class BinnedSpectralGrid(object):
             )
 
         # Define grid points
+        sphinx_combinations = None
         if self.model_grid == "sphinx":
             co_ratio = kwargs.get("co_ratio")
-            self.grid_points, _ = _sphinx_grid_slice(co_ratio)
+            (
+                self.grid_points,
+                sphinx_combinations,
+                self.co_ratio,
+            ) = _sphinx_grid_slice(co_ratio)
+            kwargs["co_ratio"] = self.co_ratio
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
@@ -2185,16 +2206,30 @@ class BinnedSpectralGrid(object):
         self.lower = center - width / 2.0
         self.upper = center + width / 2.0
 
-        fluxes = {}
-        for teff in self.teffs:
-            fluxes[teff] = {}
-            for logg in self.loggs:
-                fluxes[teff][logg] = {}
-                for feh in self.fehs:
-                    bs = Spectrum.from_grid(
-                        teff, logg, feh, model_grid=self.model_grid, **kwargs
-                    ).bin(center, width)
-                    fluxes[teff][logg][feh] = bs.flux
+        fluxes = {teff: {logg: {} for logg in self.loggs} for teff in self.teffs}
+        if self.model_grid == "sphinx":
+            within_bounds = (
+                (sphinx_combinations[:, 0] >= self.teff_bds[0])
+                & (sphinx_combinations[:, 0] <= self.teff_bds[1])
+                & (sphinx_combinations[:, 1] >= self.logg_bds[0])
+                & (sphinx_combinations[:, 1] <= self.logg_bds[1])
+                & (sphinx_combinations[:, 2] >= self.feh_bds[0])
+                & (sphinx_combinations[:, 2] <= self.feh_bds[1])
+            )
+            self.points = sphinx_combinations[within_bounds, :3]
+            for teff, logg, feh in self.points:
+                bs = Spectrum.from_grid(
+                    teff, logg, feh, model_grid=self.model_grid, **kwargs
+                ).bin(center, width)
+                fluxes[teff][logg][feh] = bs.flux
+        else:
+            for teff in self.teffs:
+                for logg in self.loggs:
+                    for feh in self.fehs:
+                        bs = Spectrum.from_grid(
+                            teff, logg, feh, model_grid=self.model_grid, **kwargs
+                        ).bin(center, width)
+                        fluxes[teff][logg][feh] = bs.flux
         self.fluxes = fluxes
 
     def get_spectrum(self, teff, logg, feh, interpolate=True):
@@ -2237,6 +2272,29 @@ class BinnedSpectralGrid(object):
                 if not b:
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
+
+        if self.model_grid == "sphinx":
+            if not self.points.size:
+                raise ValueError("BinnedSpectralGrid contains no spectra")
+            if not interpolate:
+                nearest_index = _nearest_sphinx_index(
+                    self.points, (teff, logg, feh)
+                )
+                nearest_teff, nearest_logg, nearest_feh = self.points[
+                    nearest_index
+                ]
+                return self.fluxes[nearest_teff][nearest_logg][nearest_feh]
+            try:
+                return utils.trilinear_interpolate(
+                    self.fluxes,
+                    (self.teffs, self.loggs, self.fehs),
+                    (teff, logg, feh),
+                )
+            except KeyError:
+                raise ValueError(
+                    "Cannot interpolate this SPHINX point because the selected "
+                    "C/O slice lacks a required corner model."
+                ) from None
 
         # If not interpolating, then just return the closest point in the grid.
         if not interpolate:
