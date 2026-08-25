@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added wavelength-dependent Gaussian resolving-power support for `Spectrum`
   and `SpectralGrid` with `set_variable_resolving_power()`.
+- Added support for loading the SPHINX V4 stellar atmosphere grid from Zenodo
+  through `Spectrum.from_grid()` and `SpectralGrid`.
 
 
 ## [0.1.0b12] - 2026-08-21

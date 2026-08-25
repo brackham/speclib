@@ -13,6 +13,7 @@ def spectral_grid():
         logg_bds=(4.0, 4.5),
         feh_bds=(0.0, 0.0),
         model_grid="sphinx",
+        co_ratio=0.5,
         wavelength=np.linspace(1.0, 2.0, 100) * u.micron,
     )
 
@@ -46,6 +47,7 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
         center=center,
         width=width,
         model_grid="sphinx",
+        co_ratio=0.5,
         wavelength=spectral_grid.wavelength,
     )
 
@@ -138,6 +140,23 @@ def test_newera_spectrum_respects_interpolate_flag(mock_newera_grid):
     np.testing.assert_allclose(nearest.flux.value, lower.flux.value)
     np.testing.assert_allclose(interp.flux.value, 0.5 * (lower.flux.value + upper.flux.value))
     assert not np.allclose(interp.flux.value, nearest.flux.value)
+
+
+def test_from_grid_preserves_positional_wavelength_argument(mock_newera_grid):
+    wavelength = np.array([985.0, 995.0]) * u.nm
+
+    spectrum = Spectrum.from_grid(
+        2300.0,
+        5.0,
+        0.0,
+        0.0,
+        wavelength,
+        model_grid="newera_jwst",
+    )
+
+    np.testing.assert_allclose(
+        spectrum.wavelength.to_value(u.nm), wavelength.to_value(u.nm)
+    )
 
 
 def test_newera_spectral_grid_respects_interpolate_flag(mock_newera_grid):

@@ -17,7 +17,12 @@ except PackageNotFoundError:
 
 from .core import Spectrum, BinnedSpectrum, SpectralGrid, BinnedSpectralGrid
 from .photometry import Filter, SED, SEDGrid, apply_filter, mag_to_flux
-from .utils import download_file, download_newera_grid, download_phoenix_grid
+from .utils import (
+    download_file,
+    download_newera_grid,
+    download_phoenix_grid,
+    download_sphinx_grid,
+)
 
 __all__ = [
     "Spectrum",
@@ -32,4 +37,5 @@ __all__ = [
     "download_file",
     "download_phoenix_grid",
     "download_newera_grid",
+    "download_sphinx_grid",
 ]
