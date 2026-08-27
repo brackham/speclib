@@ -60,15 +60,3 @@ Data implications differ by model family:
 See :doc:`models/index` before downloading. In particular, the separate
 NewEra high-sampling-rate collection is approximately 4.5 TB and is not the
 normal workflow for reduced products.
-
-Build the documentation
------------------------
-
-From a development checkout:
-
-.. code-block:: console
-
-   poetry run sphinx-build -W --keep-going -b html docs docs/_build/html
-
-The notebooks are executed during this build. All committed tutorials are
-offline and deliberately small.
