@@ -705,16 +705,6 @@ class Spectrum(Spectrum1D):
     **kwargs : dict
         Arguments passed to the base `Spectrum1D` initializer.
 
-    Methods
-    -------
-    from_grid(teff, logg, feh=0, wavelength=None, model_grid='phoenix')
-        Load a model spectrum from a library.
-
-    resample(wavelength)
-        Resample a spectrum while conserving flux.
-
-    bin(center, width)
-        Bin a model spectrum within specified wavelength bins.
     """
 
     def __init__(self, **kwargs):
@@ -751,6 +741,10 @@ class Spectrum(Spectrum1D):
             [Fe/H] of the model. For SPHINX this selects the filename's
             ``logZ`` metallicity parameter.
 
+        alpha : float, optional
+            Alpha enhancement for NewEra models. This selects a fixed model
+            slice and is not an interpolation dimension.
+
         co_ratio : float, optional
             Carbon-to-oxygen ratio. Required when ``model_grid="sphinx"`` and
             ignored by other model grids.
@@ -762,12 +756,12 @@ class Spectrum(Spectrum1D):
             Minimum wavelength of the model spectrum.
 
         wl_max : `~astropy.units.Quantity`, optional
-            Maximium wavelength of the model spectrum.
+            Maximum wavelength of the model spectrum.
 
         model_grid : str, optional
             Name of the model grid.
 
-        verbose: bool, optional
+        verbose : bool, optional
             Print details for debugging.
 
         interpolate : bool, optional
@@ -1575,12 +1569,9 @@ class SpectralGrid(object):
         The fluxes of the model grid. Sorted by fluxes[teff][logg][feh].
 
     model_grid : str
-        Name of the model grid. Only `phoenix` is currently supported.
-
-    Methods
-    -------
-    get_flux(teff, logg, feh, interpolate=True)
-        Returns an interpolated flux array for the given teff, logg, and feh.
+        Accepted model selector. PHOENIX, SPHINX, and the reduced NewEra
+        products are the primary documented families; compatibility selectors
+        have additional cache requirements.
 
     """
 
@@ -2104,12 +2095,8 @@ class BinnedSpectralGrid(object):
         The fluxes of the model grid. Sorted by fluxes[teff][logg][feh].
 
     model_grid : str
-        Name of the model grid. Only `phoenix` is currently supported.
-
-    Methods
-    -------
-    get_spectrum(teff, logg, feh)
-        Returns a binned spectrum for the given teff, logg, and feh.
+        Accepted model selector. Support and cache requirements vary by model
+        family.
 
     """
 
@@ -2135,7 +2122,8 @@ class BinnedSpectralGrid(object):
             The widths of the wavelength bins.
 
         model_grid : str, optional
-            Name of the model grid. Only `phoenix` is currently supported.
+            Accepted model selector. Support and cache requirements vary by
+            model family.
         """
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()

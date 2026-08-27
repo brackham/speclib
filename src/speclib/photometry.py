@@ -151,11 +151,6 @@ class SEDGrid(object):
     model_grid : str
         Name of the model grid. Only `phoenix` is currently supported.
 
-    Methods
-    -------
-    get_SED(teff, logg, feh)
-        Returns a SED for the given teff, logg, and feh.
-
     """
 
     def __init__(
