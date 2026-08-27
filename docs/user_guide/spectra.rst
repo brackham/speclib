@@ -1,5 +1,5 @@
 Spectra
-========
+=======
 
 A :class:`~speclib.Spectrum` represents one flux-density array aligned with a
 spectral coordinate. It subclasses :class:`specutils.Spectrum1D`, so standard
