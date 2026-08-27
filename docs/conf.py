@@ -11,26 +11,47 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
 
+import speclib
+
 project = "speclib"
-copyright = "2025, Benjamin V. Rackham"
+copyright = "2021–2026, Benjamin V. Rackham"
 author = "Benjamin V. Rackham"
-release = "0.1.0"
+release = speclib.__version__
+version = release
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "myst_parser",
+    "myst_nb",
     "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",  # if using NumPy or Google-style docstrings
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
 ]
 
-templates_path = ["_templates"]
+myst_enable_extensions = [
+    "dollarmath",
+]
+
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+autosummary_generate = True
+autodoc_typehints = "description"
+
+# Every tutorial is deliberately lightweight and offline.  Executing notebooks
+# here keeps rendered output synchronized with the source checkout without
+# committing generated notebook output.
+nb_execution_mode = "auto"
+nb_execution_timeout = 120
+nb_execution_raise_on_error = True
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "furo"
-html_static_path = ["_static"]
+html_title = f"speclib {release}"
+html_theme_options = {
+    "source_repository": "https://github.com/brackham/speclib/",
+    "source_branch": "main",
+    "source_directory": "docs/",
+}

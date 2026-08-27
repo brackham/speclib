@@ -650,8 +650,16 @@ def _ensure_newera_txt_file(
 
 
 def download_file(remote_path, local_path, verbose=True):
-    """
-    Download a file via ftp.
+    """Download one remote file to a local path.
+
+    Parameters
+    ----------
+    remote_path : str or path-like
+        URL understood by :mod:`urllib.request`.
+    local_path : str or path-like
+        Destination filename. Its parent directory must already exist.
+    verbose : bool, optional
+        Print the remote URL before downloading.
     """
     if verbose:
         print(f"> Downloading {remote_path}")
@@ -661,6 +669,20 @@ def download_file(remote_path, local_path, verbose=True):
 
 
 def download_phoenix_grid(overwrite=False):
+    """Download the declared PHOENIX grid into the configured cache.
+
+    Parameters
+    ----------
+    overwrite : bool, optional
+        Download every declared file even when a readable cached FITS file is
+        present. Missing upstream combinations are skipped.
+
+    Notes
+    -----
+    This is a bulk operation over the full parameter axes declared by
+    ``speclib``. Individual spectra are downloaded on demand by
+    :meth:`speclib.Spectrum.from_grid`, which is usually preferable.
+    """
     # Define the remote and local paths
     ftp_url = "ftp://phoenix.astro.physik.uni-goettingen.de"
     cache_dir = get_library_root() / "phoenix"

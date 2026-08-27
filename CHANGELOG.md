@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added support for loading the SPHINX V4 stellar atmosphere grid from Zenodo
   through `Spectrum.from_grid()` and `SpectralGrid`.
 
+### Documentation
+
+- Expanded the Read the Docs site with task-based navigation, installation and
+  Quickstart guides, model-library references, a generated API reference, and
+  integrated citation, changelog, and contributing information.
+- Added four rendered and downloadable notebook tutorials with MyST-NB,
+  including a comparison of the NewEra Gaia, JWST, and Low-Res products.
+
 
 ## [0.1.0b12] - 2026-08-21
 

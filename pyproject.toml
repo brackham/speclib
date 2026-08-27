@@ -31,6 +31,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/brackham/speclib"
 Repository = "https://github.com/brackham/speclib"
+Documentation = "https://speclib.readthedocs.io/"
 
 [tool.poetry]
 packages = [
@@ -45,6 +46,7 @@ pytest = "^8.0"
 sphinx = "<8.0.0"
 furo = "^2024.8.6"
 myst-parser = "<4.0.0"
+myst-nb = "^1.2.0"
 setuptools = "^80.8.0"
 tox = "^4.26.0"
 notebook = "^7.4.2"
