@@ -6,8 +6,9 @@ import astropy.io.fits as fits
 import astropy.units as u
 import numpy as np
 import speclib.utils as utils
+from specutils import Spectrum
 from scipy.interpolate import NearestNDInterpolator
-from specutils import Spectrum1D
+from specutils.manipulation import LinearInterpolatedResampler, SplineInterpolatedResampler
 
 import warnings
 
@@ -691,7 +692,7 @@ def _validate_spectrum_convolution_state(spectrum):
 
 class Spectrum(Spectrum1D):
     """
-    A wrapper class for `~specutils.Spectrum1D` with extended functionality for
+    A wrapper class for `~specutils.Spectrum` with extended functionality for
     working with stellar model spectra.
 
     This class adds capabilities to:
@@ -703,7 +704,7 @@ class Spectrum(Spectrum1D):
     Parameters
     ----------
     **kwargs : dict
-        Arguments passed to the base `Spectrum1D` initializer.
+        Arguments passed to the base `Spectrum` initializer.
 
     """
 
@@ -1957,6 +1958,14 @@ class SpectralGrid(object):
             will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
             the nearest available grid point will be used without interpolation.
 
+        w : array-like, optional
+            The wavelength array to interpolate the spectrum to. If `None` (default), the
+            spectrum will be the default grid's wavelength array held in ``self.wavelength``.
+
+        wl_interpolate_method : str, optional
+            The method to use for interpolating the wavelength array. Default is 'linear'.
+            Other option is 'cubic'
+
         Returns
         -------
         flux : `~astropy.units.Quantity`
@@ -1972,7 +1981,18 @@ class SpectralGrid(object):
         params = ["teff", "logg", "feh"]
         inputs = [teff, logg, feh]
         ranges = [self.teff_bds, self.logg_bds, self.feh_bds]
-
+        
+        if w is not None:
+            if wl_interpolate_method is 'linear':
+                interpolator_wl = LinearInterpolatedResampler
+            elif wl_interpolate_method is 'cubic':
+                interpolator_wl = SplineInterpolatedResampler
+            else:
+                raise ValueError(
+                    "Invalid wavelength interpolation method. " \
+                    "Must be either 'linear' or 'cubic'"
+                )
+            
         if not all(booleans):
             message = "Input values are out of grid range.\n\n"
             for b, p, i, r in zip(booleans, params, inputs, ranges):
@@ -2027,7 +2047,8 @@ class SpectralGrid(object):
                 raise ValueError(
                     "Interpolated flux has unexpected shape; expected a 1-D array"
                 )
-
+            if w is not None:
+                flux = interpolator_wl(Spectrum(self.wavelength, flux), w)
             return flux
 
         # If not interpolating, then just return the closest point in the grid.
@@ -2036,9 +2057,20 @@ class SpectralGrid(object):
             logg = utils.nearest(self.loggs, logg)
             feh = utils.nearest(self.fehs, feh)
 
-            return self.fluxes[teff][logg][feh]
+            if w is not None:
+                flux = interpolator_wl(Spectrum(self.wavelength, self.fluxes[teff][logg][feh]), w)
+                return flux
+            else:
+                return self.fluxes[teff][logg][feh]
+                
 
         # Otherwise, interpolate using the helper
+        if w is not None:
+            fluxer = utils.trilinear_interpolate(self.fluxes,
+                                                 (self.teffs, self.loggs, self.fehs),
+                                                 )
+            flux = interpolator_wl(Spectrum(self.wavelength, fluxer), w)
+            return flux
         return utils.trilinear_interpolate(
             self.fluxes,
             (self.teffs, self.loggs, self.fehs),
