@@ -72,12 +72,12 @@ Downloaded spectral libraries are stored in `~/.speclib/libraries` by default.
 Set the `SPECLIB_LIBRARY_PATH` environment variable or call
 `speclib.utils.set_library_root("/path/to/cache")` to use a different location.
 
-Download, extraction, storage, and interpolation behavior for PHOENIX, SPHINX,
-and NewEra are documented in the
+Download, extraction, storage, and interpolation behavior for PHOENIX,
+MPS-ATLAS, SPHINX, and NewEra are documented in the
 [model library reference](https://speclib.readthedocs.io/en/latest/models/index.html).
 
 ---
 
 ## License
 
-MIT © 2025 Benjamin V. Rackham
+MIT © 2021–2026 Benjamin V. Rackham

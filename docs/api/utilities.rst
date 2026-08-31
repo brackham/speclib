@@ -10,6 +10,8 @@ Package-level download helpers
 
 .. autofunction:: download_sphinx_grid
 
+.. autofunction:: download_mps_atlas_grid
+
 .. autofunction:: download_newera_grid
 
 .. autofunction:: download_file

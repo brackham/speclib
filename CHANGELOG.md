@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added first-class MPS-ATLAS Set 1 and Set 2 support, with `mps-atlas`
+  aliasing Set 1, plus automatic archive downloads and caching.
+- Added exact, nearest, and interpolated MPS-ATLAS retrieval through the
+  standard `Spectrum` and `SpectralGrid` APIs.
+- Added MPS-ATLAS wavelength-axis normalization that preserves wavelength-flux
+  pairing while ensuring strictly increasing spectral coordinates.
 - Added wavelength-dependent Gaussian resolving-power support for `Spectrum`
   and `SpectralGrid` with `set_variable_resolving_power()`.
 - Added support for loading the SPHINX V4 stellar atmosphere grid from Zenodo
@@ -18,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Added MPS-ATLAS model-library documentation covering Set 1 and Set 2,
+  caching, interpolation behavior, citations, and scientific limitations.
 - Expanded the Read the Docs site with task-based navigation, installation and
   Quickstart guides, model-library references, a generated API reference, and
   integrated citation, changelog, and contributing information.

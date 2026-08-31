@@ -59,8 +59,8 @@ def _sphinx_grid_slice(co_ratio):
     return grid_points, combinations, canonical_co_ratio
 
 
-def _sphinx_flanking_values(grid, value):
-    """Return the true lower and upper SPHINX grid values around a query."""
+def _flanking_values(grid, value):
+    """Return the true lower and upper grid values around a query."""
 
     grid = np.asarray(grid)
     lower = grid[grid <= value].max() if np.any(grid <= value) else grid.min()
@@ -68,8 +68,8 @@ def _sphinx_flanking_values(grid, value):
     return np.array([lower, upper])
 
 
-def _nearest_sphinx_index(points, requested):
-    """Return the nearest actual SPHINX combination in grid-step units."""
+def _nearest_available_index(points, requested):
+    """Return the nearest actual grid combination in grid-step units."""
 
     scales = []
     for axis in range(3):
@@ -80,6 +80,36 @@ def _nearest_sphinx_index(points, requested):
         axis=1,
     )
     return int(np.argmin(distances))
+
+
+def _mps_atlas_grid_slice(model_set):
+    """Return grid axes and exact combinations for one MPS-ATLAS set."""
+
+    model_list = utils.load_mps_atlas_model_list(model_set)
+    grid_points = {
+        "grid_teffs": model_list["grid_teffs"],
+        "grid_loggs": model_list["grid_loggs"],
+        "grid_fehs": model_list["grid_fehs"],
+    }
+    return grid_points, model_list["combinations"]
+
+
+def _validate_mps_atlas_ranges(teff, logg, metallicity, grid_points, model_set):
+    """Reject coordinates outside one MPS-ATLAS set's available axes."""
+
+    coordinates = (teff, logg, metallicity)
+    axis_names = ("Teff", "logg", "[M/H]")
+    axes = (
+        grid_points["grid_teffs"],
+        grid_points["grid_loggs"],
+        grid_points["grid_fehs"],
+    )
+    for name, value, axis in zip(axis_names, coordinates, axes):
+        if value < np.min(axis) or value > np.max(axis):
+            raise ValueError(
+                f"MPS-ATLAS {model_set} {name}={value} is outside the "
+                f"available range [{np.min(axis)}, {np.max(axis)}]."
+            )
 
 
 def _validate_delta_lambda(delta_lambda):
@@ -739,7 +769,7 @@ class Spectrum(Spectrum1D):
 
         feh : float
             [Fe/H] of the model. For SPHINX this selects the filename's
-            ``logZ`` metallicity parameter.
+            ``logZ`` metallicity parameter; for MPS-ATLAS it is [M/H].
 
         alpha : float, optional
             Alpha enhancement for NewEra models. This selects a fixed model
@@ -775,20 +805,41 @@ class Spectrum(Spectrum1D):
             A spectrum for the specified parameters.
         """
         # First check that the model_grid is valid.
-        self.model_grid = model_grid.lower()
-        if self.model_grid not in utils.VALID_MODELS:
+        requested_model_grid = model_grid.lower()
+        if requested_model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
-                f'"{self.model_grid}" model grid not found. '
+                f'"{requested_model_grid}" model grid not found. '
                 + "Currently supported models are: "
                 + str(utils.VALID_MODELS)
             )
+        mps_atlas_set = None
+        if requested_model_grid in utils.MPS_ATLAS_SELECTORS:
+            mps_atlas_set = utils.normalize_mps_atlas_set(requested_model_grid)
+            self.model_grid = utils.canonical_mps_atlas_selector(mps_atlas_set)
+        else:
+            self.model_grid = requested_model_grid
 
         # Define grid points. SPHINX is sparse, so derive the selected C/O slice
         # from the exact filenames in the extracted V4 archive.
         sphinx_combinations = None
+        mps_atlas_combinations = None
         if self.model_grid == "sphinx":
             self.grid_points, sphinx_combinations, co_ratio = _sphinx_grid_slice(
                 co_ratio
+            )
+        elif mps_atlas_set is not None:
+            _validate_mps_atlas_ranges(
+                teff,
+                logg,
+                feh,
+                utils.GRID_POINTS[self.model_grid],
+                mps_atlas_set,
+            )
+            self.grid_points, mps_atlas_combinations = _mps_atlas_grid_slice(
+                mps_atlas_set
+            )
+            _validate_mps_atlas_ranges(
+                teff, logg, feh, self.grid_points, mps_atlas_set
             )
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
@@ -1112,7 +1163,7 @@ class Spectrum(Spectrum1D):
                 np.all(np.isclose(exact_combinations, requested), axis=1)
             )
             if not model_in_grid and not interpolate:
-                nearest_index = _nearest_sphinx_index(
+                nearest_index = _nearest_available_index(
                     exact_combinations, requested
                 )
                 teff, logg, feh = exact_combinations[nearest_index]
@@ -1121,15 +1172,15 @@ class Spectrum(Spectrum1D):
                 if teff_in_grid:
                     teff_bds = [teff, teff]
                 else:
-                    teff_bds = _sphinx_flanking_values(self.grid_teffs, teff)
+                    teff_bds = _flanking_values(self.grid_teffs, teff)
                 if logg_in_grid:
                     logg_bds = [logg, logg]
                 else:
-                    logg_bds = _sphinx_flanking_values(self.grid_loggs, logg)
+                    logg_bds = _flanking_values(self.grid_loggs, logg)
                 if feh_in_grid:
                     feh_bds = [feh, feh]
                 else:
-                    feh_bds = _sphinx_flanking_values(self.grid_fehs, feh)
+                    feh_bds = _flanking_values(self.grid_fehs, feh)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1155,66 +1206,80 @@ class Spectrum(Spectrum1D):
             elif model_in_grid:
                 wave_lib, flux = load_wave_flux(teff, logg, feh)
 
-        elif self.model_grid == "mps-atlas":
-            # Only works if the user has already cached the MPS-Atlas model grid
-            lib_wave_unit = u.nm
-            lib_flux_unit = (
-                u.Unit("erg / (s * cm^2 * Hz^1)") * (u.AU / u.R_sun).cgs ** 2
-            )
-            cache_dir = utils.get_library_root() / "mps-atlas"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            fname_str = "MH{:+0.2f}/teff{:4.0f}/logg{:0.1f}/mpsa_flux_spectra.dat"
+        elif mps_atlas_set is not None:
+            lib_wave_unit = u.AA
+            lib_flux_unit = u.erg / (u.s * u.cm**2 * u.AA)
 
-            # Load the wavelength array
-            wave_local_path = (
-                cache_dir / "MH+0.00/teff3500/logg3.0/mpsa_flux_spectra.dat"
-            )
-            wave_lib = np.loadtxt(wave_local_path, unpack=True, usecols=0)
-
-            teff_in_grid = teff in self.grid_teffs
-            logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
-            if not model_in_grid:
-                if teff_in_grid:
-                    teff_bds = [teff, teff]
-                else:
-                    teff_bds = utils.find_bounds(self.grid_teffs, teff)
-                if logg_in_grid:
-                    logg_bds = [logg, logg]
-                else:
-                    logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                if feh_in_grid:
-                    feh_bds = [feh, feh]
-                else:
-                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
-
-                flux_dict = {}
-                for tt in teff_bds:
-                    flux_dict[tt] = {}
-                    for gg in logg_bds:
-                        flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
-                            fname = fname_str.format(ff, tt, gg)
-                            flux_dict[tt][gg][ff] = np.loadtxt(
-                                cache_dir / fname, unpack=True, usecols=1
-                            )
-
-                flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+            def load_wave_flux(teff_, logg_, metallicity_):
+                wavelength_, flux_ = utils.load_mps_atlas_spectrum(
+                    teff_, logg_, metallicity_, mps_atlas_set
+                )
+                return (
+                    wavelength_.to_value(lib_wave_unit),
+                    flux_.to_value(lib_flux_unit),
                 )
 
-            elif model_in_grid:
-                # Load the flux array
-                fname = fname_str.format(feh, teff, logg)
-                flux = np.loadtxt(cache_dir / fname, unpack=True, usecols=1)
+            requested = np.array([teff, logg, feh], dtype=float)
+            exact_combinations = mps_atlas_combinations[:, :3]
+            model_in_grid = np.any(
+                np.all(
+                    np.isclose(
+                        exact_combinations, requested, rtol=0.0, atol=1e-8
+                    ),
+                    axis=1,
+                )
+            )
+            if not model_in_grid and not interpolate:
+                nearest_index = _nearest_available_index(
+                    exact_combinations, requested
+                )
+                teff, logg, feh = exact_combinations[nearest_index]
+                model_in_grid = True
+
+            if model_in_grid:
+                wave_lib, flux = load_wave_flux(teff, logg, feh)
+            else:
+                teff_bds = _flanking_values(self.grid_teffs, teff)
+                logg_bds = _flanking_values(self.grid_loggs, logg)
+                feh_bds = _flanking_values(self.grid_fehs, feh)
+
+                flux_dict = {}
+                wave_lib = None
+                try:
+                    for tt in teff_bds:
+                        flux_dict[tt] = {}
+                        for gg in logg_bds:
+                            flux_dict[tt][gg] = {}
+                            for ff in feh_bds:
+                                wavelength_, flux_ = load_wave_flux(tt, gg, ff)
+                                if wave_lib is None:
+                                    wave_lib = wavelength_
+                                elif not np.array_equal(wave_lib, wavelength_):
+                                    raise ValueError(
+                                        "MPS-ATLAS spectra required for "
+                                        "interpolation do not share a wavelength "
+                                        "grid."
+                                    )
+                                flux_dict[tt][gg][ff] = flux_
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Cannot interpolate this MPS-ATLAS {mps_atlas_set} "
+                        "point because the selected set lacks a required "
+                        f"corner model: {exc}"
+                    ) from exc
+
+                flux = utils.trilinear_interpolate(
+                    flux_dict,
+                    (teff_bds, logg_bds, feh_bds),
+                    (teff, logg, feh),
+                )
 
         # Load `~speclib.Spectrum` object
         spec = Spectrum(
             spectral_axis=wave_lib * lib_wave_unit,
             flux=flux * lib_flux_unit,
         )
-        # Ensure spectra are ordered correctly (problem for mps-atlas grid)
+        # Ensure spectra are ordered correctly.
         idx_order = np.argsort(spec.wavelength)
         spec = Spectrum(
             spectral_axis=spec.wavelength[idx_order], flux=spec.flux[idx_order]
@@ -1239,6 +1304,10 @@ class Spectrum(Spectrum1D):
         # Resample the spectrum to the desired wavelength array
         if wavelength is not None:
             spec = spec.resample(wavelength)
+
+        spec.model_grid = self.model_grid
+        if mps_atlas_set is not None:
+            spec.model_set = mps_atlas_set
 
         return spec
 
@@ -1691,17 +1760,28 @@ class SpectralGrid(object):
             _validate_resolving_power(spectral_resolving_power)
 
         # First check that the model_grid is valid.
-        self.model_grid = model_grid.lower()
-        if self.model_grid not in utils.VALID_MODELS:
+        requested_model_grid = model_grid.lower()
+        if requested_model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
-                f'"{self.model_grid}" model grid not found. '
+                f'"{requested_model_grid}" model grid not found. '
                 + "Currently supported models are: "
                 + str(utils.VALID_MODELS)
             )
 
         self.co_ratio = co_ratio
+        self.model_set = None
+        mps_atlas_combinations = None
+        if requested_model_grid in utils.MPS_ATLAS_SELECTORS:
+            self.model_set = utils.normalize_mps_atlas_set(requested_model_grid)
+            self.model_grid = utils.canonical_mps_atlas_selector(self.model_set)
+        else:
+            self.model_grid = requested_model_grid
         if self.model_grid == "sphinx":
             self.grid_points, _, self.co_ratio = _sphinx_grid_slice(co_ratio)
+        elif self.model_set is not None:
+            self.grid_points, mps_atlas_combinations = _mps_atlas_grid_slice(
+                self.model_set
+            )
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
@@ -1737,30 +1817,49 @@ class SpectralGrid(object):
         spectrum_kwargs = dict(kwargs)
         if self.model_grid == "sphinx":
             spectrum_kwargs["co_ratio"] = self.co_ratio
-        for teff in self.teffs:
-            fluxes[teff] = {}
-            for logg in self.loggs:
-                fluxes[teff][logg] = {}
-                for feh in self.fehs:
-                    try:
-                        spec = Spectrum.from_grid(
-                            teff,
-                            logg,
-                            feh,
-                            model_grid=self.model_grid,
-                            **spectrum_kwargs,
-                        )
-                    except ValueError:
-                        # Skip combinations that do not exist in sparse grids
-                        continue
+        if mps_atlas_combinations is not None:
+            within_bounds = (
+                (mps_atlas_combinations[:, 0] >= self.teff_bds[0])
+                & (mps_atlas_combinations[:, 0] <= self.teff_bds[1])
+                & (mps_atlas_combinations[:, 1] >= self.logg_bds[0])
+                & (mps_atlas_combinations[:, 1] <= self.logg_bds[1])
+                & (mps_atlas_combinations[:, 2] >= self.feh_bds[0])
+                & (mps_atlas_combinations[:, 2] <= self.feh_bds[1])
+            )
+            parameter_combinations = mps_atlas_combinations[within_bounds, :3]
+        else:
+            parameter_combinations = np.array(
+                [
+                    (teff, logg, feh)
+                    for teff in self.teffs
+                    for logg in self.loggs
+                    for feh in self.fehs
+                ]
+            )
 
-                    # Resample the spectrum to the desired wavelength array
-                    if wavelength is not None:
-                        spec = spec.resample(wavelength)
+        for teff, logg, feh in parameter_combinations:
+            fluxes.setdefault(teff, {}).setdefault(logg, {})
+            try:
+                spec = Spectrum.from_grid(
+                    teff,
+                    logg,
+                    feh,
+                    model_grid=self.model_grid,
+                    **spectrum_kwargs,
+                )
+            except ValueError:
+                if self.model_set is not None:
+                    raise
+                # Skip combinations that do not exist in sparse grids.
+                continue
 
-                    fluxes[teff][logg][feh] = spec.flux
-                    points.append([teff, logg, feh])
-                    data.append(spec.flux.value)
+            # Resample the spectrum to the desired wavelength array
+            if wavelength is not None:
+                spec = spec.resample(wavelength)
+
+            fluxes[teff][logg][feh] = spec.flux
+            points.append([teff, logg, feh])
+            data.append(spec.flux.value)
 
         self.fluxes = fluxes
 
@@ -1985,13 +2084,19 @@ class SpectralGrid(object):
             "newera_jwst",
             "newera_lowres",
             "sphinx",
+            "mps-atlas-set1",
+            "mps-atlas-set2",
         ]:
             if self.interpolator is None or not self.points.size:
                 raise ValueError("SpectralGrid contains no spectra")
 
             if not interpolate:
-                if self.model_grid == "sphinx":
-                    nearest_index = _nearest_sphinx_index(
+                if self.model_grid in {
+                    "sphinx",
+                    "mps-atlas-set1",
+                    "mps-atlas-set2",
+                }:
+                    nearest_index = _nearest_available_index(
                         self.points, (teff, logg, feh)
                     )
                     flux = self.data[nearest_index]
@@ -2009,6 +2114,12 @@ class SpectralGrid(object):
                         raise ValueError(
                             "Cannot interpolate this SPHINX point because the "
                             "selected C/O slice lacks a required corner model."
+                        ) from None
+                    if self.model_set is not None:
+                        raise ValueError(
+                            f"Cannot interpolate this MPS-ATLAS {self.model_set} "
+                            "point because the selected set lacks a required "
+                            "corner model."
                         ) from None
                     # Fall back to nearest-neighbour evaluation for sparse grids
                     flux = self.interpolator((teff, logg, feh))
@@ -2126,16 +2237,23 @@ class BinnedSpectralGrid(object):
             model family.
         """
         # First check that the model_grid is valid.
-        self.model_grid = model_grid.lower()
-        if self.model_grid not in utils.VALID_MODELS:
+        requested_model_grid = model_grid.lower()
+        if requested_model_grid not in utils.VALID_MODELS:
             raise NotImplementedError(
-                f'"{self.model_grid}" model grid not found. '
+                f'"{requested_model_grid}" model grid not found. '
                 + "Currently supported models are: "
                 + str(utils.VALID_MODELS)
             )
+        self.model_set = None
+        if requested_model_grid in utils.MPS_ATLAS_SELECTORS:
+            self.model_set = utils.normalize_mps_atlas_set(requested_model_grid)
+            self.model_grid = utils.canonical_mps_atlas_selector(self.model_set)
+        else:
+            self.model_grid = requested_model_grid
 
         # Define grid points
         sphinx_combinations = None
+        mps_atlas_combinations = None
         if self.model_grid == "sphinx":
             co_ratio = kwargs.get("co_ratio")
             (
@@ -2144,6 +2262,10 @@ class BinnedSpectralGrid(object):
                 self.co_ratio,
             ) = _sphinx_grid_slice(co_ratio)
             kwargs["co_ratio"] = self.co_ratio
+        elif self.model_set is not None:
+            self.grid_points, mps_atlas_combinations = _mps_atlas_grid_slice(
+                self.model_set
+            )
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
@@ -2195,16 +2317,21 @@ class BinnedSpectralGrid(object):
         self.upper = center + width / 2.0
 
         fluxes = {teff: {logg: {} for logg in self.loggs} for teff in self.teffs}
-        if self.model_grid == "sphinx":
+        sparse_combinations = (
+            sphinx_combinations
+            if self.model_grid == "sphinx"
+            else mps_atlas_combinations
+        )
+        if sparse_combinations is not None:
             within_bounds = (
-                (sphinx_combinations[:, 0] >= self.teff_bds[0])
-                & (sphinx_combinations[:, 0] <= self.teff_bds[1])
-                & (sphinx_combinations[:, 1] >= self.logg_bds[0])
-                & (sphinx_combinations[:, 1] <= self.logg_bds[1])
-                & (sphinx_combinations[:, 2] >= self.feh_bds[0])
-                & (sphinx_combinations[:, 2] <= self.feh_bds[1])
+                (sparse_combinations[:, 0] >= self.teff_bds[0])
+                & (sparse_combinations[:, 0] <= self.teff_bds[1])
+                & (sparse_combinations[:, 1] >= self.logg_bds[0])
+                & (sparse_combinations[:, 1] <= self.logg_bds[1])
+                & (sparse_combinations[:, 2] >= self.feh_bds[0])
+                & (sparse_combinations[:, 2] <= self.feh_bds[1])
             )
-            self.points = sphinx_combinations[within_bounds, :3]
+            self.points = sparse_combinations[within_bounds, :3]
             for teff, logg, feh in self.points:
                 bs = Spectrum.from_grid(
                     teff, logg, feh, model_grid=self.model_grid, **kwargs
@@ -2261,11 +2388,11 @@ class BinnedSpectralGrid(object):
                     message += f"\tInput {p}: {i}. Valid range: {r}\n"
             raise ValueError(message)
 
-        if self.model_grid == "sphinx":
+        if self.model_grid == "sphinx" or self.model_set is not None:
             if not self.points.size:
                 raise ValueError("BinnedSpectralGrid contains no spectra")
             if not interpolate:
-                nearest_index = _nearest_sphinx_index(
+                nearest_index = _nearest_available_index(
                     self.points, (teff, logg, feh)
                 )
                 nearest_teff, nearest_logg, nearest_feh = self.points[
@@ -2279,6 +2406,12 @@ class BinnedSpectralGrid(object):
                     (teff, logg, feh),
                 )
             except KeyError:
+                if self.model_set is not None:
+                    raise ValueError(
+                        f"Cannot interpolate this MPS-ATLAS {self.model_set} "
+                        "point because the selected set lacks a required corner "
+                        "model."
+                    ) from None
                 raise ValueError(
                     "Cannot interpolate this SPHINX point because the selected "
                     "C/O slice lacks a required corner model."

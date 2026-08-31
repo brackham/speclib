@@ -19,6 +19,7 @@ from .core import Spectrum, BinnedSpectrum, SpectralGrid, BinnedSpectralGrid
 from .photometry import Filter, SED, SEDGrid, apply_filter, mag_to_flux
 from .utils import (
     download_file,
+    download_mps_atlas_grid,
     download_newera_grid,
     download_phoenix_grid,
     download_sphinx_grid,
@@ -36,6 +37,7 @@ __all__ = [
     "mag_to_flux",
     "download_file",
     "download_phoenix_grid",
+    "download_mps_atlas_grid",
     "download_newera_grid",
     "download_sphinx_grid",
 ]

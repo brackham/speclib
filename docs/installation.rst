@@ -53,6 +53,9 @@ Data implications differ by model family:
   and can require substantial time and storage.
 * :func:`~speclib.download_sphinx_grid` downloads a checksummed, approximately
   161 MB V4 archive, retains it, and extracts the spectrum text files.
+* :func:`~speclib.download_mps_atlas_grid` downloads one checksummed v3 archive
+  of about 9.5 GB into ``mps-atlas/set1`` or ``mps-atlas/set2``. The archive is
+  retained and requested disk-integrated members are read directly from it.
 * :func:`~speclib.download_newera_grid` caches one reduced-resolution archive
   (about 845 MB to 18.2 GB, depending on flavor). It does not extract the
   archive by default; loaders extract a requested metallicity file on demand.
