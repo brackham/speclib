@@ -26,6 +26,11 @@ Also cite the data product underlying your result:
   <https://doi.org/10.5281/zenodo.11392341>`_ and `Iyer et al. (2023)
   <https://doi.org/10.3847/1538-4357/acabc2>`_, as requested by the data
   record.
+* MPS-ATLAS: `Kostogryz et al. (2023)
+  <https://doi.org/10.3847/2515-5172/acc180>`_, the `Edmond v3 data release
+  <https://doi.org/10.17617/3.NJ56TR>`_, `Witzke et al. (2021)
+  <https://doi.org/10.1051/0004-6361/202140275>`_, and `Kostogryz et al.
+  (2022) <https://doi.org/10.1051/0004-6361/202243722>`_.
 * PHOENIX/1D NewEra: `Hauschildt et al. (2025)
   <https://doi.org/10.1051/0004-6361/202554171>`_ and the `V3.4 FDR release
   <https://doi.org/10.25592/uhhfdm.17935>`_.

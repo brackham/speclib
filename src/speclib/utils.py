@@ -2,6 +2,7 @@ import astropy.units as u
 import astropy.io.fits as fits
 import io
 import itertools
+import json
 import numpy as np
 import os
 import pooch
@@ -11,6 +12,7 @@ import tarfile
 import tempfile
 import urllib
 import warnings
+import zipfile
 from astropy.io import fits
 from contextlib import closing
 from pathlib import Path, PurePosixPath
@@ -20,9 +22,12 @@ __all__ = [
     "download_file",
     "download_phoenix_grid",
     "download_newera_grid",
+    "download_mps_atlas_grid",
     "download_sphinx_grid",
     "get_newera_record_id",
     "load_newera_model_list",
+    "load_mps_atlas_model_list",
+    "load_mps_atlas_spectrum",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -57,10 +62,108 @@ SPHINX_ARCHIVE_URL = (
     f"{SPHINX_ARCHIVE_FILENAME}/content"
 )
 
+MPS_ATLAS_DATASET_DOI = "doi:10.17617/3.NJ56TR"
+MPS_ATLAS_DATASET_API_URL = (
+    "https://edmond.mpg.de/api/datasets/:persistentId/"
+    f"?persistentId={MPS_ATLAS_DATASET_DOI}"
+)
+MPS_ATLAS_DATAFILE_URL = "https://edmond.mpg.de/api/access/datafile/{datafile_id}"
+MPS_ATLAS_ARCHIVES: dict[str, dict[str, str | int]] = {
+    "set1": {
+        "filename": "set1.zip",
+        "filesize": 9_503_312_271,
+        "md5": "91130159a9c486a27f1d67e176ae4c8b",
+    },
+    "set2": {
+        "filename": "set2.zip",
+        "filesize": 9_430_754_401,
+        "md5": "76b9cb4530acb96bc3da979d0e9ec119",
+    },
+}
+MPS_ATLAS_SELECTORS = {
+    "mps-atlas": "set1",
+    "mps-atlas-set1": "set1",
+    "mps-atlas-set2": "set2",
+}
+
+MPS_ATLAS_GRID_TEFFS = np.arange(3500.0, 9100.0, 100.0)
+MPS_ATLAS_GRID_LOGGS = np.array(
+    [3.0, 3.5, 4.0, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.0]
+)
+MPS_ATLAS_GRID_FEHS = np.array(
+    [
+        -5.0,
+        -4.5,
+        -4.0,
+        -3.5,
+        -3.0,
+        -2.5,
+        -2.4,
+        -2.3,
+        -2.2,
+        -2.1,
+        -2.0,
+        -1.9,
+        -1.8,
+        -1.7,
+        -1.6,
+        -1.5,
+        -1.4,
+        -1.3,
+        -1.2,
+        -1.1,
+        -1.0,
+        -0.95,
+        -0.9,
+        -0.85,
+        -0.8,
+        -0.75,
+        -0.7,
+        -0.65,
+        -0.6,
+        -0.55,
+        -0.5,
+        -0.45,
+        -0.4,
+        -0.35,
+        -0.3,
+        -0.25,
+        -0.2,
+        -0.15,
+        -0.1,
+        -0.05,
+        0.0,
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35,
+        0.4,
+        0.45,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+    ]
+)
+
 _LIBRARY_ROOT: Path | None = None
 _NEWERA_INDEX_CACHE: dict[tuple[Path, str], dict] = {}
 _NEWERA_TAR_MEMBER_CACHE: dict[Path, dict[str, str]] = {}
 _SPHINX_INDEX_CACHE: dict[Path, dict] = {}
+_MPS_ATLAS_INDEX_CACHE: dict[tuple[Path, str], dict] = {}
+_MPS_ATLAS_WAVELENGTH_PLAN_CACHE: dict[tuple[Path, str, tuple[int, int]], dict] = {}
+
+_MPS_ATLAS_DUPLICATE_FLUX_RTOL = 1e-12
 
 _NEWERA_MODEL_LINE_RE = re.compile(
     r"(?P<filename>"
@@ -78,6 +181,13 @@ _SPHINX_MODEL_FILENAME_RE = re.compile(
     r"_logg_(?P<logg>\d+(?:\.\d+)?)"
     r"_logZ_(?P<metallicity>[+-]\d+(?:\.\d+)?)"
     r"_CtoO_(?P<co_ratio>\d+(?:\.\d+)?)\.txt$"
+)
+
+_MPS_ATLAS_FLUX_MEMBER_RE = re.compile(
+    r"(?:^|/)MH(?P<metallicity>[+-]?\d+(?:\.\d+)?)"
+    r"/teff(?P<teff>\d+)"
+    r"/logg(?P<logg>[+-]?\d+(?:\.\d+)?)"
+    r"/mpsa_flux_spectra\.dat$"
 )
 
 
@@ -300,6 +410,502 @@ def _clear_directory(path: Path) -> None:
             shutil.rmtree(child)
         else:
             child.unlink()
+
+
+def normalize_mps_atlas_set(value: str) -> str:
+    """Return ``"set1"`` or ``"set2"`` for an MPS-ATLAS selector."""
+
+    normalized = str(value).lower()
+    if normalized in MPS_ATLAS_ARCHIVES:
+        return normalized
+    try:
+        return MPS_ATLAS_SELECTORS[normalized]
+    except KeyError as exc:
+        accepted = sorted([*MPS_ATLAS_ARCHIVES, *MPS_ATLAS_SELECTORS])
+        raise ValueError(
+            f"Unknown MPS-ATLAS set or selector '{value}'. "
+            f"Expected one of {accepted}."
+        ) from exc
+
+
+def canonical_mps_atlas_selector(value: str) -> str:
+    """Return the explicit public selector for an MPS-ATLAS set."""
+
+    return f"mps-atlas-{normalize_mps_atlas_set(value)}"
+
+
+def _mps_atlas_cache_dir(
+    model_set: str, library_root: str | Path | None = None
+) -> Path:
+    root = (
+        get_library_root()
+        if library_root is None
+        else Path(library_root).expanduser()
+    )
+    return root / "mps-atlas" / normalize_mps_atlas_set(model_set)
+
+
+def _resolve_mps_atlas_archive_url(model_set: str) -> str:
+    """Resolve a pinned MPS-ATLAS archive through the Edmond dataset API."""
+
+    model_set = normalize_mps_atlas_set(model_set)
+    expected = MPS_ATLAS_ARCHIVES[model_set]
+    try:
+        with urllib.request.urlopen(MPS_ATLAS_DATASET_API_URL) as response:
+            payload = json.load(response)
+    except Exception as exc:  # pragma: no cover - network dependent
+        raise RuntimeError(
+            "Unable to resolve the official MPS-ATLAS Edmond dataset: "
+            f"{exc}"
+        ) from exc
+
+    try:
+        files = payload["data"]["latestVersion"]["files"]
+    except (KeyError, TypeError) as exc:
+        raise RuntimeError(
+            "The Edmond MPS-ATLAS dataset response did not contain a released "
+            "file list."
+        ) from exc
+
+    for entry in files:
+        data_file = entry.get("dataFile", {})
+        if entry.get("label") != expected["filename"]:
+            continue
+
+        actual_size = data_file.get("filesize")
+        actual_md5 = data_file.get("md5") or data_file.get("checksum", {}).get(
+            "value"
+        )
+        if actual_md5 is not None:
+            actual_md5 = str(actual_md5).lower()
+        if actual_size != expected["filesize"] or actual_md5 != expected["md5"]:
+            raise RuntimeError(
+                f"The official {expected['filename']} metadata has changed from "
+                "the release pinned by speclib. Review the new MPS-ATLAS release "
+                "before updating its size or checksum."
+            )
+        try:
+            datafile_id = int(data_file["id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"The Edmond metadata for {expected['filename']} has no valid "
+                "data-file identifier."
+            ) from exc
+        return MPS_ATLAS_DATAFILE_URL.format(datafile_id=datafile_id)
+
+    raise RuntimeError(
+        f"The official Edmond record does not list {expected['filename']}."
+    )
+
+
+def _mps_atlas_verification_path(archive_path: Path) -> Path:
+    return archive_path.with_name(f".{archive_path.name}.verified-md5")
+
+
+def _clear_mps_atlas_runtime_cache(cache_dir: Path, model_set: str) -> None:
+    """Discard in-process index and wavelength plans for one selected set."""
+
+    resolved_cache = cache_dir.resolve()
+    _MPS_ATLAS_INDEX_CACHE.pop((resolved_cache, model_set), None)
+    stale_plan_keys = [
+        key
+        for key in _MPS_ATLAS_WAVELENGTH_PLAN_CACHE
+        if key[0].parent == resolved_cache and key[1] == model_set
+    ]
+    for key in stale_plan_keys:
+        _MPS_ATLAS_WAVELENGTH_PLAN_CACHE.pop(key, None)
+
+
+def _verify_cached_mps_atlas_archive(archive_path: Path, model_set: str) -> None:
+    """Validate a cached archive once, then retain a checksum marker."""
+
+    metadata = MPS_ATLAS_ARCHIVES[normalize_mps_atlas_set(model_set)]
+    expected_size = int(metadata["filesize"])
+    expected_md5 = str(metadata["md5"])
+    archive_stat = archive_path.stat()
+    actual_size = archive_stat.st_size
+    if actual_size != expected_size:
+        raise ValueError(
+            f"Cached MPS-ATLAS archive {archive_path} has size {actual_size} "
+            f"bytes; expected {expected_size}. Use overwrite=True to refresh it."
+        )
+
+    marker_path = _mps_atlas_verification_path(archive_path)
+    expected_marker = f"{expected_md5} {actual_size} {archive_stat.st_mtime_ns}"
+    if marker_path.exists() and marker_path.read_text().strip() == expected_marker:
+        return
+
+    actual_md5 = pooch.file_hash(archive_path, alg="md5")
+    if actual_md5 != expected_md5:
+        raise ValueError(
+            f"Cached MPS-ATLAS archive {archive_path} failed its published MD5 "
+            "checksum. Use overwrite=True to refresh it."
+        )
+    marker_path.write_text(f"{expected_marker}\n")
+
+
+def download_mps_atlas_grid(
+    model_set: str = "set1",
+    overwrite: bool = False,
+    library_root: str | Path | None = None,
+) -> Path:
+    """Download one official MPS-ATLAS model-set archive.
+
+    Parameters
+    ----------
+    model_set : {"set1", "set2"}, optional
+        Discrete MPS-ATLAS flavor. Public model selectors are also accepted;
+        ``"mps-atlas"`` resolves to Set 1.
+    overwrite : bool, optional
+        Clear only the selected set's cache and download it again.
+    library_root : str or Path, optional
+        Base cache directory. Defaults to :func:`get_library_root`.
+
+    Returns
+    -------
+    Path
+        Selected set cache directory under ``mps-atlas/<set>``.
+
+    Notes
+    -----
+    Edmond distributes each set as one approximately 9.5 GB ZIP archive.
+    This helper caches the ZIP without eagerly extracting its members.
+    """
+
+    model_set = normalize_mps_atlas_set(model_set)
+    metadata = MPS_ATLAS_ARCHIVES[model_set]
+    cache_dir = _mps_atlas_cache_dir(model_set, library_root)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = cache_dir / str(metadata["filename"])
+
+    if overwrite:
+        _clear_directory(cache_dir)
+        _clear_mps_atlas_runtime_cache(cache_dir, model_set)
+    elif archive_path.exists():
+        try:
+            _verify_cached_mps_atlas_archive(archive_path, model_set)
+        except ValueError as exc:
+            archive_path.unlink(missing_ok=True)
+            _mps_atlas_verification_path(archive_path).unlink(missing_ok=True)
+            _clear_mps_atlas_runtime_cache(cache_dir, model_set)
+            raise ValueError(
+                f"{exc} The invalid cached archive was removed; retry to "
+                "download a fresh copy."
+            ) from exc
+        return cache_dir
+
+    required_bytes = int(metadata["filesize"])
+    available_bytes = shutil.disk_usage(cache_dir).free
+    if available_bytes < required_bytes:
+        raise OSError(
+            f"Downloading MPS-ATLAS {model_set} requires at least "
+            f"{required_bytes / 1024**3:.2f} GiB, but only "
+            f"{available_bytes / 1024**3:.2f} GiB is available in {cache_dir}."
+        )
+
+    url = _resolve_mps_atlas_archive_url(model_set)
+    try:
+        retrieved = Path(
+            pooch.retrieve(
+                url=url,
+                fname=str(metadata["filename"]),
+                path=cache_dir,
+                known_hash=f"md5:{metadata['md5']}",
+                processor=None,
+                progressbar=True,
+            )
+        )
+        if retrieved.stat().st_size != required_bytes:
+            raise ValueError(
+                f"Downloaded {metadata['filename']} has an unexpected size."
+            )
+    except Exception as exc:  # pragma: no cover - real download failure
+        archive_path.unlink(missing_ok=True)
+        _mps_atlas_verification_path(archive_path).unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Unable to download MPS-ATLAS {model_set} from Edmond: {exc}"
+        ) from exc
+
+    archive_stat = archive_path.stat()
+    marker = f"{metadata['md5']} {archive_stat.st_size} {archive_stat.st_mtime_ns}"
+    _mps_atlas_verification_path(archive_path).write_text(f"{marker}\n")
+    _clear_mps_atlas_runtime_cache(cache_dir, model_set)
+    return cache_dir
+
+
+def _normalize_mps_atlas_key(
+    teff: float, logg: float, metallicity: float
+) -> tuple[float, float, float]:
+    values = [round(float(value), 8) for value in (teff, logg, metallicity)]
+    return tuple(0.0 if value == -0.0 else value for value in values)
+
+
+def load_mps_atlas_model_list(
+    model_set: str = "set1",
+    *,
+    library_root: str | Path | None = None,
+    cache_dir: str | Path | None = None,
+) -> dict:
+    """Index exact disk-integrated models in one MPS-ATLAS set archive."""
+
+    model_set = normalize_mps_atlas_set(model_set)
+    if cache_dir is None:
+        cache_dir = download_mps_atlas_grid(model_set, library_root=library_root)
+    else:
+        cache_dir = Path(cache_dir).expanduser()
+
+    cache_dir = Path(cache_dir).expanduser()
+    archive_path = cache_dir / str(MPS_ATLAS_ARCHIVES[model_set]["filename"])
+    if not archive_path.exists():
+        raise FileNotFoundError(
+            f"MPS-ATLAS {model_set} archive not found at {archive_path}. "
+            f"Run download_mps_atlas_grid('{model_set}') first."
+        )
+    cache_key = (cache_dir.resolve(), model_set)
+    signature = (archive_path.stat().st_size, archive_path.stat().st_mtime_ns)
+    cached = _MPS_ATLAS_INDEX_CACHE.get(cache_key)
+    if cached is not None and cached["archive_signature"] == signature:
+        return cached
+
+    entries: dict[tuple[float, float, float], str] = {}
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            for info in archive.infolist():
+                if info.is_dir():
+                    continue
+                match = _MPS_ATLAS_FLUX_MEMBER_RE.search(info.filename)
+                if match is None:
+                    continue
+                key = _normalize_mps_atlas_key(
+                    match.group("teff"),
+                    match.group("logg"),
+                    match.group("metallicity"),
+                )
+                if key in entries and entries[key] != info.filename:
+                    raise ValueError(
+                        f"MPS-ATLAS {model_set} contains duplicate disk-integrated "
+                        f"members for Teff={key[0]}, logg={key[1]}, [M/H]={key[2]}."
+                    )
+                entries[key] = info.filename
+    except zipfile.BadZipFile as exc:
+        raise ValueError(
+            f"Cached MPS-ATLAS {model_set} archive is not a valid ZIP file: "
+            f"{archive_path}."
+        ) from exc
+
+    if not entries:
+        raise FileNotFoundError(
+            f"No mpsa_flux_spectra.dat members were found in {archive_path}."
+        )
+
+    combinations = np.array(sorted(entries), dtype=float)
+    result = {
+        "model_set": model_set,
+        "archive_path": archive_path,
+        "archive_signature": signature,
+        "entries": entries,
+        "combinations": combinations,
+        "grid_teffs": np.unique(combinations[:, 0]),
+        "grid_loggs": np.unique(combinations[:, 1]),
+        "grid_fehs": np.unique(combinations[:, 2]),
+    }
+    _MPS_ATLAS_INDEX_CACHE[cache_key] = result
+    return result
+
+
+def _validate_mps_atlas_spectrum_arrays(
+    wavelength: np.ndarray, flux: np.ndarray, member_name: str
+) -> None:
+    """Validate raw or normalized MPS-ATLAS wavelength/flux arrays."""
+
+    if wavelength.ndim != 1 or flux.ndim != 1:
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} wavelength and flux must be "
+            "one-dimensional."
+        )
+    if wavelength.shape != flux.shape:
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} has inconsistent wavelength and "
+            "flux lengths."
+        )
+    if wavelength.size == 0:
+        raise ValueError(f"MPS-ATLAS member {member_name} is empty.")
+    if not np.all(np.isfinite(wavelength)) or np.any(wavelength <= 0):
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} contains nonfinite or nonpositive "
+            "wavelengths."
+        )
+    if not np.all(np.isfinite(flux)):
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} contains nonfinite flux values."
+        )
+
+
+def _collapse_mps_atlas_duplicate_wavelengths(
+    wavelength: np.ndarray, flux: np.ndarray, member_name: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Collapse exact duplicate coordinates only when their fluxes agree."""
+
+    unique_wavelength, first_indices, counts = np.unique(
+        wavelength, return_index=True, return_counts=True
+    )
+    duplicate_groups = np.flatnonzero(counts > 1)
+    for group_index in duplicate_groups:
+        start = first_indices[group_index]
+        stop = start + counts[group_index]
+        duplicate_flux = flux[start:stop]
+        if not np.allclose(
+            duplicate_flux,
+            duplicate_flux[0],
+            rtol=_MPS_ATLAS_DUPLICATE_FLUX_RTOL,
+            atol=0.0,
+        ):
+            raise ValueError(
+                f"MPS-ATLAS member {member_name} contains duplicate wavelength "
+                f"{unique_wavelength[group_index]} nm with materially different "
+                "flux values; these samples cannot be collapsed safely."
+            )
+
+    keep = np.ones(wavelength.size, dtype=bool)
+    for start, count in zip(first_indices, counts):
+        if count > 1:
+            keep[start + 1 : start + count] = False
+    return wavelength[keep], flux[keep]
+
+
+def _normalize_mps_atlas_spectral_axis(
+    wavelength: np.ndarray,
+    flux: np.ndarray,
+    member_name: str,
+    *,
+    plan: dict | None = None,
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Return paired MPS-ATLAS samples on a strictly increasing axis.
+
+    The released spectra share a nonmonotonic ODF wavelength sequence. The
+    flux samples remain paired to their coordinates while a stable sort puts
+    that sequence into ascending order. Exact duplicate coordinates are only
+    collapsed when their fluxes agree to a tight relative tolerance.
+    """
+
+    wavelength = np.asarray(wavelength, dtype=float)
+    flux = np.asarray(flux, dtype=float)
+    _validate_mps_atlas_spectrum_arrays(wavelength, flux, member_name)
+
+    if plan is not None and np.array_equal(wavelength, plan["raw_wavelength"]):
+        order = plan["order"]
+    else:
+        order = np.argsort(wavelength, kind="stable")
+
+    sorted_wavelength = wavelength[order]
+    sorted_flux = flux[order]
+    normalized_wavelength, normalized_flux = (
+        _collapse_mps_atlas_duplicate_wavelengths(
+            sorted_wavelength, sorted_flux, member_name
+        )
+    )
+    _validate_mps_atlas_spectrum_arrays(
+        normalized_wavelength, normalized_flux, member_name
+    )
+    if normalized_wavelength.size > 1 and not np.all(
+        np.diff(normalized_wavelength) > 0
+    ):
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} could not be normalized to a "
+            "strictly increasing wavelength grid."
+        )
+
+    if plan is None or not np.array_equal(wavelength, plan["raw_wavelength"]):
+        plan = {
+            "raw_wavelength": wavelength.copy(),
+            "order": order,
+            "normalized_wavelength": normalized_wavelength.copy(),
+        }
+    else:
+        if not np.array_equal(
+            normalized_wavelength, plan["normalized_wavelength"]
+        ):
+            raise ValueError(
+                f"MPS-ATLAS member {member_name} does not match the cached "
+                "normalized wavelength grid."
+            )
+        normalized_wavelength = plan["normalized_wavelength"]
+
+    return normalized_wavelength, normalized_flux, plan
+
+
+def _mps_atlas_irradiance_to_surface_flux(
+    wavelength: u.Quantity, irradiance: u.Quantity
+) -> u.Quantity:
+    """Convert archive F_nu at 1 AU for R_sun to stellar-surface F_lambda."""
+
+    geometric_scale = ((1 * u.au) / (1 * u.R_sun)).decompose() ** 2
+    surface_flux_nu = irradiance * geometric_scale
+    return surface_flux_nu.to(
+        u.erg / (u.s * u.cm**2 * u.AA),
+        equivalencies=u.spectral_density(wavelength),
+    )
+
+
+def load_mps_atlas_spectrum(
+    teff: float,
+    logg: float,
+    metallicity: float,
+    model_set: str = "set1",
+    *,
+    library_root: str | Path | None = None,
+) -> tuple[u.Quantity, u.Quantity]:
+    """Load one exact disk-integrated MPS-ATLAS surface spectrum."""
+
+    model_set = normalize_mps_atlas_set(model_set)
+    model_list = load_mps_atlas_model_list(model_set, library_root=library_root)
+    key = _normalize_mps_atlas_key(teff, logg, metallicity)
+    try:
+        member_name = model_list["entries"][key]
+    except KeyError as exc:
+        raise ValueError(
+            f"MPS-ATLAS {model_set} has no disk-integrated model for "
+            f"Teff={teff}, logg={logg}, [M/H]={metallicity}."
+        ) from exc
+
+    try:
+        with zipfile.ZipFile(model_list["archive_path"]) as archive:
+            with archive.open(member_name) as source:
+                data = np.loadtxt(source, skiprows=1, ndmin=2)
+    except (KeyError, OSError, zipfile.BadZipFile, ValueError) as exc:
+        raise ValueError(
+            f"Unable to read MPS-ATLAS {model_set} member {member_name}: {exc}"
+        ) from exc
+
+    if data.ndim != 2 or data.shape[1] != 2:
+        raise ValueError(
+            f"MPS-ATLAS member {member_name} must contain wavelength and F_nu "
+            "columns."
+        )
+    wavelength_values = np.asarray(data[:, 0], dtype=float)
+    irradiance_values = np.asarray(data[:, 1], dtype=float)
+    plan_key = (
+        model_list["archive_path"].resolve(),
+        model_set,
+        model_list["archive_signature"],
+    )
+    cached_plan = _MPS_ATLAS_WAVELENGTH_PLAN_CACHE.get(plan_key)
+    wavelength_values, irradiance_values, normalization_plan = (
+        _normalize_mps_atlas_spectral_axis(
+            wavelength_values,
+            irradiance_values,
+            member_name,
+            plan=cached_plan,
+        )
+    )
+    if cached_plan is None:
+        _MPS_ATLAS_WAVELENGTH_PLAN_CACHE[plan_key] = normalization_plan
+
+    wavelength = wavelength_values * u.nm
+    irradiance = irradiance_values * (u.erg / (u.s * u.cm**2 * u.Hz))
+    return wavelength, _mps_atlas_irradiance_to_surface_flux(
+        wavelength, irradiance
+    )
 
 
 def _extract_sphinx_spectra(tar_path: Path, cache_dir: Path) -> None:
@@ -1207,6 +1813,8 @@ def air2vac(wl_air):
 VALID_MODELS = [
     "drift-phoenix",
     "mps-atlas",
+    "mps-atlas-set1",
+    "mps-atlas-set2",
     "newera",
     "newera_gaia",
     "newera_jwst",
@@ -1225,6 +1833,12 @@ newera_grid = {
     "grid_alphas": np.array([-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]),
 }
 
+mps_atlas_grid = {
+    "grid_teffs": MPS_ATLAS_GRID_TEFFS,
+    "grid_loggs": MPS_ATLAS_GRID_LOGGS,
+    "grid_fehs": MPS_ATLAS_GRID_FEHS,
+}
+
 GRID_POINTS = {
     "drift-phoenix": {
         # Grid of effective temperatures
@@ -1234,78 +1848,10 @@ GRID_POINTS = {
         # Grid of metallicities
         "grid_fehs": np.array([-0.6, -0.3, -0.0, 0.3]),
     },
-    "mps-atlas": {
-        # Grid of effective temperatures
-        "grid_teffs": np.arange(3500, 9100, 100),
-        # Grid of surface gravities
-        "grid_loggs": np.array([3.0, 3.5, 4.0, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.0]),
-        # Grid of metallicities
-        "grid_fehs": np.array(
-            [
-                -5.0,
-                -4.5,
-                -4.0,
-                -3.5,
-                -3.0,
-                -2.5,
-                -2.4,
-                -2.3,
-                -2.2,
-                -2.1,
-                -2.0,
-                -1.9,
-                -1.8,
-                -1.7,
-                -1.6,
-                -1.5,
-                -1.4,
-                -1.3,
-                -1.2,
-                -1.1,
-                -1.0,
-                -0.95,
-                -0.9,
-                -0.85,
-                -0.8,
-                -0.75,
-                -0.7,
-                -0.65,
-                -0.6,
-                -0.55,
-                -0.5,
-                -0.45,
-                -0.4,
-                -0.35,
-                -0.3,
-                -0.25,
-                -0.2,
-                -0.15,
-                -0.1,
-                -0.05,
-                0.0,
-                0.05,
-                0.1,
-                0.15,
-                0.2,
-                0.25,
-                0.3,
-                0.35,
-                0.4,
-                0.45,
-                0.5,
-                0.6,
-                0.7,
-                0.8,
-                0.9,
-                1.0,
-                1.1,
-                1.2,
-                1.3,
-                1.4,
-                1.5,
-            ]
-        ),
-    },
+    # MPS-ATLAS availability is refined from the selected ZIP at runtime.
+    "mps-atlas": mps_atlas_grid,
+    "mps-atlas-set1": mps_atlas_grid,
+    "mps-atlas-set2": mps_atlas_grid,
     "newera": newera_grid,
     "newera_gaia": newera_grid,
     "newera_jwst": newera_grid,
