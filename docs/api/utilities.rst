@@ -12,6 +12,8 @@ Package-level download helpers
 
 .. autofunction:: download_mps_atlas_grid
 
+.. autofunction:: download_smitha2025_spectra
+
 .. autofunction:: download_newera_grid
 
 .. autofunction:: download_file

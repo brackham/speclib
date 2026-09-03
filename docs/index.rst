@@ -6,9 +6,11 @@ binning, broadening, and synthesizing photometry from stellar model spectra.
 It currently supports PHOENIX ACES (`Husser et al. 2013
 <https://doi.org/10.1051/0004-6361/201219058>`_), MPS-ATLAS (`Kostogryz et
 al. 2023 <https://doi.org/10.3847/2515-5172/acc180>`_), SPHINX (`Iyer et al.
-2023 <https://doi.org/10.3847/1538-4357/acabc2>`_), and PHOENIX/1D NewEra spectra
+2023 <https://doi.org/10.3847/1538-4357/acabc2>`_), PHOENIX/1D NewEra spectra
 (`Hauschildt et al. 2025
-<https://doi.org/10.1051/0004-6361/202554171>`_).
+<https://doi.org/10.1051/0004-6361/202554171>`_), and the discrete 3D-MHD
+stellar surface-component spectra of `Smitha et al. (2025)
+<https://doi.org/10.3847/2041-8213/ad9aaa>`_.
 
 The package combines :class:`~speclib.Spectrum` objects (an extension of
 ``specutils.Spectrum1D``) with :class:`~speclib.SpectralGrid`

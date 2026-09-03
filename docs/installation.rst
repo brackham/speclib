@@ -56,6 +56,10 @@ Data implications differ by model family:
 * :func:`~speclib.download_mps_atlas_grid` downloads one checksummed v3 archive
   of about 9.5 GB into ``mps-atlas/set1`` or ``mps-atlas/set2``. The archive is
   retained and requested disk-integrated members are read directly from it.
+* ``download_smitha2025_spectra("K0V")`` prefetches one stellar type, while
+  ``download_smitha2025_spectra()`` prefetches all three. This release is three
+  small spectral files rather than a large grid archive; they are cached in
+  ``smitha2025`` and checked against the Edmond v1.0 sizes and MD5 hashes.
 * :func:`~speclib.download_newera_grid` caches one reduced-resolution archive
   (about 845 MB to 18.2 GB, depending on flavor). It does not extract the
   archive by default; loaders extract a requested metallicity file on demand.

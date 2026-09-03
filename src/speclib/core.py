@@ -741,6 +741,37 @@ class Spectrum(Spectrum1D):
         super().__init__(**kwargs)
 
     @classmethod
+    def from_smitha2025(cls, stellar_type, component="quiet"):
+        """Load a discrete Smitha et al. (2025) surface-component spectrum.
+
+        Parameters
+        ----------
+        stellar_type : {"G2V", "K0V", "M0V"}
+            Stellar simulation to select. Selection is case-insensitive.
+        component : {"quiet", "photosphere", "spot", "penumbra", "umbra"}, optional
+            Exact released surface component. ``"photosphere"`` is an alias
+            for ``"quiet"``.
+
+        Returns
+        -------
+        Spectrum
+            The selected source product in ascending Angstrom and
+            ``erg / (s cm2 Angstrom)`` units.
+
+        Notes
+        -----
+        These spectra are discrete products of separate 3D MHD simulations.
+        Neither stellar type nor surface component is interpolated, and the
+        published component effective temperatures stored in ``meta`` are not
+        atmosphere-grid coordinates.
+        """
+
+        wavelength, flux, metadata = utils.load_smitha2025_spectrum(
+            stellar_type, component
+        )
+        return cls(spectral_axis=wavelength, flux=flux, meta=metadata)
+
+    @classmethod
     def from_grid(
         self,
         teff,
@@ -1352,7 +1383,9 @@ class Spectrum(Spectrum1D):
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
         spec_new = Spectrum(
-            spectral_axis=wavelength, flux=obs.binflux.value * self.flux.unit
+            spectral_axis=wavelength,
+            flux=obs.binflux.value * self.flux.unit,
+            meta=copy.deepcopy(self.meta),
         )
 
         return spec_new

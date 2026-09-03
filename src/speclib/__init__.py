@@ -22,6 +22,7 @@ from .utils import (
     download_mps_atlas_grid,
     download_newera_grid,
     download_phoenix_grid,
+    download_smitha2025_spectra,
     download_sphinx_grid,
 )
 
@@ -39,5 +40,6 @@ __all__ = [
     "download_phoenix_grid",
     "download_mps_atlas_grid",
     "download_newera_grid",
+    "download_smitha2025_spectra",
     "download_sphinx_grid",
 ]

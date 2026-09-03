@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Smitha et al. (2025) G2V, K0V, and M0V quiet, spot, penumbral, and
+  umbral spectra from the Edmond data release, with direct `Spectrum` access,
+  checksum-validated caching, and no interpolation.
+- Added `download_smitha2025_spectra()` for prefetching one or all of the
+  Smitha et al. spectrum tables into the shared model-library cache.
 - Added first-class MPS-ATLAS Set 1 and Set 2 support, with `mps-atlas`
   aliasing Set 1, plus automatic archive downloads and caching.
 - Added exact, nearest, and interpolated MPS-ATLAS retrieval through the
@@ -24,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Added Smitha et al. (2025) model-library documentation covering the discrete
+  surface components, native sampling and flux convention, cache behavior,
+  metadata, scientific limitations, and citations.
 - Added MPS-ATLAS model-library documentation covering Set 1 and Set 2,
   caching, interpolation behavior, citations, and scientific limitations.
 - Expanded the Read the Docs site with task-based navigation, installation and
@@ -31,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integrated citation, changelog, and contributing information.
 - Added four rendered and downloadable notebook tutorials with MyST-NB,
   including a comparison of the NewEra Gaia, JWST, and Low-Res products.
+
+### Changed
+
+- `Spectrum.resample()` now preserves an independent copy of input metadata,
+  including Smitha et al. source provenance.
 
 
 ## [0.1.0b12] - 2026-08-21
