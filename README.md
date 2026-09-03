@@ -73,7 +73,8 @@ Set the `SPECLIB_LIBRARY_PATH` environment variable or call
 `speclib.utils.set_library_root("/path/to/cache")` to use a different location.
 
 Download, extraction, storage, and interpolation behavior for PHOENIX,
-MPS-ATLAS, SPHINX, and NewEra are documented in the
+MPS-ATLAS, SPHINX, NewEra, and the discrete Smitha et al. (2025) stellar
+surface-component spectra are documented in the
 [model library reference](https://speclib.readthedocs.io/en/latest/models/index.html).
 
 ---

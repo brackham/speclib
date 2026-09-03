@@ -23,11 +23,13 @@ __all__ = [
     "download_phoenix_grid",
     "download_newera_grid",
     "download_mps_atlas_grid",
+    "download_smitha2025_spectra",
     "download_sphinx_grid",
     "get_newera_record_id",
     "load_newera_model_list",
     "load_mps_atlas_model_list",
     "load_mps_atlas_spectrum",
+    "load_smitha2025_spectrum",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -67,7 +69,7 @@ MPS_ATLAS_DATASET_API_URL = (
     "https://edmond.mpg.de/api/datasets/:persistentId/"
     f"?persistentId={MPS_ATLAS_DATASET_DOI}"
 )
-MPS_ATLAS_DATAFILE_URL = "https://edmond.mpg.de/api/access/datafile/{datafile_id}"
+EDMOND_DATAFILE_URL = "https://edmond.mpg.de/api/access/datafile/{datafile_id}"
 MPS_ATLAS_ARCHIVES: dict[str, dict[str, str | int]] = {
     "set1": {
         "filename": "set1.zip",
@@ -84,6 +86,60 @@ MPS_ATLAS_SELECTORS = {
     "mps-atlas": "set1",
     "mps-atlas-set1": "set1",
     "mps-atlas-set2": "set2",
+}
+
+SMITHA2025_DATASET_DOI = "doi:10.17617/3.HS2EE6"
+SMITHA2025_PAPER_DOI = "10.3847/2041-8213/ad9aaa"
+SMITHA2025_DATASET_API_URL = (
+    "https://edmond.mpg.de/api/datasets/:persistentId/"
+    f"?persistentId={SMITHA2025_DATASET_DOI}"
+)
+SMITHA2025_DATASET_VERSION = (1, 0)
+SMITHA2025_FILES: dict[str, dict[str, str | int]] = {
+    "G2V": {
+        "filename": "G_star_disk_integrated_flux.txt",
+        "filesize": 47_182,
+        "md5": "35917061370775144bfcf96ee589a9dc",
+    },
+    "K0V": {
+        "filename": "K_star_disk_integrated_flux.txt",
+        "filesize": 47_181,
+        "md5": "5dbd22420295a748886a16219fb13e18",
+    },
+    "M0V": {
+        "filename": "M_star_disk_integrated_flux.txt",
+        "filesize": 47_182,
+        "md5": "e657147458c20da11f7c523a0b4df721",
+    },
+}
+SMITHA2025_COMPONENT_COLUMNS = {
+    "quiet": 1,
+    "spot": 2,
+    "penumbra": 3,
+    "umbra": 4,
+}
+SMITHA2025_COMPONENT_ALIASES = {
+    "quiet": "quiet",
+    "photosphere": "quiet",
+    "spot": "spot",
+    "penumbra": "penumbra",
+    "umbra": "umbra",
+}
+# Smitha et al. (2025), Table 1. These quantities describe the three
+# simulations and their discrete components; they are never grid coordinates.
+SMITHA2025_STELLAR_METADATA = {
+    "G2V": {
+        "logg": 4.438,
+        "component_teff": {"quiet": 5810, "penumbra": 5102, "umbra": 3819},
+    },
+    "K0V": {
+        "logg": 4.609,
+        "component_teff": {"quiet": 4965, "penumbra": 4410, "umbra": 3401},
+    },
+    "M0V": {
+        "logg": 4.826,
+        "component_teff": {"quiet": 3696, "penumbra": 3609, "umbra": 3399},
+    },
 }
 
 MPS_ATLAS_GRID_TEFFS = np.arange(3500.0, 9100.0, 100.0)
@@ -445,27 +501,46 @@ def _mps_atlas_cache_dir(
     return root / "mps-atlas" / normalize_mps_atlas_set(model_set)
 
 
-def _resolve_mps_atlas_archive_url(model_set: str) -> str:
-    """Resolve a pinned MPS-ATLAS archive through the Edmond dataset API."""
+def _resolve_edmond_datafile_url(
+    dataset_api_url: str,
+    expected: dict[str, str | int],
+    dataset_name: str,
+    *,
+    expected_version: tuple[int, int] | None = None,
+) -> str:
+    """Resolve one pinned file through an Edmond DOI-backed dataset record."""
 
-    model_set = normalize_mps_atlas_set(model_set)
-    expected = MPS_ATLAS_ARCHIVES[model_set]
     try:
-        with urllib.request.urlopen(MPS_ATLAS_DATASET_API_URL) as response:
+        with urllib.request.urlopen(dataset_api_url) as response:
             payload = json.load(response)
     except Exception as exc:  # pragma: no cover - network dependent
         raise RuntimeError(
-            "Unable to resolve the official MPS-ATLAS Edmond dataset: "
+            f"Unable to resolve the official {dataset_name} Edmond dataset: "
             f"{exc}"
         ) from exc
 
     try:
-        files = payload["data"]["latestVersion"]["files"]
+        latest_version = payload["data"]["latestVersion"]
+        files = latest_version["files"]
     except (KeyError, TypeError) as exc:
         raise RuntimeError(
-            "The Edmond MPS-ATLAS dataset response did not contain a released "
+            f"The Edmond {dataset_name} dataset response did not contain a released "
             "file list."
         ) from exc
+
+    if expected_version is not None:
+        actual_version = (
+            latest_version.get("versionNumber"),
+            latest_version.get("versionMinorNumber"),
+        )
+        if actual_version != expected_version:
+            expected_label = ".".join(str(value) for value in expected_version)
+            actual_label = ".".join(str(value) for value in actual_version)
+            raise RuntimeError(
+                f"The official {dataset_name} dataset is version {actual_label}; "
+                f"speclib pins version {expected_label}. Review the new release "
+                "before updating its file metadata."
+            )
 
     for entry in files:
         data_file = entry.get("dataFile", {})
@@ -481,7 +556,7 @@ def _resolve_mps_atlas_archive_url(model_set: str) -> str:
         if actual_size != expected["filesize"] or actual_md5 != expected["md5"]:
             raise RuntimeError(
                 f"The official {expected['filename']} metadata has changed from "
-                "the release pinned by speclib. Review the new MPS-ATLAS release "
+                f"the {dataset_name} release pinned by speclib. Review the release "
                 "before updating its size or checksum."
             )
         try:
@@ -491,10 +566,21 @@ def _resolve_mps_atlas_archive_url(model_set: str) -> str:
                 f"The Edmond metadata for {expected['filename']} has no valid "
                 "data-file identifier."
             ) from exc
-        return MPS_ATLAS_DATAFILE_URL.format(datafile_id=datafile_id)
+        return EDMOND_DATAFILE_URL.format(datafile_id=datafile_id)
 
     raise RuntimeError(
         f"The official Edmond record does not list {expected['filename']}."
+    )
+
+
+def _resolve_mps_atlas_archive_url(model_set: str) -> str:
+    """Resolve a pinned MPS-ATLAS archive through the Edmond dataset API."""
+
+    model_set = normalize_mps_atlas_set(model_set)
+    return _resolve_edmond_datafile_url(
+        MPS_ATLAS_DATASET_API_URL,
+        MPS_ATLAS_ARCHIVES[model_set],
+        "MPS-ATLAS",
     )
 
 
@@ -631,6 +717,238 @@ def download_mps_atlas_grid(
     _mps_atlas_verification_path(archive_path).write_text(f"{marker}\n")
     _clear_mps_atlas_runtime_cache(cache_dir, model_set)
     return cache_dir
+
+
+def _normalize_smitha2025_stellar_type(stellar_type: str) -> str:
+    """Return a canonical Smitha et al. stellar-type selector."""
+
+    normalized = str(stellar_type).strip().upper()
+    if normalized not in SMITHA2025_FILES:
+        raise ValueError(
+            f"Unknown Smitha et al. (2025) stellar type '{stellar_type}'. "
+            f"Expected one of {list(SMITHA2025_FILES)}."
+        )
+    return normalized
+
+
+def _normalize_smitha2025_component(component: str) -> str:
+    """Return a canonical Smitha et al. surface-component selector."""
+
+    normalized = str(component).strip().lower()
+    try:
+        return SMITHA2025_COMPONENT_ALIASES[normalized]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown Smitha et al. (2025) surface component '{component}'. "
+            f"Expected one of {list(SMITHA2025_COMPONENT_ALIASES)}."
+        ) from exc
+
+
+def _smitha2025_cache_dir(library_root: str | Path | None = None) -> Path:
+    root = (
+        get_library_root()
+        if library_root is None
+        else Path(library_root).expanduser()
+    )
+    return root / "smitha2025"
+
+
+def _resolve_smitha2025_file_url(stellar_type: str) -> str:
+    """Resolve one pinned Smitha et al. spectrum through the Edmond API."""
+
+    stellar_type = _normalize_smitha2025_stellar_type(stellar_type)
+    return _resolve_edmond_datafile_url(
+        SMITHA2025_DATASET_API_URL,
+        SMITHA2025_FILES[stellar_type],
+        "Smitha et al. (2025)",
+        expected_version=SMITHA2025_DATASET_VERSION,
+    )
+
+
+def _verify_cached_smitha2025_file(path: Path, stellar_type: str) -> None:
+    """Validate one cached Smitha et al. file against released metadata."""
+
+    stellar_type = _normalize_smitha2025_stellar_type(stellar_type)
+    metadata = SMITHA2025_FILES[stellar_type]
+    actual_size = path.stat().st_size
+    expected_size = int(metadata["filesize"])
+    if actual_size != expected_size:
+        raise ValueError(
+            f"Cached Smitha et al. (2025) file {path} has size {actual_size} "
+            f"bytes; expected {expected_size}. Use overwrite=True to refresh it."
+        )
+    actual_md5 = pooch.file_hash(path, alg="md5")
+    if actual_md5 != metadata["md5"]:
+        raise ValueError(
+            f"Cached Smitha et al. (2025) file {path} failed its published MD5 "
+            "checksum. Use overwrite=True to refresh it."
+        )
+
+
+def download_smitha2025_spectra(
+    stellar_type: str | None = None,
+    overwrite: bool = False,
+    library_root: str | Path | None = None,
+) -> Path:
+    """Download the Smitha et al. (2025) surface-component spectra.
+
+    Parameters
+    ----------
+    stellar_type : {"G2V", "K0V", "M0V"}, optional
+        Download only the file for this discrete stellar simulation. By
+        default, download all three files.
+    overwrite : bool, optional
+        Refresh the selected file, or all three files when ``stellar_type`` is
+        omitted.
+    library_root : str or Path, optional
+        Base cache directory. Defaults to :func:`get_library_root`.
+
+    Returns
+    -------
+    Path
+        Cache directory under ``<library root>/smitha2025``.
+
+    Notes
+    -----
+    The three files total about 142 kB. Each contains the quiet, spot,
+    penumbral, and umbral spectra for one stellar type.
+    """
+
+    selected_types = (
+        list(SMITHA2025_FILES)
+        if stellar_type is None
+        else [_normalize_smitha2025_stellar_type(stellar_type)]
+    )
+    cache_dir = _smitha2025_cache_dir(library_root)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for selected_type in selected_types:
+        metadata = SMITHA2025_FILES[selected_type]
+        local_path = cache_dir / str(metadata["filename"])
+        if overwrite:
+            local_path.unlink(missing_ok=True)
+        elif local_path.exists():
+            try:
+                _verify_cached_smitha2025_file(local_path, selected_type)
+            except ValueError as exc:
+                local_path.unlink(missing_ok=True)
+                raise ValueError(
+                    f"{exc} The invalid cached file was removed; retry to "
+                    "download a fresh copy."
+                ) from exc
+            continue
+
+        url = _resolve_smitha2025_file_url(selected_type)
+        try:
+            retrieved = Path(
+                pooch.retrieve(
+                    url=url,
+                    fname=str(metadata["filename"]),
+                    path=cache_dir,
+                    known_hash=f"md5:{metadata['md5']}",
+                    processor=None,
+                    progressbar=True,
+                )
+            )
+            if retrieved.stat().st_size != int(metadata["filesize"]):
+                raise ValueError(
+                    f"Downloaded {metadata['filename']} has an unexpected size."
+                )
+        except Exception as exc:  # pragma: no cover - real download failure
+            local_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Unable to download Smitha et al. (2025) "
+                f"{selected_type} spectra from Edmond: {exc}"
+            ) from exc
+
+    return cache_dir
+
+
+def load_smitha2025_spectrum(
+    stellar_type: str,
+    component: str = "quiet",
+    *,
+    library_root: str | Path | None = None,
+) -> tuple[u.Quantity, u.Quantity, dict]:
+    """Load one exact Smitha et al. (2025) surface-component spectrum."""
+
+    stellar_type = _normalize_smitha2025_stellar_type(stellar_type)
+    component = _normalize_smitha2025_component(component)
+    cache_dir = download_smitha2025_spectra(
+        stellar_type, library_root=library_root
+    )
+    file_metadata = SMITHA2025_FILES[stellar_type]
+    source_path = cache_dir / str(file_metadata["filename"])
+    try:
+        data = np.loadtxt(source_path, skiprows=5, ndmin=2)
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"Unable to read Smitha et al. (2025) file {source_path}: {exc}"
+        ) from exc
+
+    if data.ndim != 2 or data.shape[1] != 5:
+        raise ValueError(
+            f"Smitha et al. (2025) file {source_path} must contain wavelength, "
+            "quiet, spot, penumbra, and umbra columns."
+        )
+    if data.shape[0] < 2:
+        raise ValueError(
+            f"Smitha et al. (2025) file {source_path} must contain at least two "
+            "spectral samples."
+        )
+
+    wavelength_values = np.asarray(data[:, 0], dtype=float)
+    flux_values = np.asarray(
+        data[:, SMITHA2025_COMPONENT_COLUMNS[component]], dtype=float
+    )
+    if not np.all(np.isfinite(wavelength_values)) or np.any(wavelength_values <= 0):
+        raise ValueError(
+            f"Smitha et al. (2025) file {source_path} contains nonfinite or "
+            "nonpositive wavelengths."
+        )
+    if not np.all(np.diff(wavelength_values) > 0):
+        raise ValueError(
+            f"Smitha et al. (2025) file {source_path} does not have a strictly "
+            "increasing wavelength axis."
+        )
+    if not np.all(np.isfinite(flux_values)) or np.any(flux_values < 0):
+        raise ValueError(
+            f"Smitha et al. (2025) file {source_path} contains nonfinite or "
+            f"negative {component} flux values."
+        )
+
+    wavelength = (wavelength_values * u.nm).to(u.AA)
+    # Although the source header retains ``sr-1``, integrating each released
+    # quiet/penumbral/umbral column over nm reproduces sigma*T_eff**4 to within
+    # 0.25% for the Table 1 temperatures. The values are therefore emergent,
+    # disk-angle-integrated surface F_lambda, not specific intensity.
+    source_flux = flux_values * (u.erg / (u.s * u.cm**2 * u.nm))
+    flux = source_flux.to(u.erg / (u.s * u.cm**2 * u.AA))
+
+    stellar_metadata = SMITHA2025_STELLAR_METADATA[stellar_type]
+    component_teff = stellar_metadata["component_teff"].get(component)
+    metadata = {
+        "source_library": "Smitha et al. (2025)",
+        "stellar_type": stellar_type,
+        "surface_component": component,
+        "component_teff": None if component_teff is None else component_teff * u.K,
+        "logg": stellar_metadata["logg"],
+        "paper_doi": SMITHA2025_PAPER_DOI,
+        "data_doi": SMITHA2025_DATASET_DOI.removeprefix("doi:"),
+        "dataset_version": ".".join(
+            str(value) for value in SMITHA2025_DATASET_VERSION
+        ),
+        "source_filename": str(file_metadata["filename"]),
+        "source_md5": str(file_metadata["md5"]),
+        "source_flux_unit": "erg / (s cm2 nm)",
+        "flux_definition": "emergent surface F_lambda integrated over disk angle",
+        "wavelength_convention": "native; air/vacuum convention not documented",
+        "native_wavelength_points": int(wavelength_values.size),
+        "native_wavelength_min": wavelength_values[0] * u.nm,
+        "native_wavelength_max": wavelength_values[-1] * u.nm,
+        "native_resolving_power": "approximately 500 (paper; sampling is nonuniform)",
+    }
+    return wavelength, flux, metadata
 
 
 def _normalize_mps_atlas_key(
