@@ -10,12 +10,15 @@ al. 2023 <https://doi.org/10.3847/2515-5172/acc180>`_), SPHINX (`Iyer et al.
 (`Hauschildt et al. 2025
 <https://doi.org/10.1051/0004-6361/202554171>`_), and the discrete 3D-MHD
 stellar surface-component spectra of `Smitha et al. (2025)
-<https://doi.org/10.3847/2041-8213/ad9aaa>`_.
+<https://doi.org/10.3847/2041-8213/ad9aaa>`_, and center-to-limb specific
+intensities from `Kostogryz et al. (2026)
+<https://arxiv.org/abs/2606.21912>`_.
 
-The package combines :class:`~speclib.Spectrum` objects (an extension of
-``specutils.Spectrum1D``) with :class:`~speclib.SpectralGrid`
-collections. It keeps wavelength and flux units explicit and documents the
-interpolation, sampling, and boundary assumptions that affect scientific use.
+The package provides :class:`~speclib.Spectrum` and
+:class:`~speclib.SpectralGrid` for flux spectra, plus
+:class:`~speclib.SpecificIntensitySpectrum` and
+:class:`~speclib.SpecificIntensityGrid` for angle-dependent intensities. Units
+remain explicit throughout.
 
 Install the current development release with:
 

@@ -9,6 +9,7 @@ cache-location helpers used during installation. Start with the
    :maxdepth: 1
 
    spectra
+   specific_intensities
    spectral_grids
    photometry
    utilities

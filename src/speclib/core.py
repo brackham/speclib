@@ -13,7 +13,15 @@ import warnings
 
 import synphot as sp
 
-__all__ = ["Spectrum", "BinnedSpectrum", "SpectralGrid", "BinnedSpectralGrid"]
+__all__ = [
+    "Spectrum",
+    "BinnedSpectrum",
+    "SpecificIntensitySpectrum",
+    "BinnedSpecificIntensitySpectrum",
+    "SpecificIntensityGrid",
+    "SpectralGrid",
+    "BinnedSpectralGrid",
+]
 
 
 _FWHM_TO_SIGMA = 1.0 / (2.0 * np.sqrt(2.0 * np.log(2.0)))
@@ -648,13 +656,13 @@ def _build_density_interpolation_matrix(
 
 
 def _apply_gaussian_convolution_plan(flux, plan):
-    """Apply a prepared Gaussian convolution plan to one flux vector."""
+    """Apply a prepared Gaussian convolution plan to one spectral-density vector."""
     from astropy.convolution import Gaussian1DKernel, convolve
 
     values = np.asarray(flux, dtype=float)
     if values.ndim != 1 or values.size != plan["order"].size:
         raise ValueError(
-            "Flux must be one-dimensional and match the wavelength axis"
+            "Spectral values must be one-dimensional and match the wavelength axis"
         )
 
     values_ascending = values[plan["order"]]
@@ -674,9 +682,10 @@ def _apply_gaussian_convolution_plan(flux, plan):
         return output
 
     if plan["logarithmic"]:
-        # d(lambda) = lambda d(ln(lambda)), so lambda * F_lambda is the
-        # appropriate density to convolve when preserving wavelength-integrated
-        # flux in the continuous, unbounded-domain limit.
+        # d(lambda) = lambda d(ln(lambda)), so lambda times a per-wavelength
+        # density (F_lambda or I_lambda) is the appropriate density to convolve
+        # when preserving its wavelength integral in the continuous,
+        # unbounded-domain limit.
         density = plan["wave_ascending"] * values_ascending
     else:
         density = values_ascending
@@ -717,6 +726,28 @@ def _validate_spectrum_convolution_state(spectrum):
         raise NotImplementedError(
             "Spectral convolution does not yet propagate uncertainties"
         )
+
+
+def _bin_spectral_density(wavelength, values, center, width):
+    """Return mean spectral density in explicit wavelength bins."""
+
+    binned_values = []
+    for cen, wid in zip(center, width):
+        lower = cen - wid / 2.0
+        upper = cen + wid / 2.0
+        idx = np.where((wavelength >= lower) & (wavelength <= upper))
+        # Adjust for bins that are slightly wider than the sampled wavelength
+        # range because of discretization of the wavelength grid.
+        scale_factor = (upper - lower) / (
+            wavelength[idx][-1] - wavelength[idx][0]
+        )
+        binned_value = (
+            scale_factor
+            * np.trapezoid(values[idx], wavelength[idx])
+            / (upper - lower)
+        )
+        binned_values.append(binned_value)
+    return u.Quantity(binned_values)
 
 
 class Spectrum(Spectrum1D):
@@ -1345,7 +1376,7 @@ class Spectrum(Spectrum1D):
     @u.quantity_input(wavelength=u.AA)
     def resample(self, wavelength, taper=False):
         """
-        Resample a spectrum while conserving flux.
+        Resample a per-wavelength spectral density.
 
         Parameters
         ----------
@@ -1355,7 +1386,7 @@ class Spectrum(Spectrum1D):
         Returns
         -------
         spec_new : `~speclib.Spectrum`
-             A resampled spectrum.
+             A resampled spectrum of the same semantic class as the input.
         """
         if taper:
             force = "taper"
@@ -1382,13 +1413,43 @@ class Spectrum(Spectrum1D):
         obs = sp.observation.Observation(spectrum, filt, binset=wave_new, force=force)
 
         # Save the new binned flux array in a `~speclib.Spectrum` object
-        spec_new = Spectrum(
+        spec_new = type(self)(
             spectral_axis=wavelength,
             flux=obs.binflux.value * self.flux.unit,
             meta=copy.deepcopy(self.meta),
         )
 
         return spec_new
+
+    @u.quantity_input(wl_min=u.AA, wl_max=u.AA)
+    def select_wavelength(self, wl_min=None, wl_max=None):
+        """Return the samples within an inclusive wavelength interval.
+
+        Parameters
+        ----------
+        wl_min, wl_max : `~astropy.units.Quantity`, optional
+            Inclusive lower and upper wavelength limits. An omitted limit uses
+            the corresponding edge of the spectrum.
+
+        Returns
+        -------
+        spec_new : `~speclib.Spectrum`
+            A new spectrum of the same semantic class as the input.
+        """
+        if wl_min is None:
+            wl_min = self.wavelength.min()
+        if wl_max is None:
+            wl_max = self.wavelength.max()
+        if wl_min > wl_max:
+            raise ValueError("wl_min must not exceed wl_max")
+        selected = (self.wavelength >= wl_min) & (self.wavelength <= wl_max)
+        if not np.any(selected):
+            raise ValueError("The requested interval contains no wavelength samples")
+        return type(self)(
+            spectral_axis=self.wavelength[selected],
+            flux=self.flux[selected],
+            meta=copy.deepcopy(self.meta),
+        )
 
     @u.quantity_input(delta_lambda=u.AA)
     def regularize(self, delta_lambda=None):
@@ -1455,7 +1516,7 @@ class Spectrum(Spectrum1D):
             delta_lambda=delta_lambda_value,
         )
         convolved_flux = _apply_gaussian_convolution_plan(self.flux.value, plan)
-        return Spectrum(
+        return type(self)(
             spectral_axis=self.spectral_axis.copy(),
             flux=convolved_flux * self.flux.unit,
             meta=copy.deepcopy(self.meta),
@@ -1479,17 +1540,18 @@ class Spectrum(Spectrum1D):
         Notes
         -----
         Convolution is evaluated on a uniform log-wavelength grid. To use the
-        physical wavelength-flux measure, ``lambda * F_lambda`` is convolved
-        and the result is divided by wavelength afterward. This preserves
-        wavelength-integrated flux in the continuous, unbounded-domain limit;
-        finite boundaries and numerical remapping limit exact conservation.
+        physical wavelength-density measure, ``lambda * X_lambda`` is
+        convolved, where ``X_lambda`` is either flux or specific intensity,
+        and the result is divided by wavelength afterward. This preserves the
+        wavelength integral in the continuous, unbounded-domain limit; finite
+        boundaries and numerical remapping limit exact conservation.
 
-        The stationary Gaussian therefore applies to flux per logarithmic
-        wavelength interval. Expressed as ``F_lambda``, an isolated feature has
-        a log-normal-like profile that is not exactly symmetric in linear
-        wavelength. This distinction is small at ordinary astronomical
-        resolving powers. The input must provide at least two samples per
-        requested log-wavelength FWHM across every interval.
+        The stationary Gaussian therefore applies to the density per
+        logarithmic wavelength interval. Expressed per unit wavelength, an
+        isolated feature has a log-normal-like profile that is not exactly
+        symmetric in linear wavelength. This distinction is small at ordinary
+        astronomical resolving powers. The input must provide at least two
+        samples per requested log-wavelength FWHM across every interval.
 
         The intrinsic input line width is assumed to be negligible relative to
         the requested broadening. Wavelength-dependent resolving power is not
@@ -1505,7 +1567,7 @@ class Spectrum(Spectrum1D):
             resolving_power=resolving_power_value,
         )
         convolved_flux = _apply_gaussian_convolution_plan(self.flux.value, plan)
-        return Spectrum(
+        return type(self)(
             spectral_axis=self.spectral_axis.copy(),
             flux=convolved_flux * self.flux.unit,
             meta=copy.deepcopy(self.meta),
@@ -1535,10 +1597,11 @@ class Spectrum(Spectrum1D):
         extrapolation is not supported. The curve is intended to vary smoothly
         relative to the local resolution element. Each input wavelength is
         broadened by a source-centered Gaussian using the wavelength-coordinate
-        and flux conventions of :meth:`set_spectral_resolving_power`. The
-        intrinsic input line width is assumed negligible, and the output
-        wavelength sampling is unchanged. Operations whose estimated sparse
-        plan exceeds the work or memory safety limit are rejected.
+        and spectral-density conventions of
+        :meth:`set_spectral_resolving_power`. The intrinsic input line width is
+        assumed negligible, and the output wavelength sampling is unchanged.
+        Operations whose estimated sparse plan exceeds the work or memory
+        safety limit are rejected.
         """
         _validate_spectrum_convolution_state(self)
         curve_wavelength, curve_resolving_power = (
@@ -1554,7 +1617,7 @@ class Spectrum(Spectrum1D):
             curve_resolving_power,
         )
         convolved_flux = _apply_gaussian_convolution_plan(self.flux.value, plan)
-        return Spectrum(
+        return type(self)(
             spectral_axis=self.spectral_axis.copy(),
             flux=convolved_flux * self.flux.unit,
             meta=copy.deepcopy(self.meta),
@@ -1578,26 +1641,9 @@ class Spectrum(Spectrum1D):
         `~speclib.BinnedSpectrum`
 
         """
-        wavelength = self.wavelength
-        flux = self.flux
-        binned_fluxes = []
-        for cen, wid in zip(center, width):
-            lower = cen - wid / 2.0
-            upper = cen + wid / 2.0
-            idx = np.where((wavelength >= lower) & (wavelength <= upper))
-
-            # Adjust for bins that are slightly wider than the wavelength range
-            # due to discretization of the wavelength grid
-            scale_factor = (upper - lower) / (wavelength[idx][-1] - wavelength[idx][0])
-
-            binned_flux = (
-                scale_factor
-                * np.trapezoid(flux[idx], wavelength[idx])
-                / (upper - lower)
-            )
-            binned_fluxes.append(binned_flux)
-        binned_fluxes = u.Quantity(binned_fluxes)
-
+        binned_fluxes = _bin_spectral_density(
+            self.wavelength, self.flux, center, width
+        )
         return BinnedSpectrum(center, width, binned_fluxes)
 
 
@@ -1644,6 +1690,415 @@ class BinnedSpectrum(object):
         self.lower = center - width / 2.0
         self.upper = center + width / 2.0
         self.flux = flux
+
+
+class BinnedSpecificIntensitySpectrum(object):
+    """Specific intensity averaged into explicit wavelength intervals.
+
+    Instances are returned by :meth:`SpecificIntensitySpectrum.bin`. The
+    ``intensity`` values retain their per-steradian spectral-density unit.
+    """
+
+    @u.quantity_input(center=u.AA, width=u.AA)
+    def __init__(self, center, width, intensity, meta=None):
+        if not isinstance(intensity, u.Quantity):
+            raise TypeError("intensity must be an astropy Quantity")
+        intensity_unit = u.erg / (u.s * u.cm**2 * u.sr * u.AA)
+        if not intensity.unit.is_equivalent(intensity_unit):
+            raise u.UnitsError(
+                "intensity must be a spectral specific-intensity density "
+                "with a per-steradian unit"
+            )
+        self.center = center
+        self.width = width
+        self.lower = center - width / 2.0
+        self.upper = center + width / 2.0
+        self.intensity = intensity
+        self.meta = {} if meta is None else copy.deepcopy(meta)
+
+
+class SpecificIntensitySpectrum(Spectrum):
+    """Specific intensity at one disk position.
+
+    Values represent :math:`I_\\lambda(\\mu)` and must have a per-wavelength,
+    per-steradian unit. Use :attr:`intensity` to access them.
+
+    Parameters
+    ----------
+    spectral_axis : `~astropy.units.Quantity`
+        Spectral coordinate.
+    intensity : `~astropy.units.Quantity`, optional
+        Specific intensity per unit wavelength and solid angle.
+    flux : `~astropy.units.Quantity`, optional
+        Compatibility alias used when copying spectra. Prefer ``intensity``.
+        Specify only one of ``intensity`` and ``flux``.
+    **kwargs : dict
+        Other arguments passed to :class:`specutils.Spectrum1D`.
+    """
+
+    def __init__(self, *, spectral_axis=None, intensity=None, flux=None, **kwargs):
+        if intensity is not None and flux is not None:
+            raise TypeError("Specify only one of intensity or flux")
+        values = intensity if intensity is not None else flux
+        intensity_unit = u.erg / (u.s * u.cm**2 * u.sr * u.AA)
+        if values is None and "data" in kwargs:
+            # ``Spectrum1D`` slicing first reconstructs the subclass through
+            # NDData's ``data``/``unit`` path, before making a final copy with
+            # explicit ``flux`` and ``spectral_axis`` quantities.
+            super().__init__(**kwargs)
+            values = self.flux
+        else:
+            if not isinstance(values, u.Quantity):
+                raise TypeError("intensity must be an astropy Quantity")
+            if spectral_axis is None:
+                raise TypeError("spectral_axis must be provided")
+            super().__init__(spectral_axis=spectral_axis, flux=values, **kwargs)
+        if not values.unit.is_equivalent(intensity_unit):
+            raise u.UnitsError(
+                "SpecificIntensitySpectrum requires a per-wavelength "
+                "specific-intensity unit including sr^-1"
+            )
+
+    def __getitem__(self, item):
+        """Slice while preserving specific-intensity semantics."""
+
+        if isinstance(item, (list, np.ndarray)):
+            selector = np.asarray(item)
+            if selector.dtype == np.bool_:
+                if selector.shape != self.wavelength.shape:
+                    raise IndexError(
+                        "Boolean index must match the wavelength-axis shape"
+                    )
+                return type(self)(
+                    spectral_axis=self.wavelength[selector],
+                    intensity=self.intensity[selector],
+                    meta=copy.deepcopy(self.meta),
+                )
+        return super().__getitem__(item)
+
+    @property
+    def intensity(self):
+        """Specific-intensity spectral density (the semantic flux alias)."""
+
+        return self.flux
+
+    @classmethod
+    def from_grid(cls, *args, **kwargs):
+        """Reject flux-library construction for an intensity spectrum."""
+
+        del args, kwargs
+        raise TypeError(
+            "SpecificIntensitySpectrum cannot be loaded from a flux-oriented "
+            "Spectrum grid; use SpecificIntensitySpectrum.from_library."
+        )
+
+    @classmethod
+    def from_smitha2025(cls, *args, **kwargs):
+        """Reject disk-integrated Smitha flux construction."""
+
+        del args, kwargs
+        raise TypeError(
+            "Smitha et al. (2025) products are disk-integrated flux spectra; "
+            "load them with Spectrum.from_smitha2025."
+        )
+
+    @classmethod
+    def from_library(
+        cls,
+        library,
+        *,
+        model,
+        metallicity=0.0,
+        magnetic_state="ssd",
+        mu,
+        library_root=None,
+    ):
+        """Load one spectrum at an exact native disk position.
+
+        Parameters
+        ----------
+        library : str
+            Specific-intensity library. Currently ``"kostogryz2026"``.
+        model : str
+            Native stellar-model selector.
+        metallicity : float, optional
+            Exact native [M/H].
+        magnetic_state : str, optional
+            Native magnetic simulation state.
+        mu : float or `~astropy.units.Quantity`
+            Exact native value of :math:`\\mu=\\cos\\theta`.
+        library_root : str or path-like, optional
+            Base model-cache directory.
+
+        Returns
+        -------
+        SpecificIntensitySpectrum
+            The selected specific-intensity spectrum.
+        """
+
+        grid = SpecificIntensityGrid.from_library(
+            library,
+            model=model,
+            metallicity=metallicity,
+            magnetic_state=magnetic_state,
+            library_root=library_root,
+        )
+        spectrum = grid.at_mu(mu)
+        if cls is SpecificIntensitySpectrum:
+            return spectrum
+        return cls(
+            spectral_axis=spectrum.spectral_axis.copy(),
+            intensity=spectrum.intensity.copy(),
+            meta=copy.deepcopy(spectrum.meta),
+        )
+
+    @u.quantity_input(center=u.AA, width=u.AA)
+    def bin(self, center, width):
+        """Return mean specific intensity in wavelength bins.
+
+        Parameters
+        ----------
+        center, width : `~astropy.units.Quantity`
+            Centers and widths of the wavelength bins.
+
+        Returns
+        -------
+        BinnedSpecificIntensitySpectrum
+            Binned intensities with the same physical unit and metadata.
+        """
+
+        binned_intensity = _bin_spectral_density(
+            self.wavelength, self.intensity, center, width
+        )
+        return BinnedSpecificIntensitySpectrum(
+            center,
+            width,
+            binned_intensity,
+            meta=copy.deepcopy(self.meta),
+        )
+
+
+class SpecificIntensityGrid(object):
+    """Native disk-position spectra for one stellar model and state.
+
+    The grid stores :math:`I_\\lambda(\\mu)` at discrete ``mu`` values. It does
+    not interpolate.
+
+    Parameters
+    ----------
+    spectral_axis : `~astropy.units.Quantity`
+        Shared one-dimensional wavelength coordinate.
+    intensities : `~astropy.units.Quantity`
+        Two-dimensional array with shape ``(n_mu, n_wavelength)``.
+    mu : array-like or `~astropy.units.Quantity`
+        Strictly increasing native values of ``cos(theta)`` in ``(0, 1]``.
+    meta : dict, optional
+        Metadata shared by the complete model and simulation state.
+    """
+
+    def __init__(self, spectral_axis, intensities, mu, meta=None):
+        if not isinstance(spectral_axis, u.Quantity):
+            raise TypeError("spectral_axis must be an astropy Quantity")
+        if not spectral_axis.unit.is_equivalent(u.AA):
+            raise u.UnitsError("spectral_axis must have wavelength units")
+        wavelength_values = np.asarray(spectral_axis.to_value(u.AA))
+        if wavelength_values.ndim != 1 or wavelength_values.size < 2:
+            raise ValueError("spectral_axis must be a one-dimensional array")
+        wavelength_differences = np.diff(wavelength_values)
+        if not (
+            np.all(np.isfinite(wavelength_values))
+            and np.all(wavelength_values > 0)
+            and (
+                np.all(wavelength_differences > 0)
+                or np.all(wavelength_differences < 0)
+            )
+        ):
+            raise ValueError(
+                "spectral_axis must contain finite, positive, strictly "
+                "monotonic wavelengths"
+            )
+
+        if not isinstance(intensities, u.Quantity):
+            raise TypeError("intensities must be an astropy Quantity")
+        intensity_unit = u.erg / (u.s * u.cm**2 * u.sr * u.AA)
+        if not intensities.unit.is_equivalent(intensity_unit):
+            raise u.UnitsError(
+                "intensities must be per-wavelength specific intensities "
+                "including sr^-1"
+            )
+        if isinstance(mu, u.Quantity):
+            if not mu.unit.is_equivalent(u.dimensionless_unscaled):
+                raise u.UnitsError("mu must be dimensionless")
+            mu_values = np.asarray(mu.to_value(u.dimensionless_unscaled))
+        else:
+            mu_values = np.asarray(mu)
+        if mu_values.ndim != 1 or not mu_values.size:
+            raise ValueError("mu must be a nonempty one-dimensional array")
+        if np.issubdtype(mu_values.dtype, np.bool_) or np.iscomplexobj(mu_values):
+            raise TypeError("mu must contain real values")
+        try:
+            mu_values = mu_values.astype(float)
+        except (TypeError, ValueError) as exc:
+            raise TypeError("mu must contain real values") from exc
+        if (
+            not np.all(np.isfinite(mu_values))
+            or np.any(mu_values <= 0)
+            or np.any(mu_values > 1)
+            or not np.all(np.diff(mu_values) > 0)
+        ):
+            raise ValueError(
+                "mu must contain finite, unique, strictly increasing values "
+                "in (0, 1]"
+            )
+        if intensities.shape != (mu_values.size, wavelength_values.size):
+            raise ValueError(
+                "intensities must have shape (n_mu, n_wavelength); received "
+                f"{intensities.shape} for {(mu_values.size, wavelength_values.size)}"
+            )
+        if not np.all(np.isfinite(intensities.value)):
+            raise ValueError("intensities must contain only finite values")
+
+        self.spectral_axis = spectral_axis.copy()
+        self.wavelength = self.spectral_axis
+        self.intensity = intensities.copy()
+        self.unit = self.intensity.unit
+        self.mu = mu_values.copy()
+        self.meta = {} if meta is None else copy.deepcopy(meta)
+        self._spectra = tuple(
+            SpecificIntensitySpectrum(
+                spectral_axis=self.spectral_axis.copy(),
+                intensity=self.intensity[index].copy(),
+                meta={
+                    **copy.deepcopy(self.meta),
+                    "mu": float(mu_value),
+                    "native_mu": float(mu_value),
+                },
+            )
+            for index, mu_value in enumerate(self.mu)
+        )
+
+    @classmethod
+    def from_library(
+        cls,
+        library,
+        *,
+        model,
+        metallicity=0.0,
+        magnetic_state="ssd",
+        library_root=None,
+    ):
+        """Load one model and magnetic state from an intensity library.
+
+        Parameters
+        ----------
+        library : str
+            Specific-intensity library. Currently ``"kostogryz2026"``.
+        model : str
+            Native stellar-model selector.
+        metallicity : float, optional
+            Exact native [M/H].
+        magnetic_state : str, optional
+            Native magnetic simulation state.
+        library_root : str or path-like, optional
+            Base model-cache directory.
+
+        Returns
+        -------
+        SpecificIntensityGrid
+            All native disk-position spectra for the selected model and state.
+        """
+
+        library_name = str(library).strip().lower()
+        if library_name != "kostogryz2026":
+            raise ValueError(
+                f"Unknown specific-intensity library '{library}'. "
+                "Available libraries are ['kostogryz2026']."
+            )
+        wavelength, intensities, mu, metadata = (
+            utils.load_kostogryz2026_intensities(
+                model,
+                metallicity,
+                magnetic_state,
+                library_root=library_root,
+            )
+        )
+        return cls(wavelength, intensities, mu, meta=metadata)
+
+    @staticmethod
+    def available_models():
+        """Return exact Kostogryz ``(model, metallicity)`` pairs."""
+
+        return utils.available_kostogryz2026_models()
+
+    @staticmethod
+    def available_magnetic_states():
+        """Return exact Kostogryz source magnetization labels."""
+
+        return tuple(utils.KOSTOGRYZ2026_MAGNETIZATIONS)
+
+    @property
+    def spectra(self):
+        """Tuple of spectra ordered like :attr:`mu`."""
+
+        return self._spectra
+
+    def __len__(self):
+        return len(self._spectra)
+
+    def __iter__(self):
+        return iter(self._spectra)
+
+    def __getitem__(self, index):
+        if isinstance(index, (bool, np.bool_)):
+            raise TypeError("SpecificIntensityGrid indices must be integers or slices")
+        if not isinstance(index, (int, np.integer, slice)):
+            raise TypeError("SpecificIntensityGrid indices must be integers or slices")
+        return self._spectra[index]
+
+    def at_mu(self, mu):
+        """Return the spectrum at one exact native ``mu``.
+
+        Parameters
+        ----------
+        mu : float or `~astropy.units.Quantity`
+            Native value of :math:`\\mu=\\cos\\theta`.
+
+        Returns
+        -------
+        SpecificIntensitySpectrum
+            Specific intensity at the requested disk position.
+
+        Raises
+        ------
+        ValueError
+            If ``mu`` is not one of the grid's native values.
+        """
+
+        if isinstance(mu, u.Quantity):
+            if not mu.unit.is_equivalent(u.dimensionless_unscaled):
+                raise u.UnitsError("mu must be dimensionless")
+            value = np.asarray(mu.to_value(u.dimensionless_unscaled))
+        else:
+            if isinstance(mu, (bool, np.bool_)):
+                raise TypeError("mu must be a real scalar")
+            value = np.asarray(mu)
+        if value.ndim != 0 or np.iscomplexobj(value):
+            raise TypeError("mu must be a real scalar")
+        try:
+            value = float(value)
+        except (TypeError, ValueError) as exc:
+            raise TypeError("mu must be a real scalar") from exc
+        if not np.isfinite(value):
+            raise ValueError("mu must be finite")
+        matches = np.flatnonzero(
+            np.isclose(self.mu, value, rtol=0.0, atol=1e-12)
+        )
+        if not matches.size:
+            raise ValueError(
+                f"mu={value} is not a native disk position. Available values "
+                f"are {self.mu.tolist()}. No interpolation is performed."
+            )
+        return self._spectra[int(matches[0])]
 
 
 class SpectralGrid(object):

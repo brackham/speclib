@@ -14,6 +14,8 @@ Package-level download helpers
 
 .. autofunction:: download_smitha2025_spectra
 
+.. autofunction:: download_kostogryz2026_spectra
+
 .. autofunction:: download_newera_grid
 
 .. autofunction:: download_file

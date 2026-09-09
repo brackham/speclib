@@ -34,6 +34,9 @@ Also cite the data product underlying your result:
 * Smitha et al. stellar surface components: `Smitha et al. (2025)
   <https://doi.org/10.3847/2041-8213/ad9aaa>`_ and the `Edmond v1.0 data
   release <https://doi.org/10.17617/3.HS2EE6>`_.
+* Kostogryz et al. specific intensities: `Kostogryz et al. (2026)
+  <https://arxiv.org/abs/2606.21912>`_ and the `Kostogryz Edmond V1.0 release
+  <https://doi.org/10.17617/3.FBTIYY>`_.
 * PHOENIX/1D NewEra: `Hauschildt et al. (2025)
   <https://doi.org/10.1051/0004-6361/202554171>`_ and the `V3.4 FDR release
   <https://doi.org/10.25592/uhhfdm.17935>`_.

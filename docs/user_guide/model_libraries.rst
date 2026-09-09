@@ -2,9 +2,10 @@ Model library workflows
 =======================
 
 The primary documented atmosphere grids are PHOENIX, MPS-ATLAS, SPHINX, and
-PHOENIX/1D NewEra. The Smitha et al. (2025) surface-component spectra are a
-separate discrete library. These products do not have identical coordinates,
-units on disk, completeness, or download behavior. Use the dedicated
+PHOENIX/1D NewEra. The Smitha et al. (2025) surface-component spectra and
+Kostogryz et al. (2026) center-to-limb specific intensities are separate
+discrete libraries. These products do not have identical coordinates, units
+on disk, completeness, or download behavior. Use the dedicated
 :doc:`../models/index` pages to choose a product and cite it.
 
 The common loading interface is:
@@ -41,6 +42,11 @@ continuous atmosphere grid:
 
 ``G2V``, ``K0V``, and ``M0V`` and the quiet, spot, penumbra, and umbra
 components are never interpolated. See :doc:`../models/smitha2025`.
+
+Kostogryz et al. intensities use :class:`~speclib.SpecificIntensityGrid`
+because they vary with disk position and are not disk-integrated fluxes. See
+:doc:`specific_intensities` for the workflow and
+:doc:`../models/kostogryz2026` for available models.
 
 Additional accepted selectors
 -----------------------------
