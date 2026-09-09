@@ -11,6 +11,7 @@ before selecting a product or ``model_grid`` value.
 
    phoenix
    mps_atlas
+   kostogryz2026
    smitha2025
    sphinx
    newera
@@ -24,6 +25,8 @@ Quick selection
 * Use :doc:`mps_atlas` for a dense FGK grid and broad SED work on 1221
   nonuniform ODF intervals; choose its abundance/mixing-length Set 1 or Set 2
   explicitly when that distinction matters.
+* Use :doc:`kostogryz2026` for center-to-limb specific intensities from 3D
+  MURaM simulations at ten native disk positions.
 * Use :doc:`smitha2025` for discrete quiet, spot, penumbral, and umbral spectra
   from 3D MHD simulations of G2V, K0V, and M0V stars. These products are not
   interpolated or exposed through ``SpectralGrid``.
@@ -32,8 +35,6 @@ Quick selection
 * Use :doc:`newera` for the newer PHOENIX/1D LTE atmospheres and choose its
   Gaia, JWST, or Low-Res reduced product by wavelength coverage and sampling.
 
-All spectral loaders return :class:`~speclib.Spectrum` in Å and
-``erg / (s cm2 Å)`` after reading the format used by each product.
-This unit conversion does not alter a product's wavelength convention, and a
-common output format does not make the underlying model assumptions
-interchangeable.
+Flux libraries return :class:`~speclib.Spectrum`. The Kostogryz center-to-limb
+library returns :class:`~speclib.SpecificIntensitySpectrum`, preserving the
+per-steradian intensity unit.

@@ -23,13 +23,16 @@ __all__ = [
     "download_phoenix_grid",
     "download_newera_grid",
     "download_mps_atlas_grid",
+    "download_kostogryz2026_spectra",
     "download_smitha2025_spectra",
     "download_sphinx_grid",
     "get_newera_record_id",
     "load_newera_model_list",
     "load_mps_atlas_model_list",
     "load_mps_atlas_spectrum",
+    "load_kostogryz2026_intensities",
     "load_smitha2025_spectrum",
+    "available_kostogryz2026_models",
     "find_bounds",
     "interpolate",
     "load_flux_array",
@@ -141,6 +144,109 @@ SMITHA2025_STELLAR_METADATA = {
         "component_teff": {"quiet": 3696, "penumbra": 3609, "umbra": 3399},
     },
 }
+
+KOSTOGRYZ2026_DATASET_DOI = "doi:10.17617/3.FBTIYY"
+KOSTOGRYZ2026_PAPER_ARXIV = "2606.21912"
+KOSTOGRYZ2026_DATASET_API_URL = (
+    "https://edmond.mpg.de/api/datasets/:persistentId/"
+    f"?persistentId={KOSTOGRYZ2026_DATASET_DOI}"
+)
+KOSTOGRYZ2026_DATASET_VERSION = (1, 0)
+KOSTOGRYZ2026_NATIVE_MU = np.arange(0.1, 1.01, 0.1)
+KOSTOGRYZ2026_MAGNETIZATIONS = (
+    "hydro",
+    "ssd",
+    "B100G",
+    "B200G",
+    "B300G",
+)
+KOSTOGRYZ2026_SOURCE_INTENSITY_UNIT = (
+    r"erg $s^{-1}$ $cm^{-2}$ $sr^{-1}$ $\AA^{-1}$"
+)
+KOSTOGRYZ2026_INTENSITY_UNIT = u.erg / (u.s * u.cm**2 * u.sr * u.AA)
+
+# Exact file inventory for the released Edmond V1.0 record. Numeric Edmond
+# data-file IDs are deliberately absent: URLs are resolved through the DOI
+# record and checked against this pinned metadata at download time.
+KOSTOGRYZ2026_RELEASE_FILES: dict[str, dict[str, str | int]] = {
+    "F3_MH_00.h5": {
+        "filename": "F3_MH_00.h5",
+        "filesize": 665_449,
+        "md5": "8fef57d9429c058d0b97a38a1e9e509e",
+    },
+    "G2_MH_00.h5": {
+        "filename": "G2_MH_00.h5",
+        "filesize": 666_727,
+        "md5": "5f971d0a1ea5af65681974dc08a7d67e",
+    },
+    "G2_MH_m10.h5": {
+        "filename": "G2_MH_m10.h5",
+        "filesize": 662_482,
+        "md5": "b04cce190537684b36c1eb91c2ef4f26",
+    },
+    "G2_MH_p05.h5": {
+        "filename": "G2_MH_p05.h5",
+        "filesize": 667_157,
+        "md5": "6b9de30858a04332d6ac4a26b8fde979",
+    },
+    "K0_MH_00.h5": {
+        "filename": "K0_MH_00.h5",
+        "filesize": 667_539,
+        "md5": "fcbf106f742f02652e158f30a78d2040",
+    },
+    "K4_MH_00.h5": {
+        "filename": "K4_MH_00.h5",
+        "filesize": 668_683,
+        "md5": "91c82908c8c9bccb7496cfd57d61e4cb",
+    },
+    "M0_MH_00.h5": {
+        "filename": "M0_MH_00.h5",
+        "filesize": 667_854,
+        "md5": "2c3d9f7913239493887f2bbdbe17ef4c",
+    },
+    "M2_MH_00.h5": {
+        "filename": "M2_MH_00.h5",
+        "filesize": 670_792,
+        "md5": "3b95bc82d158cf8fdb2eb2bce53e4dbb",
+    },
+    "M4_MH_00.h5": {
+        "filename": "M4_MH_00.h5",
+        "filesize": 666_337,
+        "md5": "e7d437fc7714de38c4d2d10a03ac42ea",
+    },
+    "README.md": {
+        "filename": "README.md",
+        "filesize": 6_804,
+        "md5": "f45e035f4c7e7fc71ad6f859740bd0e1",
+    },
+    "read_spectra.py": {
+        "filename": "read_spectra.py",
+        "filesize": 5_291,
+        "md5": "0b14b07351bf0bc8b9e5d97c1e542823",
+    },
+    "read_spectral_library.ipynb": {
+        "filename": "read_spectral_library.ipynb",
+        "filesize": 46_843,
+        "md5": "87497487e9a7ac98ef4d4872a764627f",
+    },
+}
+
+# Paper Table 1 is authoritative for log(g). The K0 HDF5 group incorrectly
+# stores 4.609 (the K4 value); retain the source attribute separately when
+# loading, but expose the scientifically established K0 value of 4.4.
+KOSTOGRYZ2026_MODELS: dict[str, dict[str, str | float]] = {
+    "F3_MH_00": {"model": "F3", "metallicity": 0.0, "logg": 4.0},
+    "G2_MH_00": {"model": "G2", "metallicity": 0.0, "logg": 4.438},
+    "G2_MH_m10": {"model": "G2", "metallicity": -1.0, "logg": 4.438},
+    "G2_MH_p05": {"model": "G2", "metallicity": 0.5, "logg": 4.438},
+    "K0_MH_00": {"model": "K0", "metallicity": 0.0, "logg": 4.4},
+    "K4_MH_00": {"model": "K4", "metallicity": 0.0, "logg": 4.609},
+    "M0_MH_00": {"model": "M0", "metallicity": 0.0, "logg": 4.826},
+    "M2_MH_00": {"model": "M2", "metallicity": 0.0, "logg": 5.0},
+    "M4_MH_00": {"model": "M4", "metallicity": 0.0, "logg": 5.0},
+}
+for _kostogryz_group, _kostogryz_metadata in KOSTOGRYZ2026_MODELS.items():
+    _kostogryz_metadata["filename"] = f"{_kostogryz_group}.h5"
 
 MPS_ATLAS_GRID_TEFFS = np.arange(3500.0, 9100.0, 100.0)
 MPS_ATLAS_GRID_LOGGS = np.array(
@@ -949,6 +1055,482 @@ def load_smitha2025_spectrum(
         "native_resolving_power": "approximately 500 (paper; sampling is nonuniform)",
     }
     return wavelength, flux, metadata
+
+
+def available_kostogryz2026_models() -> tuple[tuple[str, float], ...]:
+    """Return the exact ``(model, metallicity)`` pairs in Edmond V1.0."""
+
+    return tuple(
+        (str(metadata["model"]), float(metadata["metallicity"]))
+        for metadata in KOSTOGRYZ2026_MODELS.values()
+    )
+
+
+def _normalize_kostogryz2026_model(model: str) -> str:
+    """Return the archive's canonical spectral-type identifier."""
+
+    normalized = str(model).strip().upper()
+    available = {str(item["model"]) for item in KOSTOGRYZ2026_MODELS.values()}
+    if normalized.endswith("V") and normalized[:-1] in available:
+        normalized = normalized[:-1]
+    if normalized not in available:
+        raise ValueError(
+            f"Unknown Kostogryz et al. (2026) model '{model}'. "
+            f"Available models are {sorted(available)}."
+        )
+    return normalized
+
+
+def _normalize_kostogryz2026_selection(
+    model: str, metallicity: float
+) -> tuple[str, dict[str, str | float]]:
+    """Return the exact archive group and metadata for a model selection."""
+
+    model = _normalize_kostogryz2026_model(model)
+    if isinstance(metallicity, (bool, np.bool_)):
+        raise TypeError("metallicity must be a real scalar")
+    value = np.asarray(metallicity)
+    if value.ndim != 0 or np.iscomplexobj(value):
+        raise TypeError("metallicity must be a real scalar")
+    try:
+        metallicity = float(value)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("metallicity must be a real scalar") from exc
+    if not np.isfinite(metallicity):
+        raise ValueError("metallicity must be finite")
+
+    for group_name, metadata in KOSTOGRYZ2026_MODELS.items():
+        if metadata["model"] == model and np.isclose(
+            float(metadata["metallicity"]), metallicity, rtol=0.0, atol=1e-12
+        ):
+            return group_name, metadata
+
+    valid_metallicities = sorted(
+        float(metadata["metallicity"])
+        for metadata in KOSTOGRYZ2026_MODELS.values()
+        if metadata["model"] == model
+    )
+    raise ValueError(
+        f"Kostogryz et al. (2026) model {model} has no native "
+        f"[M/H]={metallicity}. Available metallicities for {model} are "
+        f"{valid_metallicities}. No interpolation is performed."
+    )
+
+
+def _normalize_kostogryz2026_magnetization(magnetic_state: str) -> str:
+    """Return an exact source magnetization label without interpolation."""
+
+    normalized = str(magnetic_state).strip().lower()
+    aliases = {
+        "hd": "hydro",
+        "hydro": "hydro",
+        "hydrodynamic": "hydro",
+        "ssd": "ssd",
+        "b100g": "B100G",
+        "b200g": "B200G",
+        "b300g": "B300G",
+    }
+    try:
+        return aliases[normalized]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown Kostogryz et al. (2026) magnetic state "
+            f"'{magnetic_state}'. Available native states are "
+            f"{list(KOSTOGRYZ2026_MAGNETIZATIONS)}."
+        ) from exc
+
+
+def _kostogryz2026_cache_dir(
+    library_root: str | Path | None = None,
+) -> Path:
+    root = (
+        get_library_root()
+        if library_root is None
+        else Path(library_root).expanduser()
+    )
+    return root / "kostogryz2026"
+
+
+def _resolve_kostogryz2026_file_url(filename: str) -> str:
+    """Resolve one pinned Kostogryz V1.0 file through the Edmond API."""
+
+    try:
+        expected = KOSTOGRYZ2026_RELEASE_FILES[filename]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown Kostogryz et al. (2026) release file '{filename}'."
+        ) from exc
+    return _resolve_edmond_datafile_url(
+        KOSTOGRYZ2026_DATASET_API_URL,
+        expected,
+        "Kostogryz et al. (2026)",
+        expected_version=KOSTOGRYZ2026_DATASET_VERSION,
+    )
+
+
+def _verify_cached_kostogryz2026_file(path: Path) -> None:
+    """Validate one cached HDF5 product against the pinned V1.0 metadata."""
+
+    metadata = KOSTOGRYZ2026_RELEASE_FILES[path.name]
+    expected_size = int(metadata["filesize"])
+    actual_size = path.stat().st_size
+    if actual_size != expected_size:
+        raise ValueError(
+            f"Cached Kostogryz et al. (2026) file {path} has size "
+            f"{actual_size} bytes; expected {expected_size}. Use "
+            "overwrite=True to refresh it."
+        )
+    actual_md5 = pooch.file_hash(path, alg="md5")
+    if actual_md5 != metadata["md5"]:
+        raise ValueError(
+            f"Cached Kostogryz et al. (2026) file {path} failed its "
+            "published MD5 checksum. Use overwrite=True to refresh it."
+        )
+
+
+def download_kostogryz2026_spectra(
+    model: str | None = None,
+    metallicity: float = 0.0,
+    overwrite: bool = False,
+    library_root: str | Path | None = None,
+) -> Path:
+    """Download Kostogryz et al. (2026) specific-intensity spectra.
+
+    Parameters
+    ----------
+    model : {"F3", "G2", "K0", "K4", "M0", "M2", "M4"}, optional
+        Download one stellar model. A trailing ``V`` is accepted as an alias.
+        If omitted, all nine model/metallicity products are downloaded.
+    metallicity : float, optional
+        Exact native [M/H] for ``model``. Only G2 has non-solar products.
+        Ignored when ``model`` is omitted.
+    overwrite : bool, optional
+        Refresh the selected file, or all nine files when ``model`` is omitted.
+    library_root : str or Path, optional
+        Base cache directory. Defaults to :func:`get_library_root`.
+
+    Returns
+    -------
+    Path
+        The dedicated ``kostogryz2026`` cache directory.
+    """
+
+    if model is None:
+        selected_groups = tuple(KOSTOGRYZ2026_MODELS)
+    else:
+        group_name, _ = _normalize_kostogryz2026_selection(model, metallicity)
+        selected_groups = (group_name,)
+
+    cache_dir = _kostogryz2026_cache_dir(library_root)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for group_name in selected_groups:
+        filename = str(KOSTOGRYZ2026_MODELS[group_name]["filename"])
+        metadata = KOSTOGRYZ2026_RELEASE_FILES[filename]
+        local_path = cache_dir / filename
+        if overwrite:
+            local_path.unlink(missing_ok=True)
+        elif local_path.exists():
+            try:
+                _verify_cached_kostogryz2026_file(local_path)
+            except ValueError as exc:
+                local_path.unlink(missing_ok=True)
+                raise ValueError(
+                    f"{exc} The invalid cached file was removed; retry to "
+                    "download a fresh copy."
+                ) from exc
+            continue
+
+        url = _resolve_kostogryz2026_file_url(filename)
+        try:
+            retrieved = Path(
+                pooch.retrieve(
+                    url=url,
+                    fname=filename,
+                    path=cache_dir,
+                    known_hash=f"md5:{metadata['md5']}",
+                    processor=None,
+                    progressbar=True,
+                )
+            )
+            if retrieved.stat().st_size != int(metadata["filesize"]):
+                raise ValueError(f"Downloaded {filename} has an unexpected size.")
+        except Exception as exc:  # pragma: no cover - real download failure
+            local_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Unable to download Kostogryz et al. (2026) "
+                f"{group_name} spectra from Edmond: {exc}"
+            ) from exc
+
+    return cache_dir
+
+
+def _decode_hdf5_text(value) -> str:
+    """Return a Python string from an HDF5 byte or string scalar."""
+
+    if isinstance(value, bytes):
+        return value.decode()
+    return str(value)
+
+
+def _kostogryz2026_magnetic_metadata(source_label: str) -> tuple[str, u.Quantity | None]:
+    if source_label == "hydro":
+        return "hydrodynamic", None
+    if source_label == "ssd":
+        return "small_scale_dynamo", None
+    return "imposed_vertical_field", float(source_label[1:-1]) * u.G
+
+
+def load_kostogryz2026_intensities(
+    model: str,
+    metallicity: float = 0.0,
+    magnetic_state: str = "ssd",
+    *,
+    library_root: str | Path | None = None,
+) -> tuple[u.Quantity, u.Quantity, np.ndarray, dict]:
+    """Load all native-mu intensities for one exact Kostogryz model state."""
+
+    import h5py
+
+    group_name, model_metadata = _normalize_kostogryz2026_selection(
+        model, metallicity
+    )
+    source_label = _normalize_kostogryz2026_magnetization(magnetic_state)
+    cache_dir = download_kostogryz2026_spectra(
+        str(model_metadata["model"]),
+        float(model_metadata["metallicity"]),
+        library_root=library_root,
+    )
+    filename = str(model_metadata["filename"])
+    source_path = cache_dir / filename
+
+    try:
+        with h5py.File(source_path, "r") as h5_file:
+            if group_name not in h5_file:
+                raise ValueError(f"missing top-level group {group_name}")
+            group = h5_file[group_name]
+            required = {
+                "mu",
+                "wavelengths",
+                "magnetizations",
+                "teff",
+                "spectra",
+                "limb_darkening",
+                "integrated_flux",
+            }
+            missing = sorted(required.difference(group.keys()))
+            if missing:
+                raise ValueError(f"missing datasets {missing}")
+
+            source_mu = np.asarray(group["mu"][:], dtype=float)
+            wavelength_values = np.asarray(group["wavelengths"][:], dtype=float)
+            magnetizations = tuple(
+                _decode_hdf5_text(value)
+                for value in group["magnetizations"][:]
+            )
+            teff_values = np.asarray(group["teff"][:], dtype=float)
+            spectra = np.asarray(group["spectra"][:], dtype=float)
+            limb_darkening = np.asarray(group["limb_darkening"][:], dtype=float)
+            integrated_flux_shape = group["integrated_flux"].shape
+            wavelength_unit = _decode_hdf5_text(
+                group["wavelengths"].attrs.get("units", "")
+            )
+            intensity_unit = _decode_hdf5_text(
+                group["spectra"].attrs.get("units", "")
+            )
+            source_star_name = _decode_hdf5_text(
+                group.attrs.get("star_name", "")
+            )
+            source_metallicity = float(group.attrs["MH"])
+            source_logg = float(group.attrs["logg"])
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Unable to read Kostogryz et al. (2026) file {source_path}: {exc}"
+        ) from exc
+
+    if source_star_name != group_name:
+        raise ValueError(
+            f"Kostogryz file {source_path} reports star_name={source_star_name!r}; "
+            f"expected {group_name!r}."
+        )
+    if not np.isclose(
+        source_metallicity,
+        float(model_metadata["metallicity"]),
+        rtol=0.0,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} has [M/H]={source_metallicity}; "
+            f"expected {model_metadata['metallicity']}."
+        )
+    expected_source_logg = 4.609 if group_name == "K0_MH_00" else float(
+        model_metadata["logg"]
+    )
+    if not np.isclose(source_logg, expected_source_logg, rtol=0.0, atol=1e-12):
+        raise ValueError(
+            f"Kostogryz file {source_path} has unexpected HDF5 logg={source_logg}."
+        )
+    if magnetizations != KOSTOGRYZ2026_MAGNETIZATIONS:
+        raise ValueError(
+            f"Kostogryz file {source_path} has magnetic states "
+            f"{list(magnetizations)}; expected "
+            f"{list(KOSTOGRYZ2026_MAGNETIZATIONS)}."
+        )
+    if source_mu.shape != KOSTOGRYZ2026_NATIVE_MU.shape or not np.allclose(
+        source_mu,
+        KOSTOGRYZ2026_NATIVE_MU,
+        rtol=0.0,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} does not contain the ten expected "
+            "native mu values 0.1 through 1.0."
+        )
+    if wavelength_values.shape != (978,):
+        raise ValueError(
+            f"Kostogryz file {source_path} must contain 978 wavelengths."
+        )
+    if (
+        not np.all(np.isfinite(wavelength_values))
+        or np.any(wavelength_values <= 0)
+        or not np.all(np.diff(wavelength_values) > 0)
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} must have finite, positive, "
+            "strictly increasing wavelengths."
+        )
+    if not np.isclose(wavelength_values[0], 200.50003, rtol=0.0, atol=1e-8) or not np.isclose(
+        wavelength_values[-1], 9980.0014, rtol=0.0, atol=1e-8
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} has unexpected wavelength coverage."
+        )
+    if np.allclose(np.diff(wavelength_values), np.diff(wavelength_values)[0]):
+        raise ValueError(
+            f"Kostogryz file {source_path} unexpectedly has uniform sampling."
+        )
+    expected_spectra_shape = (
+        len(KOSTOGRYZ2026_MAGNETIZATIONS),
+        wavelength_values.size,
+        source_mu.size,
+    )
+    if spectra.shape != expected_spectra_shape:
+        raise ValueError(
+            f"Kostogryz file {source_path} has spectra shape {spectra.shape}; "
+            f"expected {expected_spectra_shape}."
+        )
+    if limb_darkening.shape != expected_spectra_shape:
+        raise ValueError(
+            f"Kostogryz file {source_path} has limb_darkening shape "
+            f"{limb_darkening.shape}; expected {expected_spectra_shape}."
+        )
+    if integrated_flux_shape != expected_spectra_shape[:2]:
+        raise ValueError(
+            f"Kostogryz file {source_path} has integrated_flux shape "
+            f"{integrated_flux_shape}; expected {expected_spectra_shape[:2]}."
+        )
+    if teff_values.shape != (len(KOSTOGRYZ2026_MAGNETIZATIONS),) or not np.all(
+        np.isfinite(teff_values) & (teff_values > 0)
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} has invalid spectrum-derived "
+            "effective temperatures."
+        )
+    if not np.all(np.isfinite(spectra)) or np.any(spectra < 0):
+        raise ValueError(
+            f"Kostogryz file {source_path} contains nonfinite or negative "
+            "specific intensities."
+        )
+    disk_center = spectra[:, :, [-1]]
+    if np.any(disk_center <= 0) or not np.allclose(
+        limb_darkening,
+        spectra / disk_center,
+        rtol=1e-12,
+        atol=0.0,
+    ):
+        raise ValueError(
+            f"Kostogryz file {source_path} has limb_darkening values that do "
+            "not match spectra normalized at mu=1."
+        )
+    if wavelength_unit != "nm, in vacuum":
+        raise ValueError(
+            f"Kostogryz file {source_path} has unsupported wavelength unit "
+            f"{wavelength_unit!r}."
+        )
+    if intensity_unit != KOSTOGRYZ2026_SOURCE_INTENSITY_UNIT:
+        raise ValueError(
+            f"Kostogryz file {source_path} has unsupported intensity unit "
+            f"{intensity_unit!r}."
+        )
+
+    magnetic_index = magnetizations.index(source_label)
+    category, imposed_field = _kostogryz2026_magnetic_metadata(source_label)
+    notes = []
+    if group_name == "G2_MH_p05":
+        notes.append(
+            "The filename, HDF5 MH attribute, README, and paper establish "
+            "[M/H]=+0.5; the Edmond file description incorrectly says 0.0."
+        )
+    if group_name == "K0_MH_00":
+        notes.append(
+            "Paper Table 1 and the Edmond file description establish logg=4.4; "
+            "the HDF5 attribute incorrectly contains the K4 value 4.609."
+        )
+    if group_name == "K4_MH_00":
+        notes.append(
+            "The HDF5 teff array is used for spectrum-derived temperatures; "
+            "the Edmond file description's Teff=4293 K is inconsistent with "
+            "the archive and paper."
+        )
+
+    wavelength = (wavelength_values * u.nm).to(u.AA)
+    # The archive coordinate is stored in nm, but its intensity values are
+    # already densities per Angstrom. Changing only the coordinate display to
+    # Angstrom must therefore not introduce a factor-of-ten density conversion.
+    intensities = (
+        spectra[magnetic_index].T * KOSTOGRYZ2026_INTENSITY_UNIT
+    )
+    file_metadata = KOSTOGRYZ2026_RELEASE_FILES[filename]
+    metadata = {
+        "source_library": "kostogryz2026",
+        "source_library_name": "Kostogryz et al. (2026)",
+        "stellar_model": str(model_metadata["model"]),
+        "source_model_identifier": group_name,
+        "metallicity": float(model_metadata["metallicity"]),
+        "logg": float(model_metadata["logg"]),
+        "source_hdf5_logg": source_logg,
+        "magnetic_state": source_label,
+        "magnetic_state_category": category,
+        "source_magnetization_label": source_label,
+        "imposed_vertical_field": imposed_field,
+        "teff_spectrum": teff_values[magnetic_index] * u.K,
+        "paper_reference": "Kostogryz et al. (2026)",
+        "paper_title": (
+            "Effect of surface magnetic fields on limb darkening in "
+            "main-sequence stars"
+        ),
+        "paper_arxiv": KOSTOGRYZ2026_PAPER_ARXIV,
+        "data_doi": KOSTOGRYZ2026_DATASET_DOI.removeprefix("doi:"),
+        "dataset_version": ".".join(
+            str(value) for value in KOSTOGRYZ2026_DATASET_VERSION
+        ),
+        "source_filename": filename,
+        "source_filesize": int(file_metadata["filesize"]),
+        "source_md5": str(file_metadata["md5"]),
+        "source_wavelength_unit": wavelength_unit,
+        "source_intensity_unit": intensity_unit,
+        "intensity_definition": "temporally and spatially averaged I_lambda(mu)",
+        "wavelength_convention": "vacuum",
+        "native_wavelength_points": int(wavelength_values.size),
+        "native_wavelength_min": wavelength_values[0] * u.nm,
+        "native_wavelength_max": wavelength_values[-1] * u.nm,
+        "native_sampling": "nonuniform ODF wavelength grid",
+        "native_resolving_power": (
+            "approximately 400 in the visible (paper; ODF grid is nonuniform)"
+        ),
+        "native_mu_values": tuple(float(value) for value in source_mu),
+        "metadata_notes": tuple(notes),
+    }
+    return wavelength, intensities, source_mu.copy(), metadata
 
 
 def _normalize_mps_atlas_key(

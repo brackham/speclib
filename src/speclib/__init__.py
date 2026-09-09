@@ -15,10 +15,19 @@ except PackageNotFoundError:
     except Exception:
         __version__ = "unknown"
 
-from .core import Spectrum, BinnedSpectrum, SpectralGrid, BinnedSpectralGrid
+from .core import (
+    Spectrum,
+    BinnedSpectrum,
+    SpecificIntensitySpectrum,
+    BinnedSpecificIntensitySpectrum,
+    SpecificIntensityGrid,
+    SpectralGrid,
+    BinnedSpectralGrid,
+)
 from .photometry import Filter, SED, SEDGrid, apply_filter, mag_to_flux
 from .utils import (
     download_file,
+    download_kostogryz2026_spectra,
     download_mps_atlas_grid,
     download_newera_grid,
     download_phoenix_grid,
@@ -29,6 +38,9 @@ from .utils import (
 __all__ = [
     "Spectrum",
     "BinnedSpectrum",
+    "SpecificIntensitySpectrum",
+    "BinnedSpecificIntensitySpectrum",
+    "SpecificIntensityGrid",
     "SpectralGrid",
     "BinnedSpectralGrid",
     "Filter",
@@ -37,6 +49,7 @@ __all__ = [
     "apply_filter",
     "mag_to_flux",
     "download_file",
+    "download_kostogryz2026_spectra",
     "download_phoenix_grid",
     "download_mps_atlas_grid",
     "download_newera_grid",

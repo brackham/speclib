@@ -72,10 +72,8 @@ Downloaded spectral libraries are stored in `~/.speclib/libraries` by default.
 Set the `SPECLIB_LIBRARY_PATH` environment variable or call
 `speclib.utils.set_library_root("/path/to/cache")` to use a different location.
 
-Download, extraction, storage, and interpolation behavior for PHOENIX,
-MPS-ATLAS, SPHINX, NewEra, and the discrete Smitha et al. (2025) stellar
-surface-component spectra are documented in the
-[model library reference](https://speclib.readthedocs.io/en/latest/models/index.html).
+See the [model library reference](https://speclib.readthedocs.io/en/latest/models/index.html)
+for supported spectra and their download, storage, and interpolation behavior.
 
 ---
 

@@ -9,6 +9,7 @@ operations. The :doc:`../tutorials/index` provides executable workflows; the
    :maxdepth: 1
 
    spectra
+   specific_intensities
    spectral_grids
    model_libraries
    interpolation

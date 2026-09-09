@@ -60,6 +60,9 @@ Data implications differ by model family:
   ``download_smitha2025_spectra()`` prefetches all three. This release is three
   small spectral files rather than a large grid archive; they are cached in
   ``smitha2025`` and checked against the Edmond v1.0 sizes and MD5 hashes.
+* Kostogryz intensity models are downloaded when first requested and cached
+  under ``kostogryz2026``. Use ``download_kostogryz2026_spectra`` to prefetch
+  one model or the full library.
 * :func:`~speclib.download_newera_grid` caches one reduced-resolution archive
   (about 845 MB to 18.2 GB, depending on flavor). It does not extract the
   archive by default; loaders extract a requested metallicity file on demand.
