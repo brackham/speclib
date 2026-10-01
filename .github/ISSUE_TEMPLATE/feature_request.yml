@@ -1,0 +1,36 @@
+name: Feature / API request
+description: Discuss a feature, public API change, or architectural proposal.
+body:
+  - type: markdown
+    attributes:
+      value: Use this form to discuss substantial changes before implementation. Early ideas are welcome.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Scientific or user-facing use case
+      description: What problem would this solve, and who would benefit?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired result; an initial idea is enough.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Example API
+      description: If applicable, show how you would use the proposed interface.
+      render: python
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: What have you tried or considered?
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact on existing behavior
+      description: Would this change public behavior, compatibility, or scientific assumptions? Say if none or uncertain.
