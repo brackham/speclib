@@ -4,10 +4,11 @@ from pathlib import Path
 
 import astropy.io.fits as fits
 import astropy.units as u
+from astropy.wcs import WCS
 import numpy as np
 import speclib.utils as utils
 from scipy.interpolate import NearestNDInterpolator
-from specutils import Spectrum1D
+from specutils import Spectrum as SpecutilsSpectrum
 
 import warnings
 
@@ -750,9 +751,9 @@ def _bin_spectral_density(wavelength, values, center, width):
     return u.Quantity(binned_values)
 
 
-class Spectrum(Spectrum1D):
+class Spectrum(SpecutilsSpectrum):
     """
-    A wrapper class for `~specutils.Spectrum1D` with extended functionality for
+    A subclass of `~specutils.Spectrum` with extended functionality for
     working with stellar model spectra.
 
     This class adds capabilities to:
@@ -764,11 +765,19 @@ class Spectrum(Spectrum1D):
     Parameters
     ----------
     **kwargs : dict
-        Arguments passed to the base `Spectrum1D` initializer.
+        Arguments passed to the base `~specutils.Spectrum` initializer.
+        For multidimensional flux, an explicit spectral axis defaults to the
+        last flux dimension. FITS WCS inputs move the spectral dimension last
+        by default, preserving the existing speclib convention. Override with
+        ``spectral_axis_index`` or ``move_spectral_axis`` as needed.
 
     """
 
     def __init__(self, **kwargs):
+        if kwargs.get("spectral_axis") is not None:
+            kwargs.setdefault("spectral_axis_index", -1)
+        if isinstance(kwargs.get("wcs"), WCS):
+            kwargs.setdefault("move_spectral_axis", "last")
         super().__init__(**kwargs)
 
     @classmethod
@@ -1733,7 +1742,7 @@ class SpecificIntensitySpectrum(Spectrum):
         Compatibility alias used when copying spectra. Prefer ``intensity``.
         Specify only one of ``intensity`` and ``flux``.
     **kwargs : dict
-        Other arguments passed to :class:`specutils.Spectrum1D`.
+        Other arguments passed to :class:`specutils.Spectrum`.
     """
 
     def __init__(self, *, spectral_axis=None, intensity=None, flux=None, **kwargs):
@@ -1742,8 +1751,8 @@ class SpecificIntensitySpectrum(Spectrum):
         values = intensity if intensity is not None else flux
         intensity_unit = u.erg / (u.s * u.cm**2 * u.sr * u.AA)
         if values is None and "data" in kwargs:
-            # ``Spectrum1D`` slicing first reconstructs the subclass through
-            # NDData's ``data``/``unit`` path, before making a final copy with
+            # Upstream slicing first reconstructs the subclass through NDData's
+            # ``data``/``unit`` path, before making a final copy with
             # explicit ``flux`` and ``spectral_axis`` quantities.
             super().__init__(**kwargs)
             values = self.flux

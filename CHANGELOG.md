@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Migrated `speclib.Spectrum` to `specutils.Spectrum` with `specutils>=2,<3`,
+  preserving the public convenience API and last-spectral-axis defaults.
 - `Spectrum.resample()` now preserves an independent copy of input metadata,
   including Smitha et al. source provenance.
 

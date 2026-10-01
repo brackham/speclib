@@ -30,7 +30,7 @@ Build a toy spectrum whose wavelength and flux carry Astropy units:
    )
 
 ``spectrum.wavelength`` and ``spectrum.flux`` are Astropy quantities. The
-usual ``Spectrum1D`` attributes and slicing behavior remain available.
+usual ``specutils.Spectrum`` attributes and slicing behavior remain available.
 
 Change resolution and sampling
 ------------------------------
