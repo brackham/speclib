@@ -2334,12 +2334,30 @@ def download_newera_hsr_subset(
 
 def find_bounds(array, value):
     """
-    Find and return the two nearest values in an array to a given value.
-    """
-    array = np.array(array)
-    idxs = np.argsort(np.abs(array - value))[0:2]
+    Return ascending grid values bounding a requested value.
 
-    return np.sort(array[idxs])
+    For an interior value between grid points, return the greatest value
+    below it and the smallest value above it. Exact matches return a
+    one-element array, as do grids with only one distinct value. Outside
+    the grid range, return the two distinct values nearest that endpoint;
+    callers retain responsibility for clamping or rejecting the request.
+
+    Input must be a nonempty one-dimensional numeric grid. Unsorted inputs
+    and duplicates are supported; the returned array is sorted, unique,
+    and retains the input dtype.
+    """
+    array = np.asarray(array)
+    if array.ndim != 1 or array.size == 0:
+        raise ValueError("Grid must be a nonempty one-dimensional array")
+    array = np.unique(array)
+    index = np.searchsorted(array, value)
+    if index < array.size and array[index] == value:
+        return array[index:index + 1]
+    if array.size == 1:
+        return array
+
+    index = np.clip(index, 1, array.size - 1)
+    return array[index - 1:index + 1]
 
 
 def interpolate(fluxes, xlims, x):

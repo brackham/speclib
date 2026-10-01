@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Spectrum.resample()` now preserves an independent copy of input metadata,
   including Smitha et al. source provenance.
 
+### Fixed
+
+- `find_bounds()` now selects true interpolation brackets on nonuniform grids,
+  preventing spectrum interpolation from using two points on the same side
+  of a requested coordinate.
+
 
 ## [0.1.0b12] - 2026-08-21
 
