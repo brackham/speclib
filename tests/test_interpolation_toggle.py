@@ -112,6 +112,8 @@ def mock_newera_grid(monkeypatch):
 
     def fake_load_wave(teff, logg, feh, alpha=0.0, grid_name="newera_jwst"):
         assert grid_name == "newera_jwst"
+        if teff not in teffs or logg not in loggs or feh not in fehs:
+            raise ValueError("No matching native spectrum")
         return wavelength.copy()
 
     def fake_load_flux(teff, logg, feh, alpha=0.0, grid_name="newera_jwst"):

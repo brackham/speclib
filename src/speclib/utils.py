@@ -50,7 +50,14 @@ __all__ = [
 
 LIBRARY_ENVVAR = "SPECLIB_LIBRARY_PATH"
 NEWERA_RECORD_ENVVAR = "SPECLIB_NEWERA_RECORD_ID"
-NEWERA_DEFAULT_RECORD_ID = "17935"
+NEWERA_DEFAULT_RECORD_ID = "18108"
+NEWERA_ADDITIONAL_RECORD_ID = "17936"
+# File catalog for the pinned additional-model record (not the removed text list).
+NEWERA_ADDITIONAL_CATALOG_URL = (
+    "https://www.fdr.uni-hamburg.de/api/files/"
+    "4cfe0102-9da6-427e-932c-97fb710143bc"
+)
+NEWERA_ADDITIONAL_CATALOG_FILENAME = "newera_additional_17936.json"
 
 NEWERA_INDEX_FILENAME = "list_of_available_NewEraV3_models.txt"
 NEWERA_TARBALLS: dict[str, str] = {
@@ -333,6 +340,7 @@ _NEWERA_MODEL_LINE_RE = re.compile(
     r"(?P<logg_sign>[+-])(?P<logg>\d\.\d{2})"
     r"(?P<feh_sign>[+-])(?P<feh>\d\.\d)"
     r"(?:\.alpha=(?P<alpha_sign>[+-])(?P<alpha>\d\.\d))?"
+    r"(?:\.Vega)?"
     r"\.PHOENIX-NewEra(?:V[0-9.]+)?-ACES-COND-(?P<year>\d{4})\.HSR\.h5"
     r")",
     re.IGNORECASE,
@@ -378,7 +386,7 @@ def set_library_root(path: str | Path | None) -> Path:
 
 
 def get_newera_record_id() -> str:
-    """Return the record ID hosting the NewEra V3.4 release."""
+    """Return the FDR release record for NewEra V3 (default: release 3.5)."""
 
     return os.environ.get(NEWERA_RECORD_ENVVAR, NEWERA_DEFAULT_RECORD_ID)
 
@@ -412,9 +420,9 @@ def _normalize_newera_key(
 
 def _ensure_newera_index(cache_dir: Path, record_id: str) -> Path:
     """Ensure the NewEra index file is present locally, downloading if needed."""
-    existing = sorted(cache_dir.glob("list_of_available_NewEra*.txt"), reverse=True)
-    if existing:
-        return existing[0]
+    index_path = cache_dir / NEWERA_INDEX_FILENAME
+    if index_path.exists():
+        return index_path
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     base_url = _get_newera_base_url(record_id)
@@ -431,6 +439,21 @@ def _ensure_newera_index(cache_dir: Path, record_id: str) -> Path:
         return cache_dir / NEWERA_INDEX_FILENAME
     except Exception as exc:  # pragma: no cover - network dependent
         raise FileNotFoundError(f"Unable to download NewEra model list: {exc}")
+
+
+def _newera_model_key(match) -> tuple[int, float, float, float]:
+    """Decode one authoritative HSR filename, including named benchmarks."""
+    alpha = (
+        float(match.group("alpha_sign") + match.group("alpha"))
+        if match.group("alpha_sign")
+        else 0.0
+    )
+    return _normalize_newera_key(
+        int(match.group("teff")),
+        -float(match.group("logg_sign") + match.group("logg")),
+        float(match.group("feh_sign") + match.group("feh")),
+        alpha,
+    )
 
 
 def load_newera_model_list(
@@ -453,8 +476,12 @@ def load_newera_model_list(
     Returns
     -------
     dict
-        Dictionary with keys ``"entries"`` (mapping parameter tuples to filenames),
-        ``"path"`` (the index file path), and ``"record_id"``.
+        ``"entries"`` maps native parameter tuples to filenames; ``"urls"``
+        maps the same tuples to authoritative HSR download URLs. ``"path"``
+        and ``"record_id"`` identify the main inventory. For the canonical
+        release, ``"additional_path"`` and ``"additional_record_id"`` identify
+        the supplemental file catalog. Custom record overrides use only their
+        own main inventory.
     """
 
     if cache_dir is None:
@@ -474,26 +501,46 @@ def load_newera_model_list(
     index_path = _ensure_newera_index(cache_dir, record)
 
     entries: dict[tuple[int, float, float, float], str] = {}
+    urls = {}
     with open(index_path, "r") as handle:
         for line in handle:
             match = _NEWERA_MODEL_LINE_RE.search(line)
             if not match:
                 continue
 
-            teff = int(match.group("teff"))
-            logg = -float(match.group("logg_sign") + match.group("logg"))
-            feh = float(match.group("feh_sign") + match.group("feh"))
-
-            alpha_sign = match.group("alpha_sign")
-            if alpha_sign:
-                alpha = float(alpha_sign + match.group("alpha"))
-            else:
-                alpha = 0.0
-
-            key = _normalize_newera_key(teff, logg, feh, alpha)
+            key = _newera_model_key(match)
             entries[key] = match.group("filename")
+            urls[key] = line.split()[-1]
 
-    result = {"entries": entries, "path": index_path, "record_id": record}
+    result = {
+        "entries": entries,
+        "urls": urls,
+        "path": index_path,
+        "record_id": record,
+    }
+    if record == NEWERA_DEFAULT_RECORD_ID:
+        additional_path = cache_dir / NEWERA_ADDITIONAL_CATALOG_FILENAME
+        if not additional_path.exists():
+            pooch.retrieve(
+                url=NEWERA_ADDITIONAL_CATALOG_URL,
+                fname=additional_path.name,
+                path=cache_dir,
+                known_hash=None,
+            )
+        catalog = json.loads(additional_path.read_text())
+        for item in catalog["contents"]:
+            if item.get("delete_marker", False):
+                continue
+            match = _NEWERA_MODEL_LINE_RE.fullmatch(item["key"])
+            if match is None:
+                continue
+            key = _newera_model_key(match)
+            # Keep the main V3 spectrum where both sources list the same tuple.
+            if key not in entries:
+                entries[key] = item["key"]
+                urls[key] = item["links"]["self"]
+        result["additional_path"] = additional_path
+        result["additional_record_id"] = NEWERA_ADDITIONAL_RECORD_ID
     _NEWERA_INDEX_CACHE[cache_key] = result
     return result
 
@@ -548,14 +595,14 @@ def download_newera_file(
         fname = model_list["entries"][key]
     except KeyError as exc:
         raise FileNotFoundError(
-            "Requested NewEra model is not listed in the available V3.4 grid: "
+            "Requested NewEra model is not listed in the native inventory: "
             f"Teff={teff}, logg={logg}, [M/H]={zscale}, [alpha/Fe]={alpha_scale}"
         ) from exc
 
     local_path = cache_dir / fname
 
     if not local_path.exists():
-        url = _get_newera_file_url(fname, record_id)
+        url = model_list["urls"][key]
         download_file(url, local_path, verbose=verbose)
 
     return local_path
@@ -2011,7 +2058,7 @@ def download_newera_grid(
     Note
     ----
     This function fetches reduced-resolution NewEra grids from the PHOENIX/1D
-    NewEra **V3.4** release (record 17935) hosted by FDR Hamburg, suitable for
+    NewEra **V3** spectra in **FDR release 3.5** (record 18108), suitable for
     most applications (e.g., forward modeling, calibration).
     """
     if grid_name not in NEWERA_TARBALLS:
@@ -2259,10 +2306,14 @@ def download_newera_hsr_subset(
     -------
     This function accesses the **full-resolution NewEra HSR grid**, which totals ~4.5 TB.
     Use only when you need high-resolution spectra over specific parameter ranges.
+
+    Notes
+    -----
+    Filters actual native tuples from the NewEra V3 inventory in FDR release
+    3.5 (record 18108) and the additional-model catalog in record 17936.
+    Sparse special models are included. Downloads follow inventory URLs.
     """
-    import itertools
     import os
-    import numpy as np
     import warnings
 
     record_id = get_newera_record_id()
@@ -2272,35 +2323,16 @@ def download_newera_hsr_subset(
     model_list = load_newera_model_list(cache_dir=cache_dir, record_id=record_id)
     entries = model_list["entries"]
 
-    # Define grid step sizes
-    delta_teff = 100
-    delta_logg = 0.5
-    delta_feh = 0.5
-    delta_alpha = 0.2
-
-    # Construct grid lists from ranges
-    teffs = (
-        np.arange(teff_range[0], teff_range[1] + 1, delta_teff)
-        if teff_range
-        else GRID_POINTS["newera"]["grid_teffs"]
-    )
-    loggs = (
-        np.arange(logg_range[0], logg_range[1] + 0.001, delta_logg)
-        if logg_range
-        else GRID_POINTS["newera"]["grid_loggs"]
-    )
-    fehs = (
-        np.arange(feh_range[0], feh_range[1] + 0.001, delta_feh)
-        if feh_range
-        else GRID_POINTS["newera"]["grid_fehs"]
-    )
-    alphas = (
-        np.arange(alpha_range[0], alpha_range[1] + 0.001, delta_alpha)
-        if alpha_range
-        else GRID_POINTS["newera"]["grid_alphas"]
-    )
-
-    param_combos = list(itertools.product(teffs, loggs, fehs, alphas))
+    # This downloader selects native tuples, including sparse special models;
+    # the regular interpolation backbone does not describe their availability.
+    ranges = (teff_range, logg_range, feh_range, alpha_range)
+    param_combos = [
+        key for key in sorted(entries)
+        if all(
+            bounds is None or bounds[0] <= value <= bounds[1]
+            for value, bounds in zip(key, ranges)
+        )
+    ]
 
     # Warn if attempting to download the full grid
     if not any([teff_range, logg_range, feh_range, alpha_range]):
@@ -2324,7 +2356,7 @@ def download_newera_hsr_subset(
             print(f"⬇ Downloading {fname}")
 
         if overwrite or not local_path.exists():
-            url = _get_newera_file_url(fname, record_id)
+            url = model_list["urls"][key]
             try:
                 download_file(url, local_path, verbose=verbose)
             except Exception as e:
@@ -2536,8 +2568,8 @@ def load_newera_wavelength_array(
             except Exception:
                 continue
 
-            if np.isclose(header_teff, teff, atol=1.0) and np.isclose(
-                header_logg, logg, atol=0.1
+            if np.isclose(header_teff, teff, rtol=0.0, atol=1e-8) and np.isclose(
+                header_logg, logg, rtol=0.0, atol=1e-8
             ):
                 res = float(header[7])
                 wl_start = float(header[9])
@@ -2642,8 +2674,8 @@ def load_newera_flux_array(
                 continue
 
             flux_line = f.readline()
-            if np.isclose(header_teff, teff, atol=1.0) and np.isclose(
-                header_logg, logg, atol=0.1
+            if np.isclose(header_teff, teff, rtol=0.0, atol=1e-8) and np.isclose(
+                header_logg, logg, rtol=0.0, atol=1e-8
             ):
                 flux = np.loadtxt(io.StringIO(flux_line), unpack=True)
                 return flux
@@ -2742,9 +2774,11 @@ VALID_MODELS = [
     "sphinx",
 ]
 
-# Shared grid values for all NewEra subtypes
+# Shared regular interpolation backbone; native availability is product-specific.
 newera_grid = {
-    "grid_teffs": np.arange(2300, 12001, 100),
+    "grid_teffs": np.concatenate(
+        [np.arange(2300, 7100, 100), np.arange(7200, 12001, 200)]
+    ),
     "grid_loggs": np.arange(0.0, 6.1, 0.5),
     "grid_fehs": np.array([-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]),
     # α-enhanced models only for -2.0 ≤ [M/H] ≤ 0.0

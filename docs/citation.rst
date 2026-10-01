@@ -38,8 +38,10 @@ Also cite the data product underlying your result:
   <https://arxiv.org/abs/2606.21912>`_ and the `Kostogryz Edmond V1.0 release
   <https://doi.org/10.17617/3.FBTIYY>`_.
 * PHOENIX/1D NewEra: `Hauschildt et al. (2025)
-  <https://doi.org/10.1051/0004-6361/202554171>`_ and the `V3.4 FDR release
-  <https://doi.org/10.25592/uhhfdm.17935>`_.
+  <https://doi.org/10.1051/0004-6361/202554171>`_ and `FDR release 3.5
+  <https://doi.org/10.25592/uhhfdm.18108>`_ of the V3 spectral products.
+  When using supplemental HSR models, also cite the
+  `additional-model record 17936 <https://doi.org/10.25592/uhhfdm.17936>`_.
 
 See :doc:`models/index` for the exact product that each selector loads. The
 repository's contribution-credit policy is available on :doc:`contributing`.

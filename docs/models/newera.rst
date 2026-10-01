@@ -5,26 +5,37 @@ Family and version
 ------------------
 
 NewEra is one PHOENIX/1D family with several derived spectral products.
-``speclib`` targets the V3 spectra and V3.4 reduced archives in
-`FDR Hamburg record 17935 <https://doi.org/10.25592/uhhfdm.17935>`_. The model
+``speclib`` targets the NewEra V3 spectra in **FDR release 3.5**,
+`record 18108 <https://doi.org/10.25592/uhhfdm.18108>`_. V3 denotes the
+model/spectral-product version; 3.5 denotes the repository release. The model
 grid is described by `Hauschildt et al. (2025)
 <https://doi.org/10.1051/0004-6361/202554171>`_. It contains LTE,
 spherically symmetric atmospheres computed with updated atomic and molecular
 line data.
 
 The published overall coverage is 2300--12000 K, log g = 0.0--6.0, and
-[M/H] = -4.0--+0.5. Temperature spacing is 100 K below 8000 K and 200 K above;
-log g spacing is 0.5 dex and metallicity spacing is 0.5 dex. For
+[M/H] = -4.0--+0.5. The paper describes a nominal temperature spacing of
+100 K below 8000 K and 200 K above. The released V3 inventory instead has a
+regular backbone of **2300--7000 K by 100 K, then 7200--12000 K by 200 K**;
+``speclib`` uses this released sequence for interpolation/grid construction.
+Log g spacing is 0.5 dex and metallicity spacing is 0.5 dex. For
 -2.0 <= [M/H] <= 0.0, a subset has [alpha/Fe] from -0.2 to +1.2 in 0.2 dex
 steps. The scientific grid is explicitly incomplete because some static
-atmospheres are physically unavailable.
+atmospheres are physically unavailable. Independent axis membership does not
+establish that a model tuple exists.
+
+Sparse native models at 3350, 5770, 6050, and 6060 K are available in the main
+reduced products; HSR also includes the named 9602 K Vega model. Exact
+``Spectrum.from_grid`` requests consult the selected product's inventory or
+headers, including these special models. They are not added as global
+interpolation planes.
 
 Reduced flavors
 ---------------
 
 All three selectors read the upstream Gaia-style text format: a header and
 one flux row per model, with linear wavelength samples in nm and flux in
-``W / (m2 nm)``. The following values come from the V3.4 files' own headers;
+``W / (m2 nm)``. The following values come from the V3 files' own headers;
 the step is a sampling interval, not a verified Gaussian FWHM or resolving
 power.
 
@@ -81,18 +92,33 @@ intentional. ``overwrite=True`` clears that flavor's cache before fetching a
 fresh archive.
 
 The ``newera`` selector is different: it obtains individual high-sampling-rate
-HDF5 models from the V3 list. The public ``download_newera_hsr_subset`` utility
+HDF5 models using the download links in ``list_of_available_NewEraV3_models.txt``
+from record 18108 (HSR records 16738 and 17670). Native availability also
+includes the explicit file catalog of the current
+`additional-model record 17936 <https://doi.org/10.25592/uhhfdm.17936>`_. This
+replaces the additional-model text list removed in release 3.5; there is no
+fallback to an older repository release. Main V3 spectra take precedence
+where the two inventories overlap.
+
+The public ``download_newera_hsr_subset`` utility
 is not exported at package root and its unconstrained collection is
 approximately 4.5 TB. Prefer one of the reduced flavors unless a scientific
-requirement specifically demands HSR data.
+requirement specifically demands HSR data. This downloader filters actual
+native tuples by inclusive parameter ranges, including special models.
+
+HSR and reduced availability are distinct. The main Gaia/JWST/LowRes archives
+share an alpha-zero model set; their archive loaders do not automatically
+include the separate ``add001`` reduced files in record 18108. These supplemental
+products add [M/H] = +0.5 combinations, not new temperature planes. The Gaia
+archive filename retains the upstream ``v3.4`` suffix in release 3.5.
+``SPECLIB_NEWERA_RECORD_ID`` still overrides the main release record; a custom
+record uses its own inventory without merging the canonical supplemental
+catalog. Existing unchanged V3 archives can be reused from the cache.
 
 Interpolation and caveats
 -------------------------
 
-``speclib`` currently declares a 100 K temperature axis all the way to
-12000 K for these selectors, while the published grid uses 200 K spacing above
-8000 K. Treat actual files—not the declared axis—as authoritative in that
-regime. For reduced grids, interpolation fixes ``alpha`` and is trilinear in
+For reduced grids, interpolation fixes ``alpha`` and is trilinear in
 Teff, log g, and metallicity when all corners exist; in a ``SpectralGrid``, a
 missing corner falls back to nearest-neighbor evaluation.
 

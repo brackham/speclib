@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- NewEra V3 now targets FDR release 3.5 (record 18108), with explicit
+  supplemental HSR availability from record 17936 and inventory-provided
+  download URLs.
+- Corrected the regular NewEra temperature backbone to 2300--7000 K by 100 K
+  and 7200--12000 K by 200 K. Sparse native special/benchmark models remain
+  available for exact retrieval without becoming interpolation planes.
+- NewEra grid construction skips missing native tuples, and HSR subset
+  downloads filter the actual inventory rather than Cartesian axis products.
 - Migrated `speclib.Spectrum` to `specutils.Spectrum` with `specutils>=2,<3`,
   preserving the public convenience API and last-spectral-axis defaults.
 - `Spectrum.resample()` now preserves an independent copy of input metadata,
