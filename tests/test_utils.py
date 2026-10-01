@@ -1,6 +1,47 @@
 from speclib import download_newera_grid as public_download_newera_grid
 from speclib.utils import nearest, trilinear_interpolate
 import speclib.utils as utils
+import numpy as np
+import pytest
+
+
+@pytest.mark.parametrize("grid, value, expected", [
+    ([6800, 6900, 7000, 7200, 7400], 7030, [7000, 7200]),
+    ([6800, 6900, 7000, 7200, 7400], 7170, [7000, 7200]),
+    ([10, 20, 30, 40], 21, [20, 30]),
+    ([10, 20, 30, 40], 29, [20, 30]),
+    ([0.0, 0.1, 0.2, 0.5], 0.23, [0.2, 0.5]),
+    ([30, 10, 40, 20], 21, [20, 30]),
+    ([10, 20, 20, 30], 21, [20, 30]),
+    ([10, 20, 20, 30], 20, [20]),
+    ([10, 20, 30], 10, [10]),
+    ([10, 20, 30], 20, [20]),
+    ([10, 20, 30], 30, [30]),
+    ([10, 20, 30], 0, [10, 20]),
+    ([10, 20, 30], 40, [20, 30]),
+    ([10, 10, 20, 30, 30], 0, [10, 20]),
+    ([10, 10, 20, 30, 30], 40, [20, 30]),
+    ([10], 0, [10]),
+    ([10], 10, [10]),
+    ([10], 20, [10]),
+    ([10, 10], 11, [10]),
+    ([10, 20], 15, [10, 20]),
+    ([10, 20], 10, [10]),
+    ([10, 20], 0, [10, 20]),
+    ([10, 20], 30, [10, 20]),
+])
+def test_find_bounds(grid, value, expected):
+    array = np.array(grid)
+    bounds = utils.find_bounds(array, value)
+    np.testing.assert_array_equal(bounds, expected)
+    assert bounds.dtype == array.dtype
+    np.testing.assert_array_equal(array, grid)
+
+
+@pytest.mark.parametrize("grid", [[], [[10, 20], [30, 40]]])
+def test_find_bounds_rejects_invalid_grid_shape(grid):
+    with pytest.raises(ValueError, match="nonempty one-dimensional"):
+        utils.find_bounds(grid, 15)
 
 
 def test_nearest_simple():

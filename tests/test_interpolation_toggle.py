@@ -178,3 +178,44 @@ def test_newera_spectral_grid_respects_interpolate_flag(mock_newera_grid):
     np.testing.assert_allclose(nearest.value, lower.value)
     np.testing.assert_allclose(interp.value, 0.5 * (lower.value + upper.value))
     assert not np.allclose(interp.value, nearest.value)
+
+
+@pytest.mark.parametrize("selector", ["newera_gaia", "newera_jwst", "newera_lowres"])
+@pytest.mark.parametrize("teff, logg, expected_temperature_flux", [
+    (7030, 5.0, 7000**2 + 0.15 * (7200**2 - 7000**2)),
+    (7170, 5.0, 7000**2 + 0.85 * (7200**2 - 7000**2)),
+    (7000, 4.25, 7000**2),
+    (6700, 5.0, 6800**2),
+    (7500, 5.0, 7400**2),
+])
+def test_from_grid_nonuniform_bounds(
+    monkeypatch, selector, teff, logg, expected_temperature_flux
+):
+    """Exercise bracketing, fixed axes, and existing endpoint clamping."""
+    teffs = np.array([6800, 6900, 7000, 7200, 7400])
+    loggs = np.array([4.0, 5.0])
+    fehs = np.array([-0.5, 0.0])
+    monkeypatch.setitem(utils.GRID_POINTS, selector, {
+        "grid_teffs": teffs,
+        "grid_loggs": loggs,
+        "grid_fehs": fehs,
+        "grid_alphas": np.array([0.0]),
+    })
+
+    def load_wave(tt, gg, ff, alpha=0.0, grid_name=selector):
+        if tt not in teffs or gg not in loggs or ff not in fehs:
+            raise ValueError("No matching native spectrum")
+        return np.array([980.0, 990.0, 1000.0])
+
+    def load_flux(tt, gg, ff, alpha=0.0, grid_name=selector):
+        # Curvature distinguishes true interpolation from endpoint clamping
+        # caused by choosing both temperatures below or above the query.
+        return tt**2 + 100 * gg + 10 * ff + np.arange(3)
+
+    monkeypatch.setattr(utils, "load_newera_wavelength_array", load_wave)
+    monkeypatch.setattr(utils, "load_newera_flux_array", load_flux)
+    spectrum = Spectrum.from_grid(teff, logg, 0.0, model_grid=selector)
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)),
+        expected_temperature_flux + 100 * logg + np.arange(3),
+    )
