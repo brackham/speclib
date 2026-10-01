@@ -77,6 +77,15 @@ for supported spectra and their download, storage, and interpolation behavior.
 
 ---
 
+## Contributing
+
+Bug reports, documentation improvements, tests, and code contributions are welcome.
+See the [contributor guide](CONTRIBUTING.md) for development commands and PR expectations,
+or [open an issue](https://github.com/brackham/speclib/issues/new/choose) to discuss a bug,
+feature, or spectral library.
+
+---
+
 ## License
 
 MIT © 2021–2026 Benjamin V. Rackham

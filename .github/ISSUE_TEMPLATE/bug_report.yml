@@ -1,0 +1,50 @@
+name: Bug report
+description: Report unexpected behavior in speclib.
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting a bug! A small reproducible example helps us investigate.
+  - type: input
+    id: version
+    attributes:
+      label: speclib version or commit
+      description: Include the installed version or checkout commit; say if unknown.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, relevant dependency versions if known, and operating system where relevant.
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal reproducible example
+      description: Include the smallest code example or steps that reproduce the problem.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe the result, including any unexpected scientific values or units.
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or error output
+      description: Paste the full traceback if there is one.
+      render: text
+  - type: textarea
+    id: data
+    attributes:
+      label: Model library or data product
+      description: If relevant, name the library, release, model parameters, and data source or file involved.

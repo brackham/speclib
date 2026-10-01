@@ -1,0 +1,68 @@
+name: Model / spectral-library request
+description: Propose a stellar model grid or spectral dataset for speclib.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us understand the science and data before implementation. Fill in what
+        you know; links to authoritative sources are welcome, and unknown details
+        can be left blank or marked unknown.
+  - type: input
+    id: dataset
+    attributes:
+      label: Model or dataset name and version
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Scientific use case and relation to existing libraries
+      description: How would these data differ from or complement the libraries already available in speclib?
+    validations:
+      required: true
+  - type: textarea
+    id: publication
+    attributes:
+      label: Publication / ADS / DOI
+      description: Link the authoritative publication or scientific description, if available.
+  - type: textarea
+    id: archive
+    attributes:
+      label: Archive or repository URL and data DOI
+      description: Where are the data hosted? Include release identifiers, inventories, or sample-file links if available.
+  - type: textarea
+    id: quantities
+    attributes:
+      label: Quantities, native units, and wavelength definition
+      description: |
+        For example, disk-integrated flux, surface flux, or specific intensity.
+        Include flux normalization, wavelength/frequency units, air versus vacuum
+        wavelengths, coverage, and sampling or resolving power where known.
+  - type: textarea
+    id: axes
+    attributes:
+      label: Parameter axes and grid coverage
+      description: |
+        List ranges and sampling for Teff, log g, metallicity, C/O, alpha enhancement,
+        magnetic field, component type, mu, or other relevant axes. Include units
+        and conventions where known.
+  - type: textarea
+    id: interpolation
+    attributes:
+      label: Discrete versus interpolatable parameters
+      description: Which axes are discrete choices, and which support scientifically meaningful interpolation? Note restrictions or uncertainty.
+  - type: textarea
+    id: downloads
+    attributes:
+      label: Data volume and download structure
+      description: Approximate download/storage size, file formats, archives versus individual files, and any access requirements.
+  - type: textarea
+    id: licensing
+    attributes:
+      label: Licensing or redistribution constraints
+      description: Link usage terms if known; unknown is fine.
+  - type: textarea
+    id: quirks
+    attributes:
+      label: Known quirks or metadata issues
+      description: Note missing grid points, inconsistent metadata, naming conventions, or special scientific interpretation requirements.
