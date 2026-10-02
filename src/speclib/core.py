@@ -1005,7 +1005,10 @@ class Spectrum(SpecutilsSpectrum):
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
             feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            on_backbone = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            native_entries = utils.load_newera_model_list(cache_dir=cache_dir)["entries"]
+            native_key = utils._normalize_newera_key(teff, logg, feh, alpha)
+            model_in_grid = native_key in native_entries
             alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
             use_alpha = feh >= -2.0 and feh <= 0.0 and alpha_in_grid
 
@@ -1027,7 +1030,13 @@ class Spectrum(SpecutilsSpectrum):
                 teff = utils.nearest(self.grid_teffs, teff)
                 logg = utils.nearest(self.grid_loggs, logg)
                 feh = utils.nearest(self.grid_fehs, feh)
+                native_key = utils._normalize_newera_key(teff, logg, feh, alpha)
+                if native_key not in native_entries:
+                    raise FileNotFoundError(f"No native NewEra model for {native_key}")
                 model_in_grid = True
+
+            if not model_in_grid and on_backbone:
+                raise FileNotFoundError(f"No native NewEra model for {native_key}")
 
             if not model_in_grid:
                 teff_bds = utils.find_bounds(self.grid_teffs, teff)
@@ -1061,7 +1070,7 @@ class Spectrum(SpecutilsSpectrum):
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
             feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            on_backbone = all([teff_in_grid, logg_in_grid, feh_in_grid])
             alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
 
             def load_flux(teff_, logg_, feh_, alpha_=0.0):
@@ -1074,10 +1083,26 @@ class Spectrum(SpecutilsSpectrum):
                     teff_, logg_, feh_, alpha_, grid_name
                 )
 
+            # Headers, rather than independent axes, establish native existence.
+            # This also recognizes special temperatures without making them
+            # interpolation planes in SpectralGrid/BinnedSpectralGrid.
+            try:
+                wave_lib = load_wave(teff, logg, feh, alpha)
+                model_in_grid = True
+            except ValueError:
+                model_in_grid = False
+
+            if not model_in_grid and on_backbone:
+                raise ValueError(
+                    f"No native {grid_name} model for Teff={teff}, "
+                    f"logg={logg}, metallicity={feh}, alpha={alpha}"
+                )
+
             if not model_in_grid and not interpolate:
                 teff = utils.nearest(self.grid_teffs, teff)
                 logg = utils.nearest(self.grid_loggs, logg)
                 feh = utils.nearest(self.grid_fehs, feh)
+                wave_lib = load_wave(teff, logg, feh, alpha)
                 model_in_grid = True
 
             if not model_in_grid:
@@ -1101,7 +1126,6 @@ class Spectrum(SpecutilsSpectrum):
                 )
 
             else:
-                wave_lib = load_wave(teff, logg, feh, alpha)
                 flux = load_flux(teff, logg, feh, alpha)
 
         elif self.model_grid == "drift-phoenix":
@@ -2344,8 +2368,11 @@ class SpectralGrid(object):
                     model_grid=self.model_grid,
                     **spectrum_kwargs,
                 )
-            except ValueError:
-                if self.model_set is not None:
+            except (ValueError, FileNotFoundError) as exc:
+                if self.model_set is not None or (
+                    isinstance(exc, FileNotFoundError)
+                    and not self.model_grid.startswith("newera")
+                ):
                     raise
                 # Skip combinations that do not exist in sparse grids.
                 continue
@@ -2838,9 +2865,15 @@ class BinnedSpectralGrid(object):
             for teff in self.teffs:
                 for logg in self.loggs:
                     for feh in self.fehs:
-                        bs = Spectrum.from_grid(
-                            teff, logg, feh, model_grid=self.model_grid, **kwargs
-                        ).bin(center, width)
+                        try:
+                            spectrum = Spectrum.from_grid(
+                                teff, logg, feh, model_grid=self.model_grid, **kwargs
+                            )
+                        except (ValueError, FileNotFoundError):
+                            if not self.model_grid.startswith("newera"):
+                                raise
+                            continue
+                        bs = spectrum.bin(center, width)
                         fluxes[teff][logg][feh] = bs.flux
         self.fluxes = fluxes
 
