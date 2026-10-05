@@ -85,6 +85,67 @@ def _flanking_values(grid, value):
     return np.array([lower, upper])
 
 
+def _select_newera_reduced_models(teff, logg, metallicity, alpha, grid_name, axes):
+    """Select an exact native metallicity or validate all interpolation corners."""
+    if not np.all(np.isfinite([teff, logg, metallicity, alpha])):
+        raise ValueError("NewEra coordinates must be finite")
+
+    native_metallicity = utils._newera_reduced_metallicity(metallicity)
+    metallicities = axes[2]
+    outside = metallicity < np.min(metallicities) or metallicity > np.max(metallicities)
+    bounds = tuple(
+        utils.find_bounds(axis, value)
+        for axis, value in zip(axes, (teff, logg, metallicity))
+    )
+    required_points = {(tt, gg) for tt in bounds[0] for gg in bounds[1]}
+    available = {}
+
+    try:
+        # A native storage label can name an exact special model. Search for it
+        # while collecting corner availability, so an unsuccessful exact search
+        # does not require reading the same plane's metadata twice.
+        if native_metallicity in metallicities:
+            available[native_metallicity] = utils._find_newera_reduced_native_points(
+                native_metallicity,
+                alpha,
+                grid_name,
+                required_points,
+                exact_point=(teff, logg),
+            )
+            if (teff, logg) in available[native_metallicity]:
+                return native_metallicity, None
+
+        if outside:
+            # Main fails unavailable out-of-range metallicity lookups with this
+            # exception type. Only an exact rounded native lookup may succeed.
+            raise FileNotFoundError(
+                f"No native {grid_name} model for metallicity={metallicity}: "
+                f"outside the interpolation range "
+                f"[{np.min(metallicities)}, {np.max(metallicities)}]"
+            )
+
+        for ff in bounds[2]:
+            if ff not in available:
+                available[ff] = utils._find_newera_reduced_native_points(
+                    ff, alpha, grid_name, required_points
+                )
+            for tt in bounds[0]:
+                for gg in bounds[1]:
+                    if (tt, gg) not in available[ff]:
+                        raise ValueError(
+                            f"Cannot interpolate {grid_name}: missing native "
+                            f"corner Teff={tt}, logg={gg}, "
+                            f"metallicity={ff}, alpha={alpha}"
+                        )
+    except (OSError, ValueError):
+        # Successful requests warn in the wavelength loader. Metadata failures
+        # occur before that loader, but must retain the same alpha diagnostic.
+        utils._warn_newera_reduced_alpha(alpha, grid_name)
+        raise
+
+    return None, bounds
+
+
 def _nearest_available_index(points, requested):
     """Return the nearest actual grid combination in grid-step units."""
 
@@ -1093,7 +1154,6 @@ class Spectrum(SpecutilsSpectrum):
             logg_in_grid = logg in self.grid_loggs
             metallicity_in_grid = metallicity in self.grid_metallicities
             on_backbone = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
-            alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
 
             def load_flux(teff_, logg_, metallicity_, alpha_=0.0):
                 return utils.load_newera_flux_array(
@@ -1105,14 +1165,23 @@ class Spectrum(SpecutilsSpectrum):
                     teff_, logg_, metallicity_, alpha_, grid_name
                 )
 
-            # Headers, rather than independent axes, establish native existence.
-            # This also recognizes special temperatures without making them
-            # interpolation planes in SpectralGrid/BinnedSpectralGrid.
-            try:
-                wave_lib = load_wave(teff, logg, metallicity, alpha)
-                model_in_grid = True
-            except ValueError:
-                model_in_grid = False
+            if interpolate:
+                selected_metallicity, bounds = _select_newera_reduced_models(
+                    teff, logg, metallicity, alpha, grid_name,
+                    (self.grid_teffs, self.grid_loggs, self.grid_metallicities),
+                )
+                model_in_grid = selected_metallicity is not None
+                if model_in_grid:
+                    wave_lib = load_wave(teff, logg, selected_metallicity, alpha)
+                else:
+                    teff_bds, logg_bds, metallicity_bds = bounds
+            else:
+                # Preserve the existing exact/nearest non-interpolating lookup.
+                try:
+                    wave_lib = load_wave(teff, logg, metallicity, alpha)
+                    model_in_grid = True
+                except ValueError:
+                    model_in_grid = False
 
             if not model_in_grid and on_backbone:
                 raise ValueError(
@@ -1127,11 +1196,10 @@ class Spectrum(SpecutilsSpectrum):
                 wave_lib = load_wave(teff, logg, metallicity, alpha)
                 model_in_grid = True
 
-            if not model_in_grid:
-                teff_bds = utils.find_bounds(self.grid_teffs, teff)
-                logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
+            if model_in_grid and not interpolate:
+                selected_metallicity = utils._newera_reduced_metallicity(metallicity)
 
+            if not model_in_grid:
                 flux_dict = {}
                 wave_lib = None
                 for tt in teff_bds:
@@ -1148,13 +1216,7 @@ class Spectrum(SpecutilsSpectrum):
                 )
 
             else:
-                flux = load_flux(teff, logg, metallicity, alpha)
-                # Record the plane named by the storage label, including its
-                # existing one-decimal rounding, without changing selection.
-                selected_metallicity = (
-                    0.0 if np.isclose(metallicity, 0.0)
-                    else float(f"{metallicity:+.1f}")
-                )
+                flux = load_flux(teff, logg, selected_metallicity, alpha)
 
         elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid

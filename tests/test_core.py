@@ -156,6 +156,10 @@ def test_from_grid_returns_speclib_spectrum(monkeypatch, resample):
     monkeypatch.setattr(
         utils, "load_newera_flux_array", lambda *args: np.ones(wave.size)
     )
+    monkeypatch.setattr(
+        utils, "_find_newera_reduced_native_points",
+        lambda *args, **kwargs: {(4700., 4.6)},
+    )
     new_wave = np.linspace(501., 509., 41) * u.nm if resample else None
     spec = Spectrum.from_grid(
         teff=4700,

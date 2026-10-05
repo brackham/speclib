@@ -2525,6 +2525,71 @@ def load_flux_array(fname, cache_dir, ftp_url):
     return flux
 
 
+def _newera_reduced_metallicity(metallicity):
+    """Return the native coordinate named by the one-decimal storage label."""
+    return 0.0 if np.isclose(metallicity, 0.0) else float(f"{metallicity:+.1f}")
+
+
+def _warn_newera_reduced_alpha(alpha, grid_name):
+    if not np.isclose(alpha, 0.0):
+        warnings.warn(
+            f"Alpha-enhanced models (alpha={alpha}) are not yet supported for grid '{grid_name}'. "
+            "Behavior may be unreliable or fail.",
+            UserWarning,
+        )
+
+
+def _newera_reduced_path(metallicity, alpha, grid_name, library_root=None):
+    """Resolve one reduced native plane using the existing storage labels."""
+    if grid_name not in NEWERA_TARBALLS:
+        raise ValueError(f"Invalid grid_name '{grid_name}'")
+    library_root = get_library_root() if library_root is None else Path(library_root)
+    grid_dir = library_root / grid_name
+    prefix = NEWERA_TARBALLS[grid_name].removesuffix(".tar.gz")
+    metallicity = _newera_reduced_metallicity(metallicity)
+    z_str = "Z-0.0" if metallicity == 0.0 else f"Z{metallicity:+.1f}"
+    alpha_str = "" if np.isclose(alpha, 0.0) else f".alpha={alpha:.1f}"
+    fname = f"{prefix}.{z_str}{alpha_str}.txt"
+    filepath = grid_dir / fname
+    if not filepath.exists():
+        _ensure_newera_txt_file(grid_name, fname, grid_dir, library_root)
+    if not filepath.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+    return filepath
+
+
+def _find_newera_reduced_native_points(
+    metallicity, alpha, grid_name, required_points, *, exact_point=None
+):
+    """Return requested (Teff, logg) pairs found in one native reduced plane.
+
+    Stop at an exact match, or once all required corners are found when no exact
+    lookup is pending. A missing exact candidate requires reaching EOF so that
+    a later special model cannot be overlooked. No metadata survives a request.
+    """
+    filepath = _newera_reduced_path(metallicity, alpha, grid_name)
+    remaining = set(required_points)
+    if exact_point is not None:
+        remaining.add(exact_point)
+    found = set()
+    with filepath.open() as file:
+        for line in file:
+            header = line.split()
+            try:
+                point = (float(header[12]), float(header[13]))
+            except (IndexError, ValueError):
+                continue
+            for requested in tuple(remaining):
+                if np.all(np.isclose(point, requested, rtol=0.0, atol=1e-8)):
+                    found.add(requested)
+                    remaining.remove(requested)
+            if exact_point in found or not remaining:
+                break
+            # Every valid header is followed by a single flux row.
+            next(file, None)
+    return found
+
+
 def load_newera_wavelength_array(
     teff, logg, metallicity=UNSET, alpha=0.0, grid_name="newera_jwst",
     library_root=None, *, mh=UNSET, z=UNSET
@@ -2569,46 +2634,8 @@ def load_newera_wavelength_array(
     metallicity = resolve_metallicity(
         metallicity, grid_name, mh=mh, storage_aliases={"z": z}
     )
-    if not np.isclose(alpha, 0.0):
-        warnings.warn(
-            f"Alpha-enhanced models (alpha={alpha}) are not yet supported for grid '{grid_name}'. "
-            "Behavior may be unreliable or fail.",
-            UserWarning,
-        )
-    if library_root is None:
-        library_root = get_library_root()
-    else:
-        library_root = Path(library_root)
-
-    if grid_name not in ["newera_gaia", "newera_jwst", "newera_lowres"]:
-        raise ValueError(f"Invalid grid_name '{grid_name}'")
-
-    grid_dir = library_root / grid_name
-
-    # Construct file name
-    prefix = {
-        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
-    }[grid_name]
-
-    # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
-    z_str = "Z-0.0" if np.isclose(metallicity, 0.0) else f"Z{metallicity:+.1f}"
-
-    # Format alpha string
-    if np.isclose(alpha, 0.0):
-        fname = f"{prefix}.{z_str}.txt"
-    else:
-        alpha_str = f"alpha={alpha:.1f}"
-        fname = f"{prefix}.{z_str}.{alpha_str}.txt"
-
-    filepath = grid_dir / fname
-
-    if not filepath.exists():
-        _ensure_newera_txt_file(grid_name, fname, grid_dir, library_root)
-
-    if not filepath.exists():
-        raise FileNotFoundError(f"File not found: {filepath}")
+    _warn_newera_reduced_alpha(alpha, grid_name)
+    filepath = _newera_reduced_path(metallicity, alpha, grid_name, library_root)
 
     with open(filepath, "r") as f:
         while True:
@@ -2688,40 +2715,7 @@ def load_newera_flux_array(
     metallicity = resolve_metallicity(
         metallicity, grid_name, mh=mh, storage_aliases={"z": z}
     )
-    if library_root is None:
-        library_root = get_library_root()
-    else:
-        library_root = Path(library_root)
-
-    if grid_name not in ["newera_gaia", "newera_jwst", "newera_lowres"]:
-        raise ValueError(f"Invalid grid_name '{grid_name}'")
-
-    grid_dir = library_root / grid_name
-
-    # Construct file name
-    prefix = {
-        "newera_gaia": "PHOENIX-NewEraV3-GAIA-DR4_v3.4-SPECTRA",
-        "newera_jwst": "PHOENIX-NewEraV3-JWST-SPECTRA",
-        "newera_lowres": "PHOENIX-NewEraV3-LowRes-SPECTRA",
-    }[grid_name]
-
-    # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
-    z_str = "Z-0.0" if np.isclose(metallicity, 0.0) else f"Z{metallicity:+.1f}"
-
-    # Format alpha string
-    if np.isclose(alpha, 0.0):
-        fname = f"{prefix}.{z_str}.txt"
-    else:
-        alpha_str = f"alpha={alpha:.1f}"
-        fname = f"{prefix}.{z_str}.{alpha_str}.txt"
-
-    filepath = grid_dir / fname
-
-    if not filepath.exists():
-        _ensure_newera_txt_file(grid_name, fname, grid_dir, library_root)
-
-    if not filepath.exists():
-        raise FileNotFoundError(f"File not found: {filepath}")
+    filepath = _newera_reduced_path(metallicity, alpha, grid_name, library_root)
 
     with open(filepath, "r") as f:
         while True:

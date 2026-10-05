@@ -41,8 +41,11 @@ exact filenames.
 For SPHINX, interpolation that needs a missing corner raises ``ValueError``
 and explains which corner is missing. Use nearest retrieval or choose another
 point; ``speclib`` does not fill that hole. For the reduced NewEra selectors,
-``SpectralGrid.get_flux`` catches a missing trilinear corner and falls back to
-the prebuilt nearest-neighbor interpolator. Consequently,
+``Spectrum.from_grid`` loads only the required native regular-backbone models
+and raises ``ValueError`` if a corner is missing. Valid off-grid coordinates do
+not need their own metallicity file or native model. Exact special models remain
+available. ``SpectralGrid.get_flux`` catches a missing trilinear corner and falls
+back to the prebuilt nearest-neighbor interpolator. Consequently,
 ``interpolate=True`` can produce a nearest spectrum rather than a linearly
 interpolated spectrum in a sparse region. The fallback is not used for
 SPHINX. MPS-ATLAS likewise raises ``ValueError`` for a missing corner or
@@ -59,8 +62,10 @@ retrieval outside the resulting ``teff_bds``, ``logg_bds``, or ``metallicity_bds
 raises ``ValueError``. No grid retrieval extrapolates beyond loaded bounds.
 
 ``Spectrum.from_grid`` does not run the constructor clipping step. MPS-ATLAS
-explicitly rejects a value beyond the selected set's indexed axes; for other
-families, a value outside an axis eventually fails while finding bounds or
-loading a file.
+explicitly rejects a value beyond the selected set's indexed axes. Reduced
+NewEra rejects metallicities outside its interpolation range with
+``FileNotFoundError``, except when an exact one-decimal native lookup succeeds.
+Its historical Teff/log g endpoint behavior is unchanged. For other families,
+a value outside an axis can fail while finding bounds or loading a file.
 Validate requested coordinates against the appropriate model page and, for an
 incomplete library, against the actual available combinations.
