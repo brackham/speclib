@@ -70,6 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed reduced NewEra off-grid interpolation failing on nonexistent rounded
+  metallicity filenames. Interpolation loads only required native models and
+  reports missing corners clearly (#88).
 - `find_bounds()` now selects true interpolation brackets on nonuniform grids,
   preventing spectrum interpolation from using two points on the same side
   of a requested coordinate.

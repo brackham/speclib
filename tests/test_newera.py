@@ -1,6 +1,9 @@
 """Offline contracts derived from the released V3 inventory/header format."""
 
+import io
 import json
+import os
+import tarfile
 from pathlib import Path
 
 import astropy.units as u
@@ -12,6 +15,321 @@ from speclib import Spectrum, SpectralGrid, BinnedSpectralGrid, utils
 
 
 REDUCED = ("newera_gaia", "newera_jwst", "newera_lowres")
+
+
+@pytest.fixture(params=REDUCED)
+def reduced_cube(request, monkeypatch, tmp_path):
+    """An initially uncached archive with affine spectra and real text headers."""
+    selector = request.param
+    monkeypatch.setattr(utils, "get_library_root", lambda: tmp_path)
+    members = {}
+    prefix = utils.NEWERA_TARBALLS[selector].removesuffix(".tar.gz")
+    for metallicity in (-0.5, 0.0):
+        label = "Z-0.0" if metallicity == 0 else f"Z{metallicity:+.1f}"
+        text = ""
+        for teff in (3500, 3600):
+            for logg in (4.0, 4.5):
+                flux = teff / 100 + 2 * logg + 8 * metallicity + np.arange(3)
+                text += (
+                    "star BPRP PHH 20250708 02 PHOENIX1D 0 10 3 980 1000 10 "
+                    f"{teff} {logg} 1 0\n"
+                    + " ".join(map(str, flux)) + "\n"
+                )
+        members[f"{prefix}.{label}.txt"] = text.encode()
+    downloads, extractions = [], []
+
+    def retrieve(*, url, fname, path, **kwargs):
+        assert fname == utils.NEWERA_TARBALLS[selector]
+        downloads.append(url)
+        target = Path(path) / fname
+        with tarfile.open(target, "w:gz") as archive:
+            for name, content in members.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(content)
+                archive.addfile(member, io.BytesIO(content))
+        return str(target)
+
+    original_extract = utils.extract_member_from_tar
+
+    def extract(tar_path, member_name, extract_dir):
+        extractions.append(member_name)
+        return original_extract(tar_path, member_name, extract_dir)
+
+    monkeypatch.setattr(utils.pooch, "retrieve", retrieve)
+    monkeypatch.setattr(utils, "extract_member_from_tar", extract)
+    return selector, members, downloads, extractions
+
+
+@pytest.mark.parametrize("coordinates", [
+    (3550, 4.0, 0.0),  # Teff only
+    (3500, 4.25, 0.0),  # logg only
+    (3500, 4.0, -0.25),  # metallicity only: no Z-0.2 member
+    (3550, 4.25, -0.25),  # all three dimensions
+])
+def test_reduced_uncached_interpolation_uses_native_models(
+    reduced_cube, monkeypatch, coordinates
+):
+    selector, members, downloads, extractions = reduced_cube
+    loads = []
+    for helper in ("load_newera_wavelength_array", "load_newera_flux_array"):
+        original = getattr(utils, helper)
+
+        def load(teff, logg, metallicity, *args, _original=original, **kwargs):
+            assert teff in (3500, 3600)
+            assert logg in (4.0, 4.5)
+            assert metallicity in (-0.5, 0.0)
+            loads.append((teff, logg, metallicity))
+            return _original(teff, logg, metallicity, *args, **kwargs)
+
+        monkeypatch.setattr(utils, helper, load)
+
+    spectrum = Spectrum.from_grid(*coordinates, model_grid=selector)
+    teff, logg, metallicity = coordinates
+    expected = teff / 100 + 2 * logg + 8 * metallicity + np.arange(3)
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)), expected
+    )
+    assert spectrum.meta["metallicity"] == metallicity
+    assert spectrum.meta["metallicity_type"] == "mh"
+    assert len(downloads) == 1
+    assert extractions and set(extractions) <= members.keys()
+    expected_corners = {
+        (tt, gg, ff)
+        for tt in utils.find_bounds([3500, 3600], teff)
+        for gg in utils.find_bounds([4.0, 4.5], logg)
+        for ff in utils.find_bounds([-0.5, 0.0], metallicity)
+    }
+    assert set(loads) == expected_corners
+
+    # A repeated request must use the extracted cache and return the same flux.
+    extractions.clear()
+    cached = Spectrum.from_grid(teff, logg, mh=metallicity, model_grid=selector)
+    np.testing.assert_array_equal(cached.flux, spectrum.flux)
+    assert len(downloads) == 1 and not extractions
+
+
+@pytest.mark.parametrize("interpolate", (False, True))
+@pytest.mark.parametrize("metallicity", (0.0, -0.04, -0.46))
+def test_reduced_exact_and_rounded_lookup_unchanged(
+    reduced_cube, interpolate, metallicity
+):
+    selector, members, downloads, extractions = reduced_cube
+    spectrum = Spectrum.from_grid(
+        3500, 4.0, metallicity, model_grid=selector, interpolate=interpolate
+    )
+    native_metallicity = float(f"{metallicity:.1f}")
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)),
+        43 + 8 * native_metallicity + np.arange(3),
+    )
+    assert spectrum.meta["metallicity"] == native_metallicity
+    assert len(downloads) == len(extractions) == 1
+    assert extractions[0] in members
+
+
+def test_reduced_nearest_lookup_unchanged(reduced_cube):
+    selector, _, _, _ = reduced_cube
+    spectrum = Spectrum.from_grid(
+        3540, 4.2, 0.0, model_grid=selector, interpolate=False
+    )
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)), 43 + np.arange(3)
+    )
+    assert spectrum.meta["teff"] == 3500
+    assert spectrum.meta["logg"] == 4.0
+    # Keep the historical failure for an unavailable rounded plane when the
+    # caller disables interpolation; this fix changes only interpolation.
+    with pytest.raises(FileNotFoundError, match="Z-0.2.txt"):
+        Spectrum.from_grid(3550, 4.25, -0.25, model_grid=selector, interpolate=False)
+
+
+@pytest.mark.parametrize("coordinates", [
+    (3350, 4.75, 0.0),  # Sparse special models cannot replace missing corners.
+    (3300, 4.5, 0.0),  # Axis membership does not establish native existence.
+])
+@pytest.mark.parametrize("selector", REDUCED)
+def test_reduced_sparse_cell_fails_before_spectrum_loading(
+    reduced_headers, monkeypatch, selector, coordinates
+):
+    def unexpected(*args, **kwargs):
+        pytest.fail("A missing native corner must be detected before spectrum loading")
+
+    monkeypatch.setattr(utils, "load_newera_wavelength_array", unexpected)
+    monkeypatch.setattr(utils, "load_newera_flux_array", unexpected)
+    monkeypatch.setattr(utils, "_ensure_newera_txt_file", unexpected)
+    with pytest.raises(ValueError, match="missing native corner Teff=3300, logg=4.5"):
+        Spectrum.from_grid(*coordinates, model_grid=selector)
+
+
+def test_reduced_native_points_observe_same_size_replacement(reduced_headers):
+    required = {(3300, 5.0), (3300, 4.5)}
+    points = utils._find_newera_reduced_native_points(
+        0.0, 0.0, "newera_jwst", required
+    )
+    assert points == {(3300, 5.0)}
+    path = utils._newera_reduced_path(0.0, 0.0, "newera_jwst")
+    before = path.stat()
+    replacement = path.with_suffix(".replacement")
+    replacement.write_text(path.read_text().replace("3300 5.0 1 0", "3300 4.5 1 0"))
+    os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+    replacement.replace(path)
+    assert path.stat().st_size == before.st_size
+    assert path.stat().st_mtime_ns == before.st_mtime_ns
+    updated = utils._find_newera_reduced_native_points(
+        0.0, 0.0, "newera_jwst", required
+    )
+    assert updated == {(3300, 4.5)}
+    spectrum = Spectrum.from_grid(3300, 4.5, 0.0, model_grid="newera_jwst")
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)), [3300, 3305, 3310]
+    )
+
+
+@pytest.mark.parametrize("metallicity", (0.6, -4.1))
+def test_reduced_out_of_range_metallicity_fails(reduced_cube, metallicity):
+    selector, _, downloads, extractions = reduced_cube
+    with pytest.raises(FileNotFoundError, match="outside the interpolation range"):
+        Spectrum.from_grid(3500, 4.0, metallicity, model_grid=selector)
+    assert not downloads and not extractions
+
+
+@pytest.mark.parametrize("requested, native", [(0.54, 0.5), (-4.04, -4.0)])
+def test_reduced_rounded_endpoint_requires_exact_native_model(
+    reduced_cube, requested, native
+):
+    selector, members, _, _ = reduced_cube
+    prefix = utils.NEWERA_TARBALLS[selector].removesuffix(".tar.gz")
+    flux = 43 + 8 * native + np.arange(3)
+    members[f"{prefix}.Z{native:+.1f}.txt"] = (
+        "star BPRP PHH 20250708 02 PHOENIX1D 0 10 3 980 1000 10 3500 4.0 1 0\n"
+        + " ".join(map(str, flux)) + "\n"
+    ).encode()
+    # Preserve main's exact one-decimal endpoint lookup, recording its real plane.
+    exact = Spectrum.from_grid(3500, 4.0, requested, model_grid=selector)
+    assert exact.meta["metallicity"] == native
+    np.testing.assert_allclose(exact.flux.to_value(u.W / (u.m**2 * u.nm)), flux)
+    # Independent-axis nearest retrieval still selects the endpoint explicitly.
+    nearest = Spectrum.from_grid(
+        3550, 4.0, requested, model_grid=selector, interpolate=False
+    )
+    assert nearest.meta["metallicity"] == native
+    np.testing.assert_array_equal(nearest.flux, exact.flux)
+    # An off-grid Teff cannot turn an out-of-range metallicity into interpolation.
+    with pytest.raises(FileNotFoundError, match="outside the interpolation range"):
+        Spectrum.from_grid(3550, 4.0, requested, model_grid=selector)
+
+
+@pytest.mark.parametrize("interpolate", (False, True))
+def test_reduced_failed_alpha_lookup_warns(reduced_cube, interpolate):
+    selector, _, _, extractions = reduced_cube
+    with pytest.warns(UserWarning, match="Alpha-enhanced models.*not yet supported") as records:
+        with pytest.raises(FileNotFoundError, match="alpha=0.2"):
+            Spectrum.from_grid(
+                3500, 4.0, 0.0, alpha=0.2, model_grid=selector,
+                interpolate=interpolate,
+            )
+    assert len(records) == 1
+    assert extractions[0].endswith(".Z-0.0.alpha=0.2.txt")
+
+
+def test_reduced_failed_metadata_io_warns(monkeypatch):
+    def unreadable(*args, **kwargs):
+        raise PermissionError("Native plane is unreadable")
+
+    monkeypatch.setattr(utils, "_find_newera_reduced_native_points", unreadable)
+    with pytest.warns(UserWarning, match="Alpha-enhanced models.*not yet supported"):
+        with pytest.raises(PermissionError, match="Native plane is unreadable"):
+            Spectrum.from_grid(3500, 4.0, 0.0, alpha=0.2, model_grid="newera_jwst")
+
+
+class _CountingTextFile:
+    """Count lines consumed by production readers without pre-reading the file."""
+
+    def __init__(self, file):
+        self.file = file
+        self.lines = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return self.file.__exit__(*args)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        line = self.readline()
+        if not line:
+            raise StopIteration
+        return line
+
+    def readline(self):
+        line = self.file.readline()
+        self.lines += bool(line)
+        return line
+
+
+@pytest.mark.parametrize("coordinates, expected_reads", [
+    ((3500, 4.0, 0.0), [1]),
+    ((3550, 4.25, -0.25), [7, 7]),
+])
+def test_reduced_metadata_stops_when_native_selection_is_known(
+    reduced_cube, monkeypatch, coordinates, expected_reads
+):
+    selector, members, _, _ = reduced_cube
+    # Required models come first, followed by a large irrelevant tail.
+    tail = (
+        "star BPRP PHH 20250708 02 PHOENIX1D 0 10 3 980 1000 10 3700 4.0 1 0\n"
+        "45 46 47\n"
+    ).encode() * 1000
+    for name in members:
+        members[name] += tail
+
+    streams = []
+    original_open = Path.open
+
+    def open_metadata(path, *args, **kwargs):
+        stream = _CountingTextFile(original_open(path, *args, **kwargs))
+        streams.append(stream)
+        return stream
+
+    monkeypatch.setattr(Path, "open", open_metadata)
+    spectrum = Spectrum.from_grid(*coordinates, model_grid=selector)
+    assert [stream.lines for stream in streams] == expected_reads
+    teff, logg, metallicity = coordinates
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)),
+        teff / 100 + 2 * logg + 8 * metallicity + np.arange(3),
+    )
+
+
+def test_reduced_late_special_model_takes_precedence_over_interpolation(reduced_cube):
+    selector, members, _, _ = reduced_cube
+    name = utils.NEWERA_TARBALLS[selector].removesuffix(".tar.gz") + ".Z-0.0.txt"
+    # All regular corners precede this exact native special. Finding corners
+    # alone must not prematurely end a pending exact-model search.
+    members[name] += (
+        b"star BPRP PHH 20250708 02 PHOENIX1D 0 10 3 980 1000 10 3550 4.25 1 0\n"
+        b"900 901 902\n"
+    )
+    spectrum = Spectrum.from_grid(3550, 4.25, 0.0, model_grid=selector)
+    np.testing.assert_allclose(
+        spectrum.flux.to_value(u.W / (u.m**2 * u.nm)), [900, 901, 902]
+    )
+
+
+@pytest.mark.parametrize("coordinate", ("teff", "logg", "metallicity", "alpha"))
+@pytest.mark.parametrize("value", (np.nan, np.inf))
+def test_reduced_invalid_coordinates_fail_before_io(monkeypatch, coordinate, value):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Invalid coordinates must fail before library I/O")
+
+    monkeypatch.setattr(utils, "get_library_root", unexpected)
+    coordinates = {"teff": 3500, "logg": 4.0, "metallicity": 0.0, "alpha": 0.0}
+    coordinates[coordinate] = value
+    with pytest.raises(ValueError, match="coordinates must be finite"):
+        Spectrum.from_grid(**coordinates, model_grid="newera_jwst")
 
 
 @pytest.mark.parametrize("selector", ("newera", *REDUCED))

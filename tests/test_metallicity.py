@@ -113,13 +113,9 @@ def test_native_aliases_preserve_model_plane_and_interpolation(native_library):
         np.testing.assert_array_equal(alias.flux, positional.flux)
         assert canonical.meta["metallicity"] == metallicity
         assert canonical.meta["metallicity_type"] == native
-    # Reduced NewEra probes a requested plane before interpolation; preserve
-    # this established behavior and interpolate Teff/logg on a cached plane.
-    reduced = selector.startswith("newera_")
-    midpoint = (np.mean(teffs), np.mean(loggs),
-                metallicities[0] if reduced else np.mean(metallicities))
+    midpoint = (np.mean(teffs), np.mean(loggs), np.mean(metallicities))
     lower = Spectrum.from_grid(teffs[0], loggs[0], metallicities[0], **kwargs).flux
-    expected = lower * (2.5 if reduced else 4.5)
+    expected = lower * 4.5
     interpolated = Spectrum.from_grid(*midpoint, **kwargs)
     np.testing.assert_allclose(interpolated.flux, expected)
     assert interpolated.meta["metallicity"] == midpoint[2]

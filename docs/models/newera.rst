@@ -139,8 +139,23 @@ Interpolation and caveats
 -------------------------
 
 For reduced grids, interpolation fixes ``alpha`` and is trilinear in
-Teff, log g, and metallicity when all corners exist; in a ``SpectralGrid``, a
-missing corner falls back to nearest-neighbor evaluation.
+Teff, log g, and metallicity when all corners exist. Valid off-grid
+``Spectrum.from_grid`` requests do not probe a nonexistent metallicity filename
+for the requested coordinates. Interpolation uses only the required native
+models on the regular backbone and raises ``ValueError`` if a corner is missing.
+Exact native models, including special temperatures, retain their existing
+retrieval behavior. In a ``SpectralGrid``, a missing corner falls back to
+nearest-neighbor evaluation.
+
+Exact native retrieval retains the one-decimal metallicity filename lookup
+(including ``Z-0.0`` for solar metallicity). When ``interpolate=False``, the
+existing requested-plane lookup and independent-axis nearest selection remain
+unchanged; an unavailable rounded metallicity file can still raise
+``FileNotFoundError``.
+
+Metallicities outside the supported interpolation range raise
+``FileNotFoundError`` unless the one-decimal lookup selects an exact native
+model. In that case, metadata records the selected native metallicity.
 
 Reduced grid loaders warn for nonzero alpha because alpha-enhanced reduced
 products are not yet reliably supported. The upstream alpha coverage is only

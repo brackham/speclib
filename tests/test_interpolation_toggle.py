@@ -123,6 +123,12 @@ def mock_newera_grid(monkeypatch):
 
     monkeypatch.setattr(utils, "load_newera_wavelength_array", fake_load_wave)
     monkeypatch.setattr(utils, "load_newera_flux_array", fake_load_flux)
+    native_points = {(tt, gg) for tt in teffs for gg in loggs}
+    monkeypatch.setattr(
+        utils, "_find_newera_reduced_native_points",
+        lambda ff, aa, name, points, **kw:
+        (set(points) | {kw.get("exact_point")}) & native_points,
+    )
 
     return {
         "teffs": teffs,
@@ -216,6 +222,12 @@ def test_from_grid_nonuniform_bounds(
 
     monkeypatch.setattr(utils, "load_newera_wavelength_array", load_wave)
     monkeypatch.setattr(utils, "load_newera_flux_array", load_flux)
+    native_points = {(tt, gg) for tt in teffs for gg in loggs}
+    monkeypatch.setattr(
+        utils, "_find_newera_reduced_native_points",
+        lambda ff, aa, name, points, **kw:
+        (set(points) | {kw.get("exact_point")}) & native_points,
+    )
     spectrum = Spectrum.from_grid(teff, logg, 0.0, model_grid=selector)
     np.testing.assert_allclose(
         spectrum.flux.to_value(u.W / (u.m**2 * u.nm)),
