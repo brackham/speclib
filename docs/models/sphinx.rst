@@ -24,8 +24,8 @@ Repository metadata declares filename values spanning:
 * :math:`T_\mathrm{eff}` = 2000--4000 K in 100 K steps;
 * :math:`\log g` values 4.0, 4.2, 4.25, 4.5, 4.7, 4.75, 5.0, 5.2, 5.25,
   and 5.5 (cgs);
-* ``logZ`` values -1.0--+1.0 in 0.25 dex steps, passed through the API as
-  ``feh``;
+* [M/H] values -1.0--+1.0 in 0.25 dex steps, passed as ``metallicity``
+  (or native alias ``mh``); upstream filenames label this axis ``logZ``;
 * C/O = 0.3, 0.5, 0.7, or 0.9.
 
 The archive is sparse: these distinct values do not occur in every
@@ -36,7 +36,7 @@ Spectrum filenames follow
 formatting is significant when indexing an exact model.
 ``speclib`` indexes exact parameter quadruples at runtime. A
 :class:`~speclib.SpectralGrid` fixes one C/O value and interpolates only Teff,
-log g, and ``logZ``. It raises ``ValueError`` if a requested trilinear
+log g, and native [M/H]. It raises ``ValueError`` if a requested trilinear
 interpolation lacks any required corner. Nearest retrieval chooses an actual
 available combination rather than an impossible tuple assembled independently
 along each axis.
@@ -50,7 +50,7 @@ Download and use
 
    download_sphinx_grid()
    spectrum = Spectrum.from_grid(
-       3000, 4.5, 0.0,
+       3000, 4.5, metallicity=0.0,
        model_grid="sphinx",
        co_ratio=0.5,
        interpolate=False,
@@ -66,6 +66,10 @@ C/O is mandatory even for exact retrieval. Passing an unavailable C/O value
 raises ``ValueError`` and lists the values present in the extracted archive.
 Different required corner spectra must also share exactly the same wavelength
 axis.
+
+Returned spectra record ``meta["metallicity"]`` and
+``meta["metallicity_type"] = "mh"``. SpecLib does not convert between
+[Fe/H] and [M/H]. Use ``metallicity=`` or the native alias ``mh=``.
 
 For publication, the Zenodo record asks users to cite both the data DOI and
 Iyer et al. (2023), in addition to :doc:`../citation` for ``speclib``.

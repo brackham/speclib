@@ -1,10 +1,12 @@
 import astropy.units as u
 import astropy.io as io
 import numpy as np
+import copy
 from importlib.resources import files
 
 from .core import Spectrum
 from .utils import interpolate
+from ._metallicity import UNSET, MetallicityGridMetadata, resolve_metallicity
 
 __all__ = ["Filter", "SED", "SEDGrid", "apply_filter", "mag_to_flux"]
 
@@ -83,6 +85,8 @@ class SED(object):
     """
 
     def __init__(self, spec, filters, model_grid="phoenix"):
+        self.meta = copy.deepcopy(spec.meta)
+        self.model_grid = getattr(spec, "model_grid", model_grid)
         wavelength = []
         bandwidth = []
         flux = []
@@ -97,7 +101,10 @@ class SED(object):
         self.flux = np.array([f.value for f in flux]) * flux[0].unit
 
     @classmethod
-    def from_grid(self, teff, logg, feh, filters, model_grid="phoenix"):
+    def from_grid(
+        self, teff, logg, metallicity=UNSET, filters=None, model_grid="phoenix",
+        *, feh=UNSET, mh=UNSET, **kwargs
+    ):
         """
         Create an SED from a stellar model grid.
 
@@ -107,8 +114,11 @@ class SED(object):
             Effective temperature [K]
         logg : float
             Surface gravity [cgs]
-        feh : float
-            Metallicity [Fe/H]
+        metallicity : float
+            Native metallicity coordinate of the selected model library.
+            SpecLib does not convert between [Fe/H] and [M/H].
+        feh, mh : float, optional
+            Native aliases as in ``Spectrum.from_grid``; supply only one form.
         filters : list
             List of `~speclib.Filter` objects
         model_grid : str
@@ -118,13 +128,18 @@ class SED(object):
         -------
         `~speclib.SED`
         """
-        spec = Spectrum.from_grid(teff, logg, feh, model_grid=model_grid)
+        metallicity = resolve_metallicity(metallicity, model_grid, feh=feh, mh=mh)
+        if filters is None:
+            raise TypeError("filters is required")
+        spec = Spectrum.from_grid(
+            teff, logg, metallicity, model_grid=model_grid, **kwargs
+        )
         sed = SED(spec, filters, model_grid)
 
         return sed
 
 
-class SEDGrid(object):
+class SEDGrid(MetallicityGridMetadata):
     """
     A grid of SEDs for quick interpolation.
 
@@ -136,8 +151,8 @@ class SEDGrid(object):
     logg_bds : iterable
         The lower and upper bounds of the model logg values to load.
 
-    feh_bds : iterable
-        The lower and upper bounds of the model [Fe/H] to load.
+    metallicity_bds : iterable
+        The lower and upper bounds of the native metallicity coordinate to load.
 
     wavelength : `~astropy.units.Quantity`
         Effective wavelengths of the SED grid.
@@ -146,7 +161,7 @@ class SEDGrid(object):
         Bandwidths of the interpolated SED grid.
 
     fluxes : dict
-        The fluxes of the model grid. Sorted by fluxes[teff][logg][feh].
+        The fluxes of the model grid. Sorted by fluxes[teff][logg][metallicity].
 
     model_grid : str
         Name of the model grid. Only `phoenix` is currently supported.
@@ -157,8 +172,8 @@ class SEDGrid(object):
         self,
         teff_bds,
         logg_bds,
-        feh_bds,
-        filters,
+        metallicity_bds=UNSET,
+        filters=None,
         model_grid="phoenix",
     ):
         """
@@ -170,8 +185,8 @@ class SEDGrid(object):
         logg_bds : iterable
             The lower and upper bounds of the model logg values to load.
 
-        feh_bds : iterable
-            The lower and upper bounds of the model [Fe/H] to load.
+        metallicity_bds : iterable
+            The lower and upper bounds of the native metallicity coordinate to load.
 
         filters : iterable
             An iterable of `~speclib.Filter` objects.
@@ -179,6 +194,11 @@ class SEDGrid(object):
         model_grid : str, optional
             Name of the model grid. Only `phoenix` is currently supported.
         """
+        metallicity_bds = resolve_metallicity(
+            metallicity_bds, model_grid, parameter="metallicity_bds"
+        )
+        if filters is None:
+            raise TypeError("filters is required")
         # First check that the model_grid is valid.
         self.model_grid = model_grid.lower()
 
@@ -192,7 +212,7 @@ class SEDGrid(object):
             grid_loggs = np.arange(0.0, 6.5, 0.5)
 
             # Grid of metallicities
-            grid_fehs = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
+            grid_metallicities = np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0])
         else:
             raise NotImplementedError(
                 f'"{model_grid}" model grid not found. '
@@ -214,12 +234,12 @@ class SEDGrid(object):
         )
         self.logg_bds = logg_bds
 
-        feh_bds = np.array(feh_bds)
-        feh_bds = (
-            grid_fehs[grid_fehs <= feh_bds.min()].max(),
-            grid_fehs[grid_fehs >= feh_bds.max()].min(),
+        metallicity_bds = np.array(metallicity_bds)
+        metallicity_bds = (
+            grid_metallicities[grid_metallicities <= metallicity_bds.min()].max(),
+            grid_metallicities[grid_metallicities >= metallicity_bds.max()].min(),
         )
-        self.feh_bds = feh_bds
+        self.metallicity_bds = metallicity_bds
 
         # Define the values covered in the grid
         subset = np.logical_and(
@@ -233,9 +253,11 @@ class SEDGrid(object):
         self.loggs = grid_loggs[subset]
 
         subset = np.logical_and(
-            grid_fehs >= self.feh_bds[0], grid_fehs <= self.feh_bds[1]
+            grid_metallicities >= self.metallicity_bds[0], grid_metallicities <= self.metallicity_bds[1]
         )
-        self.fehs = grid_fehs[subset]
+        self.metallicities = grid_metallicities[subset]
+        self.grid_metallicities = grid_metallicities
+        self._set_metallicity_metadata()
 
         # Load the fluxes
         fluxes = {}
@@ -243,10 +265,10 @@ class SEDGrid(object):
             fluxes[teff] = {}
             for logg in self.loggs:
                 fluxes[teff][logg] = {}
-                for feh in self.fehs:
-                    sed = SED.from_grid(teff, logg, feh, filters)
+                for metallicity in self.metallicities:
+                    sed = SED.from_grid(teff, logg, metallicity, filters)
 
-                    fluxes[teff][logg][feh] = sed.flux
+                    fluxes[teff][logg][metallicity] = sed.flux
         self.fluxes = fluxes
 
         # Save the wavelength array
@@ -255,7 +277,7 @@ class SEDGrid(object):
         # Save the bandwidth array
         self.bandwidth = sed.bandwidth
 
-    def get_SED(self, teff, logg, feh):
+    def get_SED(self, teff, logg, metallicity=UNSET, *, feh=UNSET):
         """
         Parameters
         ----------
@@ -265,8 +287,11 @@ class SEDGrid(object):
         logg : float
             Surface gravity of the model in cgs units.
 
-        feh : float
-            [Fe/H] of the model.
+        metallicity : float
+            Native metallicity coordinate of the selected model library.
+
+        feh : float, optional
+            Native PHOENIX-ACES alias of ``metallicity``; supply only one form.
 
         Returns
         -------
@@ -274,15 +299,16 @@ class SEDGrid(object):
             The interpolated flux array.
         """
 
+        metallicity = resolve_metallicity(metallicity, self.model_grid, feh=feh)
         # First check that the values are within the grid
         teff_in_grid = self.teff_bds[0] <= teff <= self.teff_bds[1]
         logg_in_grid = self.logg_bds[0] <= logg <= self.logg_bds[1]
-        feh_in_grid = self.feh_bds[0] <= feh <= self.feh_bds[1]
+        metallicity_in_grid = self.metallicity_bds[0] <= metallicity <= self.metallicity_bds[1]
 
-        booleans = [teff_in_grid, logg_in_grid, feh_in_grid]
-        params = ["teff", "logg", "feh"]
-        inputs = [teff, logg, feh]
-        ranges = [self.teff_bds, self.logg_bds, self.feh_bds]
+        booleans = [teff_in_grid, logg_in_grid, metallicity_in_grid]
+        params = ["teff", "logg", "metallicity"]
+        inputs = [teff, logg, metallicity]
+        ranges = [self.teff_bds, self.logg_bds, self.metallicity_bds]
 
         if not all(booleans):
             message = "Input values are out of grid range.\n\n"
@@ -300,20 +326,20 @@ class SEDGrid(object):
             self.loggs[self.loggs <= logg].max(),
             self.loggs[self.loggs >= logg].min(),
         )
-        flanking_fehs = (
-            self.fehs[self.fehs <= feh].max(),
-            self.fehs[self.fehs >= feh].min(),
+        flanking_metallicities = (
+            self.metallicities[self.metallicities <= metallicity].max(),
+            self.metallicities[self.metallicities >= metallicity].min(),
         )
 
         # Define the points for interpolation
-        params000 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[0])
-        params100 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[0])
-        params010 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[0])
-        params110 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[0])
-        params001 = (flanking_teffs[0], flanking_loggs[0], flanking_fehs[1])
-        params101 = (flanking_teffs[1], flanking_loggs[0], flanking_fehs[1])
-        params011 = (flanking_teffs[0], flanking_loggs[1], flanking_fehs[1])
-        params111 = (flanking_teffs[1], flanking_loggs[1], flanking_fehs[1])
+        params000 = (flanking_teffs[0], flanking_loggs[0], flanking_metallicities[0])
+        params100 = (flanking_teffs[1], flanking_loggs[0], flanking_metallicities[0])
+        params010 = (flanking_teffs[0], flanking_loggs[1], flanking_metallicities[0])
+        params110 = (flanking_teffs[1], flanking_loggs[1], flanking_metallicities[0])
+        params001 = (flanking_teffs[0], flanking_loggs[0], flanking_metallicities[1])
+        params101 = (flanking_teffs[1], flanking_loggs[0], flanking_metallicities[1])
+        params011 = (flanking_teffs[0], flanking_loggs[1], flanking_metallicities[1])
+        params111 = (flanking_teffs[1], flanking_loggs[1], flanking_metallicities[1])
 
         # Interpolate trilinearly
         # https://en.wikipedia.org/wiki/Trilinear_interpolation
@@ -353,7 +379,7 @@ class SEDGrid(object):
             c1 = c01
 
         if not params000 == params001:
-            flux = interpolate([c0, c1], flanking_fehs, feh)
+            flux = interpolate([c0, c1], flanking_metallicities, metallicity)
         else:
             flux = c0
 

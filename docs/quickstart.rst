@@ -77,7 +77,7 @@ The public call for loading a model is concise, but may initiate a download:
    model = Spectrum.from_grid(
        teff=3000,
        logg=4.5,
-       feh=0.0,
+       metallicity=0.0,
        co_ratio=0.5,
        model_grid="sphinx",
        interpolate=False,

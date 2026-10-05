@@ -395,6 +395,9 @@ def test_grid_data_units_values_metadata_indexing_and_iteration(kostogryz_cache)
         60404466671732.08
     )
     assert grid.meta["source_library"] == "kostogryz2026"
+    assert grid.meta["metallicity"] == 0.0
+    assert grid.meta["metallicity_type"] == "mh"
+    assert grid.at_mu(0.1).meta["metallicity_type"] == "mh"
     assert grid.meta["source_model_identifier"] == "G2_MH_00"
     assert grid.meta["magnetic_state"] == "ssd"
     assert grid.meta["magnetic_state_category"] == "small_scale_dynamo"
@@ -464,6 +467,7 @@ def test_metadata_inconsistencies_are_resolved_explicitly(kostogryz_cache):
         "kostogryz2026", model="G2", metallicity=0.5
     )
     assert metal_rich.meta["metallicity"] == 0.5
+    assert metal_rich.meta["metallicity_type"] == "mh"
     assert "Edmond file description incorrectly says 0.0" in " ".join(
         metal_rich.meta["metadata_notes"]
     )

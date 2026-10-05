@@ -32,6 +32,24 @@ documented because they define where users store model libraries.
 
 .. autofunction:: set_library_root
 
+Native model selection and filtering
+------------------------------------
+
+These helpers use ``metallicity`` or ``metallicity_range`` to select native
+[M/H] directly, without an abundance conversion.
+
+.. autofunction:: download_newera_hsr_subset
+
+.. autofunction:: download_newera_file
+
+.. autofunction:: load_newera_wavelength_array
+
+.. autofunction:: load_newera_flux_array
+
+.. autofunction:: load_sphinx_spectrum
+
+.. autofunction:: load_mps_atlas_spectrum
+
 Wavelength conversion
 ---------------------
 

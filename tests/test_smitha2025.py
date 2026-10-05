@@ -221,6 +221,8 @@ def test_from_smitha2025_loads_every_discrete_product(
     assert spectrum.meta["surface_component"] == component
     assert spectrum.meta["data_doi"] == "10.17617/3.HS2EE6"
     assert spectrum.meta["native_wavelength_points"] == 101
+    assert "metallicity" not in spectrum.meta
+    assert "metallicity_type" not in spectrum.meta
 
 
 def test_smitha2025_photosphere_alias_and_component_metadata(smitha2025_cache):

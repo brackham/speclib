@@ -160,7 +160,7 @@ def test_from_grid_returns_speclib_spectrum(monkeypatch, resample):
     spec = Spectrum.from_grid(
         teff=4700,
         logg=4.6,
-        feh=0.0,
+        metallicity=0.0,
         model_grid="newera_jwst",
         wavelength=new_wave,
     )

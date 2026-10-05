@@ -7,6 +7,10 @@ intensities :math:`I_\lambda(\mu)` from `Kostogryz et al. (2026)
 from 3D radiative-MHD MURaM simulations. Unlike the ordinary 1D
 :doc:`mps_atlas` grids, these are not disk-integrated flux spectra.
 
+``metallicity`` selects native [M/H]. Returned grids and spectra record
+``meta["metallicity"]`` and ``meta["metallicity_type"] = "mh"``;
+SpecLib does not convert between [Fe/H] and [M/H].
+
 Loading a model
 ---------------
 

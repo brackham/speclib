@@ -41,7 +41,7 @@ Access and cache behavior
    from speclib import Spectrum
 
    spectrum = Spectrum.from_grid(
-       4000, 4.5, 0.0,
+       4000, 4.5, metallicity=0.0,
        model_grid="phoenix",
        interpolate=False,
    )
@@ -49,6 +49,9 @@ Access and cache behavior
 The wavelength file and requested spectrum are fetched from the Göttingen
 PHOENIX server when absent and cached under ``<library root>/phoenix``.
 Interpolated requests may fetch as many as eight corner spectra.
+``metallicity`` is native [Fe/H]; ``feh`` remains a warning-free native alias.
+Returned spectra record ``meta["metallicity"]`` and
+``meta["metallicity_type"] = "feh"``. No abundance conversion is performed.
 :func:`~speclib.download_phoenix_grid` loops over every combination declared
 above and skips upstream files that cannot be retrieved; this is a bulk action,
 not a prerequisite for normal use when files are downloaded as needed.

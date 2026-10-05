@@ -14,6 +14,14 @@ import warnings
 
 import synphot as sp
 
+from ._metallicity import (
+    UNSET,
+    METALLICITY_TYPES,
+    MetallicityGridMetadata,
+    resolve_metallicity,
+    reject_grid_metallicity_keywords,
+)
+
 __all__ = [
     "Spectrum",
     "BinnedSpectrum",
@@ -62,7 +70,7 @@ def _sphinx_grid_slice(co_ratio):
     grid_points = {
         "grid_teffs": np.unique(combinations[:, 0]),
         "grid_loggs": np.unique(combinations[:, 1]),
-        "grid_fehs": np.unique(combinations[:, 2]),
+        "grid_metallicities": np.unique(combinations[:, 2]),
         "grid_co_ratios": available_co_ratios,
     }
     return grid_points, combinations, canonical_co_ratio
@@ -98,7 +106,7 @@ def _mps_atlas_grid_slice(model_set):
     grid_points = {
         "grid_teffs": model_list["grid_teffs"],
         "grid_loggs": model_list["grid_loggs"],
-        "grid_fehs": model_list["grid_fehs"],
+        "grid_metallicities": model_list["grid_metallicities"],
     }
     return grid_points, model_list["combinations"]
 
@@ -111,7 +119,7 @@ def _validate_mps_atlas_ranges(teff, logg, metallicity, grid_points, model_set):
     axes = (
         grid_points["grid_teffs"],
         grid_points["grid_loggs"],
-        grid_points["grid_fehs"],
+        grid_points["grid_metallicities"],
     )
     for name, value, axis in zip(axis_names, coordinates, axes):
         if value < np.min(axis) or value > np.max(axis):
@@ -816,7 +824,7 @@ class Spectrum(SpecutilsSpectrum):
         self,
         teff,
         logg,
-        feh=0,
+        metallicity=UNSET,
         alpha=0.0,
         wavelength=None,
         wl_min=None,
@@ -826,6 +834,8 @@ class Spectrum(SpecutilsSpectrum):
         verbose=False,
         *,
         co_ratio=None,
+        feh=UNSET,
+        mh=UNSET,
     ):
         """
         Load a model spectrum from a library.
@@ -838,9 +848,15 @@ class Spectrum(SpecutilsSpectrum):
         logg : float
             Surface gravity of the model in cgs units.
 
-        feh : float
-            [Fe/H] of the model. For SPHINX this selects the filename's
-            ``logZ`` metallicity parameter; for MPS-ATLAS it is [M/H].
+        metallicity : float, optional
+            Native metallicity coordinate (default 0): [Fe/H] for PHOENIX-ACES,
+            [M/H] for NewEra, SPHINX, and MPS-ATLAS. SPHINX filenames label
+            [M/H] as ``logZ``. SpecLib does not convert between [Fe/H] and [M/H].
+
+        feh, mh : float, optional
+            Explicit native aliases: ``feh`` for PHOENIX-ACES, ``mh`` for [M/H]
+            grids. Using the wrong native alias raises ``ValueError``.
+            Supply only one coordinate form; no abundance conversion is made.
 
         alpha : float, optional
             Alpha enhancement for NewEra models. This selects a fixed model
@@ -867,7 +883,7 @@ class Spectrum(SpecutilsSpectrum):
 
         interpolate : bool, optional
             Whether to interpolate between grid points. If `True` (default), the spectrum
-            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            will be trilinearly interpolated in (Teff, logg, native metallicity) space. If `False`,
             the nearest available grid point will be used without interpolation.
 
         Returns
@@ -890,6 +906,11 @@ class Spectrum(SpecutilsSpectrum):
         else:
             self.model_grid = requested_model_grid
 
+        metallicity = resolve_metallicity(
+            metallicity, self.model_grid, feh=feh, mh=mh, default=0.0
+        )
+        selected_metallicity = None
+
         # Define grid points. SPHINX is sparse, so derive the selected C/O slice
         # from the exact filenames in the extracted V4 archive.
         sphinx_combinations = None
@@ -902,7 +923,7 @@ class Spectrum(SpecutilsSpectrum):
             _validate_mps_atlas_ranges(
                 teff,
                 logg,
-                feh,
+                metallicity,
                 utils.GRID_POINTS[self.model_grid],
                 mps_atlas_set,
             )
@@ -910,13 +931,13 @@ class Spectrum(SpecutilsSpectrum):
                 mps_atlas_set
             )
             _validate_mps_atlas_ranges(
-                teff, logg, feh, self.grid_points, mps_atlas_set
+                teff, logg, metallicity, self.grid_points, mps_atlas_set
             )
         else:
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
-        self.grid_fehs = self.grid_points["grid_fehs"]
+        self.grid_metallicities = self.grid_points["grid_metallicities"]
 
         if self.model_grid == "phoenix":
             lib_wave_unit = u.AA
@@ -932,8 +953,8 @@ class Spectrum(SpecutilsSpectrum):
 
             # The convention of the PHOENIX model grids is that
             # [Fe/H] = 0.0 is written as a negative number.
-            if feh == 0:
-                feh = -0.0
+            if metallicity == 0:
+                metallicity = -0.0
 
             # Load the wavelength array
             wave_local_path = cache_dir / "WAVE_PHOENIX-ACES-AGSS-COND-2011.fits"
@@ -948,12 +969,12 @@ class Spectrum(SpecutilsSpectrum):
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            model_in_grid = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
             if not interpolate and not model_in_grid:
                 teff = utils.nearest(self.grid_teffs, teff)
                 logg = utils.nearest(self.grid_loggs, logg)
-                feh = utils.nearest(self.grid_fehs, feh)
+                metallicity = utils.nearest(self.grid_metallicities, metallicity)
                 model_in_grid = True  # force nearest model retrieval
             if not model_in_grid:
                 if teff_in_grid:
@@ -964,29 +985,29 @@ class Spectrum(SpecutilsSpectrum):
                     logg_bds = [logg, logg]
                 else:
                     logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                if feh_in_grid:
-                    feh_bds = [feh, feh]
+                if metallicity_in_grid:
+                    metallicity_bds = [metallicity, metallicity]
                 else:
-                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                    metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 for tt in teff_bds:
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = utils.load_flux_array(
                                 fname, cache_dir, ftp_url
                             )
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             elif model_in_grid:
                 # Load the flux array
-                fname = fname_str.format(teff, logg, feh)
+                fname = fname_str.format(teff, logg, metallicity)
                 flux = utils.load_flux_array(fname, cache_dir, ftp_url)
 
         elif self.model_grid == "newera":
@@ -997,24 +1018,24 @@ class Spectrum(SpecutilsSpectrum):
             cache_dir = utils.get_library_root() / "newera"
             cache_dir.mkdir(parents=True, exist_ok=True)
 
-            # Ensure feh is float-compatible with naming convention
-            if feh == 0:
-                feh = -0.0
+            # Ensure metallicity is float-compatible with naming convention
+            if metallicity == 0:
+                metallicity = -0.0
 
             # Define bounds
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            on_backbone = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            on_backbone = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
             native_entries = utils.load_newera_model_list(cache_dir=cache_dir)["entries"]
-            native_key = utils._normalize_newera_key(teff, logg, feh, alpha)
+            native_key = utils._normalize_newera_key(teff, logg, metallicity, alpha)
             model_in_grid = native_key in native_entries
             alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
-            use_alpha = feh >= -2.0 and feh <= 0.0 and alpha_in_grid
+            use_alpha = metallicity >= -2.0 and metallicity <= 0.0 and alpha_in_grid
 
-            def load_flux_from_h5(teff_, logg_, feh_, alpha_=0.0):
+            def load_flux_from_h5(teff_, logg_, metallicity_, alpha_=0.0):
                 local_path = utils.download_newera_file(
-                    teff_, logg_, feh_, alpha_, cache_dir=cache_dir
+                    teff_, logg_, metallicity_, alpha_, cache_dir=cache_dir
                 )
                 with h5py.File(local_path, "r") as h5:
                     # Wavelengths in vacuum Ångströms
@@ -1029,8 +1050,8 @@ class Spectrum(SpecutilsSpectrum):
             if not model_in_grid and not interpolate:
                 teff = utils.nearest(self.grid_teffs, teff)
                 logg = utils.nearest(self.grid_loggs, logg)
-                feh = utils.nearest(self.grid_fehs, feh)
-                native_key = utils._normalize_newera_key(teff, logg, feh, alpha)
+                metallicity = utils.nearest(self.grid_metallicities, metallicity)
+                native_key = utils._normalize_newera_key(teff, logg, metallicity, alpha)
                 if native_key not in native_entries:
                     raise FileNotFoundError(f"No native NewEra model for {native_key}")
                 model_in_grid = True
@@ -1041,7 +1062,7 @@ class Spectrum(SpecutilsSpectrum):
             if not model_in_grid:
                 teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1049,18 +1070,19 @@ class Spectrum(SpecutilsSpectrum):
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             wl, flx = load_flux_from_h5(tt, gg, ff, alpha)
                             flux_dict[tt][gg][ff] = flx
                             if wave_lib is None:
                                 wave_lib = wl
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             else:
-                wave_lib, flux = load_flux_from_h5(teff, logg, feh, alpha)
+                wave_lib, flux = load_flux_from_h5(teff, logg, metallicity, alpha)
+                selected_metallicity = native_key[2]
 
         elif self.model_grid in ["newera_gaia", "newera_jwst", "newera_lowres"]:
             grid_name = self.model_grid
@@ -1069,25 +1091,25 @@ class Spectrum(SpecutilsSpectrum):
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            on_backbone = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            on_backbone = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
             alpha_in_grid = alpha in self.grid_points.get("grid_alphas", [0.0])
 
-            def load_flux(teff_, logg_, feh_, alpha_=0.0):
+            def load_flux(teff_, logg_, metallicity_, alpha_=0.0):
                 return utils.load_newera_flux_array(
-                    teff_, logg_, feh_, alpha_, grid_name
+                    teff_, logg_, metallicity_, alpha_, grid_name
                 )
 
-            def load_wave(teff_, logg_, feh_, alpha_=0.0):
+            def load_wave(teff_, logg_, metallicity_, alpha_=0.0):
                 return utils.load_newera_wavelength_array(
-                    teff_, logg_, feh_, alpha_, grid_name
+                    teff_, logg_, metallicity_, alpha_, grid_name
                 )
 
             # Headers, rather than independent axes, establish native existence.
             # This also recognizes special temperatures without making them
             # interpolation planes in SpectralGrid/BinnedSpectralGrid.
             try:
-                wave_lib = load_wave(teff, logg, feh, alpha)
+                wave_lib = load_wave(teff, logg, metallicity, alpha)
                 model_in_grid = True
             except ValueError:
                 model_in_grid = False
@@ -1095,20 +1117,20 @@ class Spectrum(SpecutilsSpectrum):
             if not model_in_grid and on_backbone:
                 raise ValueError(
                     f"No native {grid_name} model for Teff={teff}, "
-                    f"logg={logg}, metallicity={feh}, alpha={alpha}"
+                    f"logg={logg}, metallicity={metallicity}, alpha={alpha}"
                 )
 
             if not model_in_grid and not interpolate:
                 teff = utils.nearest(self.grid_teffs, teff)
                 logg = utils.nearest(self.grid_loggs, logg)
-                feh = utils.nearest(self.grid_fehs, feh)
-                wave_lib = load_wave(teff, logg, feh, alpha)
+                metallicity = utils.nearest(self.grid_metallicities, metallicity)
+                wave_lib = load_wave(teff, logg, metallicity, alpha)
                 model_in_grid = True
 
             if not model_in_grid:
                 teff_bds = utils.find_bounds(self.grid_teffs, teff)
                 logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1116,17 +1138,23 @@ class Spectrum(SpecutilsSpectrum):
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             if wave_lib is None:
                                 wave_lib = load_wave(tt, gg, ff, alpha)
                             flux_dict[tt][gg][ff] = load_flux(tt, gg, ff, alpha)
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             else:
-                flux = load_flux(teff, logg, feh, alpha)
+                flux = load_flux(teff, logg, metallicity, alpha)
+                # Record the plane named by the storage label, including its
+                # existing one-decimal rounding, without changing selection.
+                selected_metallicity = (
+                    0.0 if np.isclose(metallicity, 0.0)
+                    else float(f"{metallicity:+.1f}")
+                )
 
         elif self.model_grid == "drift-phoenix":
             # Only works if the user has already cached the DRIFT-PHOENIX model grid
@@ -1137,10 +1165,10 @@ class Spectrum(SpecutilsSpectrum):
 
             fname_str = "lte_{:4.0f}_{:0.1f}{:+0.1f}.7.dat.txt"
 
-            # The convention of the DRIFT-PHOENIX model grids is that
-            # [Fe/H] = 0.0 is written as a negative number.
-            if feh == 0:
-                feh = -0.0
+            # Preserve the legacy DRIFT-PHOENIX filename convention: zero
+            # metallicity is written as a negative number.
+            if metallicity == 0:
+                metallicity = -0.0
 
             # Load the wavelength array
             wave_local_path = cache_dir / "lte_1000_3.0-0.0.7.dat.txt"
@@ -1148,8 +1176,8 @@ class Spectrum(SpecutilsSpectrum):
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            model_in_grid = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
@@ -1159,29 +1187,29 @@ class Spectrum(SpecutilsSpectrum):
                     logg_bds = [logg, logg]
                 else:
                     logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                if feh_in_grid:
-                    feh_bds = [feh, feh]
+                if metallicity_in_grid:
+                    metallicity_bds = [metallicity, metallicity]
                 else:
-                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                    metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 for tt in teff_bds:
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = np.loadtxt(
                                 cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             elif model_in_grid:
                 # Load the wavelength and flux arrays
-                fname = fname_str.format(teff, logg, feh)
+                fname = fname_str.format(teff, logg, metallicity)
                 wave_lib, flux = np.loadtxt(cache_dir / fname, unpack=True)
 
         elif self.model_grid == "nextgen-solar":
@@ -1199,8 +1227,8 @@ class Spectrum(SpecutilsSpectrum):
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            model_in_grid = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
             if not model_in_grid:
                 if teff_in_grid:
                     teff_bds = [teff, teff]
@@ -1210,29 +1238,29 @@ class Spectrum(SpecutilsSpectrum):
                     logg_bds = [logg, logg]
                 else:
                     logg_bds = utils.find_bounds(self.grid_loggs, logg)
-                if feh_in_grid:
-                    feh_bds = [feh, feh]
+                if metallicity_in_grid:
+                    metallicity_bds = [metallicity, metallicity]
                 else:
-                    feh_bds = utils.find_bounds(self.grid_fehs, feh)
+                    metallicity_bds = utils.find_bounds(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 for tt in teff_bds:
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             fname = fname_str.format(tt, gg, ff)
                             flux_dict[tt][gg][ff] = np.loadtxt(
                                 cache_dir / fname, unpack=True, usecols=1
                             )
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             elif model_in_grid:
                 # Load the wavelength and flux arrays
-                fname = fname_str.format(teff, logg, feh)
+                fname = fname_str.format(teff, logg, metallicity)
                 wave_lib, flux = np.loadtxt(cache_dir / fname, unpack=True)
 
         elif self.model_grid == "sphinx":
@@ -1250,9 +1278,9 @@ class Spectrum(SpecutilsSpectrum):
 
             teff_in_grid = teff in self.grid_teffs
             logg_in_grid = logg in self.grid_loggs
-            feh_in_grid = feh in self.grid_fehs
-            model_in_grid = all([teff_in_grid, logg_in_grid, feh_in_grid])
-            requested = np.array([teff, logg, feh], dtype=float)
+            metallicity_in_grid = metallicity in self.grid_metallicities
+            model_in_grid = all([teff_in_grid, logg_in_grid, metallicity_in_grid])
+            requested = np.array([teff, logg, metallicity], dtype=float)
             exact_combinations = sphinx_combinations[:, :3]
             model_in_grid = model_in_grid and np.any(
                 np.all(np.isclose(exact_combinations, requested), axis=1)
@@ -1261,7 +1289,7 @@ class Spectrum(SpecutilsSpectrum):
                 nearest_index = _nearest_available_index(
                     exact_combinations, requested
                 )
-                teff, logg, feh = exact_combinations[nearest_index]
+                teff, logg, metallicity = exact_combinations[nearest_index]
                 model_in_grid = True
             if not model_in_grid:
                 if teff_in_grid:
@@ -1272,10 +1300,10 @@ class Spectrum(SpecutilsSpectrum):
                     logg_bds = [logg, logg]
                 else:
                     logg_bds = _flanking_values(self.grid_loggs, logg)
-                if feh_in_grid:
-                    feh_bds = [feh, feh]
+                if metallicity_in_grid:
+                    metallicity_bds = [metallicity, metallicity]
                 else:
-                    feh_bds = _flanking_values(self.grid_fehs, feh)
+                    metallicity_bds = _flanking_values(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1283,7 +1311,7 @@ class Spectrum(SpecutilsSpectrum):
                     flux_dict[tt] = {}
                     for gg in logg_bds:
                         flux_dict[tt][gg] = {}
-                        for ff in feh_bds:
+                        for ff in metallicity_bds:
                             wavelength_, flux_ = load_wave_flux(tt, gg, ff)
                             if wave_lib is None:
                                 wave_lib = wavelength_
@@ -1295,11 +1323,11 @@ class Spectrum(SpecutilsSpectrum):
                             flux_dict[tt][gg][ff] = flux_
 
                 flux = utils.trilinear_interpolate(
-                    flux_dict, (teff_bds, logg_bds, feh_bds), (teff, logg, feh)
+                    flux_dict, (teff_bds, logg_bds, metallicity_bds), (teff, logg, metallicity)
                 )
 
             elif model_in_grid:
-                wave_lib, flux = load_wave_flux(teff, logg, feh)
+                wave_lib, flux = load_wave_flux(teff, logg, metallicity)
 
         elif mps_atlas_set is not None:
             lib_wave_unit = u.AA
@@ -1314,7 +1342,7 @@ class Spectrum(SpecutilsSpectrum):
                     flux_.to_value(lib_flux_unit),
                 )
 
-            requested = np.array([teff, logg, feh], dtype=float)
+            requested = np.array([teff, logg, metallicity], dtype=float)
             exact_combinations = mps_atlas_combinations[:, :3]
             model_in_grid = np.any(
                 np.all(
@@ -1328,15 +1356,15 @@ class Spectrum(SpecutilsSpectrum):
                 nearest_index = _nearest_available_index(
                     exact_combinations, requested
                 )
-                teff, logg, feh = exact_combinations[nearest_index]
+                teff, logg, metallicity = exact_combinations[nearest_index]
                 model_in_grid = True
 
             if model_in_grid:
-                wave_lib, flux = load_wave_flux(teff, logg, feh)
+                wave_lib, flux = load_wave_flux(teff, logg, metallicity)
             else:
                 teff_bds = _flanking_values(self.grid_teffs, teff)
                 logg_bds = _flanking_values(self.grid_loggs, logg)
-                feh_bds = _flanking_values(self.grid_fehs, feh)
+                metallicity_bds = _flanking_values(self.grid_metallicities, metallicity)
 
                 flux_dict = {}
                 wave_lib = None
@@ -1345,7 +1373,7 @@ class Spectrum(SpecutilsSpectrum):
                         flux_dict[tt] = {}
                         for gg in logg_bds:
                             flux_dict[tt][gg] = {}
-                            for ff in feh_bds:
+                            for ff in metallicity_bds:
                                 wavelength_, flux_ = load_wave_flux(tt, gg, ff)
                                 if wave_lib is None:
                                     wave_lib = wavelength_
@@ -1365,8 +1393,8 @@ class Spectrum(SpecutilsSpectrum):
 
                 flux = utils.trilinear_interpolate(
                     flux_dict,
-                    (teff_bds, logg_bds, feh_bds),
-                    (teff, logg, feh),
+                    (teff_bds, logg_bds, metallicity_bds),
+                    (teff, logg, metallicity),
                 )
 
         # Load `~speclib.Spectrum` object
@@ -1401,8 +1429,23 @@ class Spectrum(SpecutilsSpectrum):
             spec = spec.resample(wavelength)
 
         spec.model_grid = self.model_grid
+        if self.model_grid in METALLICITY_TYPES:
+            spec.meta.update(
+                source_library=self.model_grid,
+                teff=float(teff),
+                logg=float(logg),
+                metallicity=float(
+                    metallicity if selected_metallicity is None else selected_metallicity
+                ),
+                metallicity_type=METALLICITY_TYPES[self.model_grid],
+            )
+        if self.model_grid.startswith("newera"):
+            spec.meta["alpha"] = float(alpha)
+        if self.model_grid == "sphinx":
+            spec.meta["co_ratio"] = float(co_ratio)
         if mps_atlas_set is not None:
             spec.model_set = mps_atlas_set
+            spec.meta["model_set"] = mps_atlas_set
 
         return spec
 
@@ -1677,7 +1720,7 @@ class Spectrum(SpecutilsSpectrum):
         binned_fluxes = _bin_spectral_density(
             self.wavelength, self.flux, center, width
         )
-        return BinnedSpectrum(center, width, binned_fluxes)
+        return BinnedSpectrum(center, width, binned_fluxes, meta=self.meta)
 
 
 class BinnedSpectrum(object):
@@ -1705,7 +1748,7 @@ class BinnedSpectrum(object):
     """
 
     @u.quantity_input(center=u.AA, width=u.AA)
-    def __init__(self, center, width, flux):
+    def __init__(self, center, width, flux, meta=None):
         """
         Parameters
         ----------
@@ -1723,6 +1766,7 @@ class BinnedSpectrum(object):
         self.lower = center - width / 2.0
         self.upper = center + width / 2.0
         self.flux = flux
+        self.meta = copy.deepcopy(meta) if meta is not None else {}
 
 
 class BinnedSpecificIntensitySpectrum(object):
@@ -2134,12 +2178,12 @@ class SpecificIntensityGrid(object):
         return self._spectra[int(matches[0])]
 
 
-class SpectralGrid(object):
+class SpectralGrid(MetallicityGridMetadata):
     """
     Represents a multi-dimensional grid of synthetic spectra from a model library.
 
     Provides fast access to preloaded spectra and supports trilinear interpolation
-    in (Teff, logg, [Fe/H]) space.
+    in (Teff, logg, native metallicity) space.
 
     Attributes
     ----------
@@ -2149,14 +2193,14 @@ class SpectralGrid(object):
     logg_bds : iterable
         The lower and upper bounds of the model logg values to load.
 
-    feh_bds : iterable
-        The lower and upper bounds of the model [Fe/H] to load.
+    metallicity_bds : iterable
+        The lower and upper bounds of the native metallicity coordinate to load.
 
     wavelength : `~astropy.units.Quantity`
         Wavelengths of the interpolated spectrum.
 
     fluxes : dict
-        The fluxes of the model grid. Sorted by fluxes[teff][logg][feh].
+        The fluxes of the model grid. Sorted by fluxes[teff][logg][metallicity].
 
     model_grid : str
         Accepted model selector. PHOENIX, SPHINX, and the reduced NewEra
@@ -2231,12 +2275,14 @@ class SpectralGrid(object):
         self,
         teff_bds,
         logg_bds,
-        feh_bds,
+        metallicity_bds=UNSET,
         wavelength=None,
         spectral_resolution=None,
         model_grid="phoenix",
         spectral_resolving_power=None,
         co_ratio=None,
+        *,
+        mh_bds=UNSET,
         **kwargs,
     ):
         """
@@ -2248,8 +2294,12 @@ class SpectralGrid(object):
         logg_bds : iterable
             The lower and upper bounds of the model logg values to load.
 
-        feh_bds : iterable
-            The lower and upper bounds of the model [Fe/H] to load.
+        metallicity_bds : iterable
+            The lower and upper bounds of the native metallicity coordinate to load.
+
+        mh_bds : iterable, optional
+            Native bounds alias for [M/H] grids. Supply exactly one bounds
+            form; no [Fe/H]-to-[M/H] conversion is performed.
 
         wavelength : `~astropy.units.Quantity`, optional
             Wavelengths of the interpolated spectrum.
@@ -2267,6 +2317,11 @@ class SpectralGrid(object):
             Fixed carbon-to-oxygen ratio for a SPHINX grid instance. Required
             for ``model_grid="sphinx"`` and ignored for other grids.
         """
+        reject_grid_metallicity_keywords(kwargs)
+        metallicity_bds = resolve_metallicity(
+            metallicity_bds, model_grid, mh=mh_bds,
+            parameter="metallicity_bds",
+        )
         if (
             spectral_resolution is not None
             and spectral_resolving_power is not None
@@ -2307,12 +2362,12 @@ class SpectralGrid(object):
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
-        self.grid_fehs = self.grid_points["grid_fehs"]
+        self.grid_metallicities = self.grid_points["grid_metallicities"]
 
         # Then ensure that the bounds given are valid.
         self.teff_bds = self._clip_bounds_to_grid(teff_bds, self.grid_teffs, "teff_bds")
         self.logg_bds = self._clip_bounds_to_grid(logg_bds, self.grid_loggs, "logg_bds")
-        self.feh_bds = self._clip_bounds_to_grid(feh_bds, self.grid_fehs, "feh_bds")
+        self.metallicity_bds = self._clip_bounds_to_grid(metallicity_bds, self.grid_metallicities, "metallicity_bds")
 
         # Define the values covered in the grid
         subset = np.logical_and(
@@ -2326,9 +2381,10 @@ class SpectralGrid(object):
         self.loggs = self.grid_loggs[subset]
 
         subset = np.logical_and(
-            self.grid_fehs >= self.feh_bds[0], self.grid_fehs <= self.feh_bds[1]
+            self.grid_metallicities >= self.metallicity_bds[0], self.grid_metallicities <= self.metallicity_bds[1]
         )
-        self.fehs = self.grid_fehs[subset]
+        self.metallicities = self.grid_metallicities[subset]
+        self._set_metallicity_metadata()
 
         # Load the fluxes
         fluxes = {}
@@ -2344,27 +2400,27 @@ class SpectralGrid(object):
                 & (mps_atlas_combinations[:, 0] <= self.teff_bds[1])
                 & (mps_atlas_combinations[:, 1] >= self.logg_bds[0])
                 & (mps_atlas_combinations[:, 1] <= self.logg_bds[1])
-                & (mps_atlas_combinations[:, 2] >= self.feh_bds[0])
-                & (mps_atlas_combinations[:, 2] <= self.feh_bds[1])
+                & (mps_atlas_combinations[:, 2] >= self.metallicity_bds[0])
+                & (mps_atlas_combinations[:, 2] <= self.metallicity_bds[1])
             )
             parameter_combinations = mps_atlas_combinations[within_bounds, :3]
         else:
             parameter_combinations = np.array(
                 [
-                    (teff, logg, feh)
+                    (teff, logg, metallicity)
                     for teff in self.teffs
                     for logg in self.loggs
-                    for feh in self.fehs
+                    for metallicity in self.metallicities
                 ]
             )
 
-        for teff, logg, feh in parameter_combinations:
+        for teff, logg, metallicity in parameter_combinations:
             fluxes.setdefault(teff, {}).setdefault(logg, {})
             try:
                 spec = Spectrum.from_grid(
                     teff,
                     logg,
-                    feh,
+                    metallicity,
                     model_grid=self.model_grid,
                     **spectrum_kwargs,
                 )
@@ -2381,8 +2437,8 @@ class SpectralGrid(object):
             if wavelength is not None:
                 spec = spec.resample(wavelength)
 
-            fluxes[teff][logg][feh] = spec.flux
-            points.append([teff, logg, feh])
+            fluxes[teff][logg][metallicity] = spec.flux
+            points.append([teff, logg, metallicity])
             data.append(spec.flux.value)
 
         self.fluxes = fluxes
@@ -2423,17 +2479,17 @@ class SpectralGrid(object):
 
         new_fluxes = {
             teff: {
-                logg: dict(fluxes_by_feh)
-                for logg, fluxes_by_feh in fluxes_by_logg.items()
+                logg: dict(fluxes_by_metallicity)
+                for logg, fluxes_by_metallicity in fluxes_by_logg.items()
             }
             for teff, fluxes_by_logg in self.fluxes.items()
         }
         new_rows = []
-        for teff, logg, feh in self.points:
-            flux = self.fluxes[teff][logg][feh].to(self.unit)
+        for teff, logg, metallicity in self.points:
+            flux = self.fluxes[teff][logg][metallicity].to(self.unit)
             convolved_values = _apply_gaussian_convolution_plan(flux.value, plan)
             convolved_flux = convolved_values * self.unit
-            new_fluxes[teff][logg][feh] = convolved_flux
+            new_fluxes[teff][logg][metallicity] = convolved_flux
             new_rows.append(convolved_values)
 
         new_grid = copy.copy(self)
@@ -2442,10 +2498,10 @@ class SpectralGrid(object):
             "points",
             "teffs",
             "loggs",
-            "fehs",
+            "metallicities",
             "grid_teffs",
             "grid_loggs",
-            "grid_fehs",
+            "grid_metallicities",
         ):
             if hasattr(self, attribute):
                 value = getattr(self, attribute)
@@ -2456,6 +2512,8 @@ class SpectralGrid(object):
                 )
         if hasattr(self, "grid_points"):
             new_grid.grid_points = copy.deepcopy(self.grid_points)
+        if hasattr(self, "meta"):
+            new_grid.meta = copy.deepcopy(self.meta)
         new_grid.fluxes = new_fluxes
         new_grid.data = np.vstack(new_rows)
         new_grid.interpolator = NearestNDInterpolator(
@@ -2562,7 +2620,9 @@ class SpectralGrid(object):
         )
         return self._with_gaussian_convolution(plan)
 
-    def get_flux(self, teff, logg, feh, interpolate=True):
+    def get_flux(
+        self, teff, logg, metallicity=UNSET, interpolate=True, *, feh=UNSET, mh=UNSET
+    ):
         """
         Parameters
         ----------
@@ -2572,12 +2632,17 @@ class SpectralGrid(object):
         logg : float
             Surface gravity of the model in cgs units.
 
-        feh : float
-            [Fe/H] of the model.
+        metallicity : float
+            Native metallicity coordinate of the selected model library.
+
+        feh, mh : float, optional
+            Native aliases as in ``Spectrum.from_grid``: ``feh`` only for
+            PHOENIX-ACES, ``mh`` for [M/H] grids. Wrong aliases raise
+            ``ValueError``. Supply exactly one coordinate form.
 
         interpolate : bool, optional
             Whether to interpolate between grid points. If `True` (default), the spectrum
-            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            will be trilinearly interpolated in (Teff, logg, native metallicity) space. If `False`,
             the nearest available grid point will be used without interpolation.
 
         Returns
@@ -2586,15 +2651,18 @@ class SpectralGrid(object):
             The interpolated flux array as a 1-D vector aligned to ``self.wavelength``.
         """
 
+        metallicity = resolve_metallicity(
+            metallicity, self.model_grid, feh=feh, mh=mh
+        )
         # First check that the values are within the grid
         teff_in_grid = self.teff_bds[0] <= teff <= self.teff_bds[1]
         logg_in_grid = self.logg_bds[0] <= logg <= self.logg_bds[1]
-        feh_in_grid = self.feh_bds[0] <= feh <= self.feh_bds[1]
+        metallicity_in_grid = self.metallicity_bds[0] <= metallicity <= self.metallicity_bds[1]
 
-        booleans = [teff_in_grid, logg_in_grid, feh_in_grid]
-        params = ["teff", "logg", "feh"]
-        inputs = [teff, logg, feh]
-        ranges = [self.teff_bds, self.logg_bds, self.feh_bds]
+        booleans = [teff_in_grid, logg_in_grid, metallicity_in_grid]
+        params = ["teff", "logg", "metallicity"]
+        inputs = [teff, logg, metallicity]
+        ranges = [self.teff_bds, self.logg_bds, self.metallicity_bds]
 
         if not all(booleans):
             message = "Input values are out of grid range.\n\n"
@@ -2621,17 +2689,17 @@ class SpectralGrid(object):
                     "mps-atlas-set2",
                 }:
                     nearest_index = _nearest_available_index(
-                        self.points, (teff, logg, feh)
+                        self.points, (teff, logg, metallicity)
                     )
                     flux = self.data[nearest_index]
                 else:
-                    flux = self.interpolator((teff, logg, feh))
+                    flux = self.interpolator((teff, logg, metallicity))
             else:
                 try:
                     flux = utils.trilinear_interpolate(
                         self.fluxes,
-                        (self.teffs, self.loggs, self.fehs),
-                        (teff, logg, feh),
+                        (self.teffs, self.loggs, self.metallicities),
+                        (teff, logg, metallicity),
                     )
                 except KeyError:
                     if self.model_grid == "sphinx":
@@ -2646,7 +2714,7 @@ class SpectralGrid(object):
                             "corner model."
                         ) from None
                     # Fall back to nearest-neighbour evaluation for sparse grids
-                    flux = self.interpolator((teff, logg, feh))
+                    flux = self.interpolator((teff, logg, metallicity))
 
             if not isinstance(flux, u.Quantity):
                 flux = u.Quantity(flux, unit=self.unit, copy=False)
@@ -2669,18 +2737,20 @@ class SpectralGrid(object):
         if not interpolate:
             teff = utils.nearest(self.teffs, teff)
             logg = utils.nearest(self.loggs, logg)
-            feh = utils.nearest(self.fehs, feh)
+            metallicity = utils.nearest(self.metallicities, metallicity)
 
-            return self.fluxes[teff][logg][feh]
+            return self.fluxes[teff][logg][metallicity]
 
         # Otherwise, interpolate using the helper
         return utils.trilinear_interpolate(
             self.fluxes,
-            (self.teffs, self.loggs, self.fehs),
-            (teff, logg, feh),
+            (self.teffs, self.loggs, self.metallicities),
+            (teff, logg, metallicity),
         )
 
-    def get_spectrum(self, teff, logg, feh, interpolate=True):
+    def get_spectrum(
+        self, teff, logg, metallicity=UNSET, interpolate=True, *, feh=UNSET, mh=UNSET
+    ):
         """Deprecated alias for :meth:`get_flux`.
 
         .. deprecated:: 0.1.0
@@ -2694,10 +2764,12 @@ class SpectralGrid(object):
             stacklevel=2,
         )
 
-        return self.get_flux(teff, logg, feh, interpolate=interpolate)
+        return self.get_flux(
+            teff, logg, metallicity, interpolate=interpolate, feh=feh, mh=mh
+        )
 
 
-class BinnedSpectralGrid(object):
+class BinnedSpectralGrid(MetallicityGridMetadata):
     """
     Represents a multi-dimensional grid of binned spectra from a model library.
 
@@ -2711,8 +2783,8 @@ class BinnedSpectralGrid(object):
     logg_bds : iterable
         The lower and upper bounds of the model logg values to load.
 
-    feh_bds : iterable
-        The lower and upper bounds of the model [Fe/H] to load.
+    metallicity_bds : iterable
+        The lower and upper bounds of the native metallicity coordinate to load.
 
     center : `~astropy.units.Quantity`
         The centers of the wavelength bins.
@@ -2727,7 +2799,7 @@ class BinnedSpectralGrid(object):
         The upper bounds of the wavelength bins.
 
     fluxes : dict
-        The fluxes of the model grid. Sorted by fluxes[teff][logg][feh].
+        The fluxes of the model grid. Sorted by fluxes[teff][logg][metallicity].
 
     model_grid : str
         Accepted model selector. Support and cache requirements vary by model
@@ -2736,7 +2808,8 @@ class BinnedSpectralGrid(object):
     """
 
     def __init__(
-        self, teff_bds, logg_bds, feh_bds, center, width, model_grid="phoenix", **kwargs
+        self, teff_bds, logg_bds, metallicity_bds=UNSET, center=None, width=None,
+        model_grid="phoenix", *, mh_bds=UNSET, **kwargs
     ):
         """
         Parameters
@@ -2747,8 +2820,12 @@ class BinnedSpectralGrid(object):
         logg_bds : iterable
             The lower and upper bounds of the model logg values to load.
 
-        feh_bds : iterable
-            The lower and upper bounds of the model [Fe/H] to load.
+        metallicity_bds : iterable
+            The lower and upper bounds of the native metallicity coordinate to load.
+
+        mh_bds : iterable, optional
+            Native bounds alias for [M/H] grids. Supply exactly one bounds
+            form. No abundance conversion is performed.
 
         center : `~astropy.units.Quantity`
             The centers of the wavelength bins.
@@ -2760,6 +2837,13 @@ class BinnedSpectralGrid(object):
             Accepted model selector. Support and cache requirements vary by
             model family.
         """
+        reject_grid_metallicity_keywords(kwargs)
+        metallicity_bds = resolve_metallicity(
+            metallicity_bds, model_grid, mh=mh_bds,
+            parameter="metallicity_bds",
+        )
+        if center is None or width is None:
+            raise TypeError("center and width are required")
         # First check that the model_grid is valid.
         requested_model_grid = model_grid.lower()
         if requested_model_grid not in utils.VALID_MODELS:
@@ -2794,7 +2878,7 @@ class BinnedSpectralGrid(object):
             self.grid_points = utils.GRID_POINTS[self.model_grid]
         self.grid_teffs = self.grid_points["grid_teffs"]
         self.grid_loggs = self.grid_points["grid_loggs"]
-        self.grid_fehs = self.grid_points["grid_fehs"]
+        self.grid_metallicities = self.grid_points["grid_metallicities"]
 
         # Then ensure that the bounds given are valid.
         teff_bds = np.array(teff_bds)
@@ -2811,12 +2895,12 @@ class BinnedSpectralGrid(object):
         )
         self.logg_bds = logg_bds
 
-        feh_bds = np.array(feh_bds)
-        feh_bds = (
-            self.grid_fehs[self.grid_fehs <= feh_bds.min()].max(),
-            self.grid_fehs[self.grid_fehs >= feh_bds.max()].min(),
+        metallicity_bds = np.array(metallicity_bds)
+        metallicity_bds = (
+            self.grid_metallicities[self.grid_metallicities <= metallicity_bds.min()].max(),
+            self.grid_metallicities[self.grid_metallicities >= metallicity_bds.max()].min(),
         )
-        self.feh_bds = feh_bds
+        self.metallicity_bds = metallicity_bds
 
         # Define the values covered in the grid
         subset = np.logical_and(
@@ -2830,9 +2914,10 @@ class BinnedSpectralGrid(object):
         self.loggs = self.grid_loggs[subset]
 
         subset = np.logical_and(
-            self.grid_fehs >= self.feh_bds[0], self.grid_fehs <= self.feh_bds[1]
+            self.grid_metallicities >= self.metallicity_bds[0], self.grid_metallicities <= self.metallicity_bds[1]
         )
-        self.fehs = self.grid_fehs[subset]
+        self.metallicities = self.grid_metallicities[subset]
+        self._set_metallicity_metadata()
 
         # Load the fluxes
         self.center = center
@@ -2852,32 +2937,34 @@ class BinnedSpectralGrid(object):
                 & (sparse_combinations[:, 0] <= self.teff_bds[1])
                 & (sparse_combinations[:, 1] >= self.logg_bds[0])
                 & (sparse_combinations[:, 1] <= self.logg_bds[1])
-                & (sparse_combinations[:, 2] >= self.feh_bds[0])
-                & (sparse_combinations[:, 2] <= self.feh_bds[1])
+                & (sparse_combinations[:, 2] >= self.metallicity_bds[0])
+                & (sparse_combinations[:, 2] <= self.metallicity_bds[1])
             )
             self.points = sparse_combinations[within_bounds, :3]
-            for teff, logg, feh in self.points:
+            for teff, logg, metallicity in self.points:
                 bs = Spectrum.from_grid(
-                    teff, logg, feh, model_grid=self.model_grid, **kwargs
+                    teff, logg, metallicity, model_grid=self.model_grid, **kwargs
                 ).bin(center, width)
-                fluxes[teff][logg][feh] = bs.flux
+                fluxes[teff][logg][metallicity] = bs.flux
         else:
             for teff in self.teffs:
                 for logg in self.loggs:
-                    for feh in self.fehs:
+                    for metallicity in self.metallicities:
                         try:
                             spectrum = Spectrum.from_grid(
-                                teff, logg, feh, model_grid=self.model_grid, **kwargs
+                                teff, logg, metallicity, model_grid=self.model_grid, **kwargs
                             )
                         except (ValueError, FileNotFoundError):
                             if not self.model_grid.startswith("newera"):
                                 raise
                             continue
                         bs = spectrum.bin(center, width)
-                        fluxes[teff][logg][feh] = bs.flux
+                        fluxes[teff][logg][metallicity] = bs.flux
         self.fluxes = fluxes
 
-    def get_spectrum(self, teff, logg, feh, interpolate=True):
+    def get_spectrum(
+        self, teff, logg, metallicity=UNSET, interpolate=True, *, feh=UNSET, mh=UNSET
+    ):
         """
         Parameters
         ----------
@@ -2887,12 +2974,16 @@ class BinnedSpectralGrid(object):
         logg : float
             Surface gravity of the model in cgs units.
 
-        feh : float
-            [Fe/H] of the model.
+        metallicity : float
+            Native metallicity coordinate of the selected model library.
+
+        feh, mh : float, optional
+            Native aliases as in ``Spectrum.from_grid``: ``feh`` only for
+            PHOENIX-ACES, ``mh`` for [M/H] grids. Supply only one form.
 
         interpolate : bool, optional
             Whether to interpolate between grid points. If `True` (default), the spectrum
-            will be trilinearly interpolated in (Teff, logg, [Fe/H]) space. If `False`,
+            will be trilinearly interpolated in (Teff, logg, native metallicity) space. If `False`,
             the nearest available grid point will be used without interpolation.
 
         Returns
@@ -2901,15 +2992,18 @@ class BinnedSpectralGrid(object):
             The interpolated flux array.
         """
 
+        metallicity = resolve_metallicity(
+            metallicity, self.model_grid, feh=feh, mh=mh
+        )
         # First check that the values are within the grid
         teff_in_grid = self.teff_bds[0] <= teff <= self.teff_bds[1]
         logg_in_grid = self.logg_bds[0] <= logg <= self.logg_bds[1]
-        feh_in_grid = self.feh_bds[0] <= feh <= self.feh_bds[1]
+        metallicity_in_grid = self.metallicity_bds[0] <= metallicity <= self.metallicity_bds[1]
 
-        booleans = [teff_in_grid, logg_in_grid, feh_in_grid]
-        params = ["teff", "logg", "feh"]
-        inputs = [teff, logg, feh]
-        ranges = [self.teff_bds, self.logg_bds, self.feh_bds]
+        booleans = [teff_in_grid, logg_in_grid, metallicity_in_grid]
+        params = ["teff", "logg", "metallicity"]
+        inputs = [teff, logg, metallicity]
+        ranges = [self.teff_bds, self.logg_bds, self.metallicity_bds]
 
         if not all(booleans):
             message = "Input values are out of grid range.\n\n"
@@ -2923,17 +3017,17 @@ class BinnedSpectralGrid(object):
                 raise ValueError("BinnedSpectralGrid contains no spectra")
             if not interpolate:
                 nearest_index = _nearest_available_index(
-                    self.points, (teff, logg, feh)
+                    self.points, (teff, logg, metallicity)
                 )
-                nearest_teff, nearest_logg, nearest_feh = self.points[
+                nearest_teff, nearest_logg, nearest_metallicity = self.points[
                     nearest_index
                 ]
-                return self.fluxes[nearest_teff][nearest_logg][nearest_feh]
+                return self.fluxes[nearest_teff][nearest_logg][nearest_metallicity]
             try:
                 return utils.trilinear_interpolate(
                     self.fluxes,
-                    (self.teffs, self.loggs, self.fehs),
-                    (teff, logg, feh),
+                    (self.teffs, self.loggs, self.metallicities),
+                    (teff, logg, metallicity),
                 )
             except KeyError:
                 if self.model_set is not None:
@@ -2951,13 +3045,13 @@ class BinnedSpectralGrid(object):
         if not interpolate:
             teff = utils.nearest(self.teffs, teff)
             logg = utils.nearest(self.loggs, logg)
-            feh = utils.nearest(self.fehs, feh)
+            metallicity = utils.nearest(self.metallicities, metallicity)
 
-            return self.fluxes[teff][logg][feh]
+            return self.fluxes[teff][logg][metallicity]
 
         # Otherwise, interpolate using the helper
         return utils.trilinear_interpolate(
             self.fluxes,
-            (self.teffs, self.loggs, self.fehs),
-            (teff, logg, feh),
+            (self.teffs, self.loggs, self.metallicities),
+            (teff, logg, metallicity),
         )

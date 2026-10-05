@@ -79,7 +79,7 @@ Cache and extraction
 
    download_newera_grid("newera_gaia")  # cache tarball; do not extract all
    spectrum = Spectrum.from_grid(
-       4000, 4.5, 0.0,
+       4000, 4.5, metallicity=0.0,
        model_grid="newera_gaia",
        interpolate=False,
    )
@@ -87,6 +87,26 @@ Cache and extraction
 Each flavor is cached in its own directory. By default
 :func:`~speclib.download_newera_grid` retains the tarball without extraction.
 The loader extracts the requested metallicity/alpha text member on demand.
+For every NewEra selector, ``metallicity`` is native [M/H] and ``mh`` is a
+native alias. No [Fe/H]-to-[M/H] conversion is performed. Returned spectra
+record ``meta["metallicity"]`` and ``meta["metallicity_type"] = "mh"``.
+The upstream ``Z`` filename label is not a metal mass fraction.
+
+The HSR filter helper uses ``metallicity_range``:
+
+.. code-block:: python
+
+   from speclib import utils
+
+   utils.download_newera_hsr_subset(
+       teff_range=(4000, 4000),
+       logg_range=(4.5, 4.5),
+       metallicity_range=(-0.5, 0.0),
+       alpha_range=(0.0, 0.0),
+   )
+
+``download_newera_grid`` downloads a whole reduced archive and does not
+filter parameter ranges.
 Use ``extract="all"`` only when the extra storage and extraction time are
 intentional. ``overwrite=True`` clears that flavor's cache before fetching a
 fresh archive.

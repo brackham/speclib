@@ -15,8 +15,11 @@ import warnings
 import zipfile
 from astropy.io import fits
 from contextlib import closing
+
 from pathlib import Path, PurePosixPath
 from urllib.error import URLError
+
+from ._metallicity import UNSET, resolve_metallicity
 
 __all__ = [
     "download_file",
@@ -259,7 +262,7 @@ MPS_ATLAS_GRID_TEFFS = np.arange(3500.0, 9100.0, 100.0)
 MPS_ATLAS_GRID_LOGGS = np.array(
     [3.0, 3.5, 4.0, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.0]
 )
-MPS_ATLAS_GRID_FEHS = np.array(
+MPS_ATLAS_GRID_METALLICITIES = np.array(
     [
         -5.0,
         -4.5,
@@ -338,7 +341,7 @@ _NEWERA_MODEL_LINE_RE = re.compile(
     r"(?P<filename>"
     r"lte(?P<teff>\d{5})"
     r"(?P<logg_sign>[+-])(?P<logg>\d\.\d{2})"
-    r"(?P<feh_sign>[+-])(?P<feh>\d\.\d)"
+    r"(?P<metallicity_sign>[+-])(?P<metallicity>\d\.\d)"
     r"(?:\.alpha=(?P<alpha_sign>[+-])(?P<alpha>\d\.\d))?"
     r"(?:\.Vega)?"
     r"\.PHOENIX-NewEra(?:V[0-9.]+)?-ACES-COND-(?P<year>\d{4})\.HSR\.h5"
@@ -401,21 +404,21 @@ def _get_newera_file_url(filename: str, record_id: str | None = None) -> str:
 
 
 def _normalize_newera_key(
-    teff: float, logg: float, feh: float, alpha: float
+    teff: float, logg: float, metallicity: float, alpha: float
 ) -> tuple[int, float, float, float]:
     teff_key = int(round(teff))
     logg_key = round(float(logg), 2)
-    feh_key = round(float(feh), 1)
+    metallicity_key = round(float(metallicity), 1)
     alpha_key = round(float(alpha), 1)
 
     if logg_key == -0.0:
         logg_key = 0.0
-    if feh_key == -0.0:
-        feh_key = 0.0
+    if metallicity_key == -0.0:
+        metallicity_key = 0.0
     if alpha_key == -0.0:
         alpha_key = 0.0
 
-    return teff_key, logg_key, feh_key, alpha_key
+    return teff_key, logg_key, metallicity_key, alpha_key
 
 
 def _ensure_newera_index(cache_dir: Path, record_id: str) -> Path:
@@ -451,7 +454,7 @@ def _newera_model_key(match) -> tuple[int, float, float, float]:
     return _normalize_newera_key(
         int(match.group("teff")),
         -float(match.group("logg_sign") + match.group("logg")),
-        float(match.group("feh_sign") + match.group("feh")),
+        float(match.group("metallicity_sign") + match.group("metallicity")),
         alpha,
     )
 
@@ -579,8 +582,21 @@ def _resolve_newera_tarball(
 
 
 def download_newera_file(
-    teff, logg, zscale, alpha_scale, cache_dir=None, verbose=False
+    teff, logg, metallicity=UNSET, alpha_scale=UNSET, cache_dir=None, verbose=False,
+    *, mh=UNSET, zscale=UNSET
 ):
+    """Download one native NewEra [M/H] tuple, without abundance conversion.
+
+    ``metallicity`` is canonical; ``mh`` is its native alias. The upstream
+    storage spelling ``zscale`` remains a deprecated alias.
+    Supply exactly one coordinate form and an explicit ``alpha_scale``.
+    Existing positional order is retained.
+    """
+    if alpha_scale is UNSET:
+        raise TypeError("Missing required argument: alpha_scale")
+    metallicity = resolve_metallicity(
+        metallicity, "newera", mh=mh, storage_aliases={"zscale": zscale}
+    )
     if cache_dir is None:
         cache_dir = get_library_root() / "newera"
     else:
@@ -589,14 +605,14 @@ def download_newera_file(
 
     record_id = get_newera_record_id()
     model_list = load_newera_model_list(cache_dir=cache_dir, record_id=record_id)
-    key = _normalize_newera_key(teff, logg, zscale, alpha_scale)
+    key = _normalize_newera_key(teff, logg, metallicity, alpha_scale)
 
     try:
         fname = model_list["entries"][key]
     except KeyError as exc:
         raise FileNotFoundError(
             "Requested NewEra model is not listed in the native inventory: "
-            f"Teff={teff}, logg={logg}, [M/H]={zscale}, [alpha/Fe]={alpha_scale}"
+            f"Teff={teff}, logg={logg}, [M/H]={metallicity}, [alpha/Fe]={alpha_scale}"
         ) from exc
 
     local_path = cache_dir / fname
@@ -1543,6 +1559,7 @@ def load_kostogryz2026_intensities(
         "stellar_model": str(model_metadata["model"]),
         "source_model_identifier": group_name,
         "metallicity": float(model_metadata["metallicity"]),
+        "metallicity_type": "mh",
         "logg": float(model_metadata["logg"]),
         "source_hdf5_logg": source_logg,
         "magnetic_state": source_label,
@@ -1654,7 +1671,7 @@ def load_mps_atlas_model_list(
         "combinations": combinations,
         "grid_teffs": np.unique(combinations[:, 0]),
         "grid_loggs": np.unique(combinations[:, 1]),
-        "grid_fehs": np.unique(combinations[:, 2]),
+        "grid_metallicities": np.unique(combinations[:, 2]),
     }
     _MPS_ATLAS_INDEX_CACHE[cache_key] = result
     return result
@@ -1797,14 +1814,22 @@ def _mps_atlas_irradiance_to_surface_flux(
 def load_mps_atlas_spectrum(
     teff: float,
     logg: float,
-    metallicity: float,
+    metallicity: float = UNSET,
     model_set: str = "set1",
     *,
     library_root: str | Path | None = None,
+    mh=UNSET,
 ) -> tuple[u.Quantity, u.Quantity]:
-    """Load one exact disk-integrated MPS-ATLAS surface spectrum."""
+    """Load one exact disk-integrated MPS-ATLAS surface spectrum at native [M/H].
+
+    ``metallicity`` is canonical and ``mh`` is its native alias.
+    Supply one form; no abundance conversion is made.
+    """
 
     model_set = normalize_mps_atlas_set(model_set)
+    metallicity = resolve_metallicity(
+        metallicity, canonical_mps_atlas_selector(model_set), mh=mh
+    )
     model_list = load_mps_atlas_model_list(model_set, library_root=library_root)
     key = _normalize_mps_atlas_key(teff, logg, metallicity)
     try:
@@ -1996,7 +2021,7 @@ def load_sphinx_model_list(
         "combinations": combinations,
         "grid_teffs": np.unique(combinations[:, 0]),
         "grid_loggs": np.unique(combinations[:, 1]),
-        "grid_fehs": np.unique(combinations[:, 2]),
+        "grid_metallicities": np.unique(combinations[:, 2]),
         "grid_co_ratios": np.unique(combinations[:, 3]),
     }
     _SPHINX_INDEX_CACHE[cache_key] = result
@@ -2006,12 +2031,22 @@ def load_sphinx_model_list(
 def load_sphinx_spectrum(
     teff: float,
     logg: float,
-    metallicity: float,
-    co_ratio: float,
+    metallicity: float = UNSET,
+    co_ratio: float = None,
     *,
     library_root: str | Path | None = None,
+    mh=UNSET,
 ) -> tuple[u.Quantity, u.Quantity]:
-    """Load one exact SPHINX I V4 model spectrum with physical units."""
+    """Load one exact SPHINX I V4 model at native [M/H] with physical units.
+
+    ``metallicity`` (or native ``mh``) selects [M/H], stored as ``logZ`` in
+    filenames. No abundance conversion is made.
+    Supply one coordinate form and an explicit ``co_ratio``.
+    """
+
+    metallicity = resolve_metallicity(metallicity, "sphinx", mh=mh)
+    if co_ratio is None:
+        raise ValueError("co_ratio must be specified for SPHINX")
 
     model_list = load_sphinx_model_list(library_root=library_root)
     key = _normalize_sphinx_key(teff, logg, metallicity, co_ratio)
@@ -2279,10 +2314,12 @@ def download_phoenix_grid(overwrite=False):
 def download_newera_hsr_subset(
     teff_range=None,
     logg_range=None,
-    feh_range=None,
+    metallicity_range=UNSET,
     alpha_range=None,
     overwrite=False,
     verbose=False,
+    *,
+    mh_range=UNSET,
 ):
     """
     Download a subset of the NewEra model grid from the FDR Hamburg repository.
@@ -2293,8 +2330,12 @@ def download_newera_hsr_subset(
         (min, max) Teff range to include. If None, use full grid.
     logg_range : tuple or None
         (min, max) log(g) range to include. If None, use full grid.
-    feh_range : tuple or None
-        (min, max) [Fe/H] range to include. If None, use full grid.
+    metallicity_range : tuple, optional
+        (min, max) numeric native [M/H] range to include. Omit to use the
+        full metallicity range; explicit None is invalid.
+    mh_range : tuple, optional
+        Native alias of ``metallicity_range``. No [Fe/H]-to-[M/H]
+        conversion is performed. Supply only one range form.
     alpha_range : tuple or None
         (min, max) [alpha/Fe] range to include. If None, use full grid.
     overwrite : bool
@@ -2316,6 +2357,11 @@ def download_newera_hsr_subset(
     import os
     import warnings
 
+    metallicity_range = resolve_metallicity(
+        metallicity_range, "newera", mh=mh_range,
+        default=None, parameter="metallicity_range",
+    )
+
     record_id = get_newera_record_id()
     cache_dir = get_library_root() / "newera"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -2325,7 +2371,7 @@ def download_newera_hsr_subset(
 
     # This downloader selects native tuples, including sparse special models;
     # the regular interpolation backbone does not describe their availability.
-    ranges = (teff_range, logg_range, feh_range, alpha_range)
+    ranges = (teff_range, logg_range, metallicity_range, alpha_range)
     param_combos = [
         key for key in sorted(entries)
         if all(
@@ -2335,17 +2381,17 @@ def download_newera_hsr_subset(
     ]
 
     # Warn if attempting to download the full grid
-    if not any([teff_range, logg_range, feh_range, alpha_range]):
+    if not any([teff_range, logg_range, metallicity_range, alpha_range]):
         warnings.warn(
             "Downloading the full NewEra model grid requires approximately 4.5 TB of disk space. Consider specifying parameter ranges."
         )
 
-    for teff, logg, feh, alpha in param_combos:
+    for teff, logg, metallicity, alpha in param_combos:
         # Skip α-enriched models outside the valid [M/H] range
-        if alpha != 0.0 and not (-2.0 <= feh <= 0.0):
+        if alpha != 0.0 and not (-2.0 <= metallicity <= 0.0):
             continue
 
-        key = _normalize_newera_key(teff, logg, feh, alpha)
+        key = _normalize_newera_key(teff, logg, metallicity, alpha)
         fname = entries.get(key)
         if not fname:
             continue
@@ -2420,12 +2466,12 @@ def _flanking_vals(grid, value):
 
 def trilinear_interpolate(fluxes, grid_axes, query_point):
     """Perform trilinear interpolation on a nested flux dictionary."""
-    teff_grid, logg_grid, feh_grid = grid_axes
-    teff, logg, feh = query_point
+    teff_grid, logg_grid, metallicity_grid = grid_axes
+    teff, logg, metallicity = query_point
 
     t_bds = _flanking_vals(teff_grid, teff)
     g_bds = _flanking_vals(logg_grid, logg)
-    f_bds = _flanking_vals(feh_grid, feh)
+    f_bds = _flanking_vals(metallicity_grid, metallicity)
 
     c000 = fluxes[t_bds[0]][g_bds[0]][f_bds[0]]
     c100 = fluxes[t_bds[1]][g_bds[0]][f_bds[0]]
@@ -2451,7 +2497,7 @@ def trilinear_interpolate(fluxes, grid_axes, query_point):
         c0, c1 = c00, c01
 
     if f_bds[0] != f_bds[1]:
-        return interpolate([c0, c1], f_bds, feh)
+        return interpolate([c0, c1], f_bds, metallicity)
     return c0
 
 
@@ -2480,7 +2526,8 @@ def load_flux_array(fname, cache_dir, ftp_url):
 
 
 def load_newera_wavelength_array(
-    teff, logg, z, alpha=0.0, grid_name="newera_jwst", library_root=None
+    teff, logg, metallicity=UNSET, alpha=0.0, grid_name="newera_jwst",
+    library_root=None, *, mh=UNSET, z=UNSET
 ):
     """
     Load the wavelength array from a GAIA-format NewEra spectrum file,
@@ -2492,8 +2539,12 @@ def load_newera_wavelength_array(
         Effective temperature (K).
     logg : float
         Log surface gravity (dex).
-    z : float
-        Metallicity as mass fraction (e.g., 0.0).
+    metallicity : float
+        Native [M/H] coordinate (upstream filename label ``Z``).
+        No [Fe/H]-to-[M/H] conversion is performed.
+    mh, z : float, optional
+        Native ``mh`` alias or deprecated storage ``z`` alias.
+        Supply exactly one coordinate form.
     alpha : float, optional
         Alpha enhancement (e.g., 0.2).
     grid_name : str, optional
@@ -2515,6 +2566,9 @@ def load_newera_wavelength_array(
     ValueError
         If a valid header is not found.
     """
+    metallicity = resolve_metallicity(
+        metallicity, grid_name, mh=mh, storage_aliases={"z": z}
+    )
     if not np.isclose(alpha, 0.0):
         warnings.warn(
             f"Alpha-enhanced models (alpha={alpha}) are not yet supported for grid '{grid_name}'. "
@@ -2539,7 +2593,7 @@ def load_newera_wavelength_array(
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
-    z_str = "Z-0.0" if np.isclose(z, 0.0) else f"Z{z:+.1f}"
+    z_str = "Z-0.0" if np.isclose(metallicity, 0.0) else f"Z{metallicity:+.1f}"
 
     # Format alpha string
     if np.isclose(alpha, 0.0):
@@ -2591,7 +2645,8 @@ def load_newera_wavelength_array(
 
 
 def load_newera_flux_array(
-    teff, logg, z, alpha=0.0, grid_name="newera_jwst", library_root=None
+    teff, logg, metallicity=UNSET, alpha=0.0, grid_name="newera_jwst",
+    library_root=None, *, mh=UNSET, z=UNSET
 ):
     """
     Load a flux array from a bundled GAIA-format NewEra spectrum file,
@@ -2603,8 +2658,12 @@ def load_newera_flux_array(
         Effective temperature (K).
     logg : float
         Log surface gravity (dex).
-    z : float
-        Metallicity as mass fraction (e.g., 0.0).
+    metallicity : float
+        Native [M/H] coordinate (upstream filename label ``Z``).
+        No [Fe/H]-to-[M/H] conversion is performed.
+    mh, z : float, optional
+        Native ``mh`` alias or deprecated storage ``z`` alias.
+        Supply exactly one coordinate form.
     alpha : float, optional
         Alpha enhancement (e.g., 0.2).
     grid_name : str, optional
@@ -2626,6 +2685,9 @@ def load_newera_flux_array(
     ValueError
         If no matching model is found in the file.
     """
+    metallicity = resolve_metallicity(
+        metallicity, grid_name, mh=mh, storage_aliases={"z": z}
+    )
     if library_root is None:
         library_root = get_library_root()
     else:
@@ -2644,7 +2706,7 @@ def load_newera_flux_array(
     }[grid_name]
 
     # Format Z string: NewEra always uses Z-0.0 (not Z+0.0)
-    z_str = "Z-0.0" if np.isclose(z, 0.0) else f"Z{z:+.1f}"
+    z_str = "Z-0.0" if np.isclose(metallicity, 0.0) else f"Z{metallicity:+.1f}"
 
     # Format alpha string
     if np.isclose(alpha, 0.0):
@@ -2780,7 +2842,7 @@ newera_grid = {
         [np.arange(2300, 7100, 100), np.arange(7200, 12001, 200)]
     ),
     "grid_loggs": np.arange(0.0, 6.1, 0.5),
-    "grid_fehs": np.array([-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]),
+    "grid_metallicities": np.array([-4.0, -3.5, -3.0, -2.5, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5]),
     # α-enhanced models only for -2.0 ≤ [M/H] ≤ 0.0
     "grid_alphas": np.array([-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2]),
 }
@@ -2788,7 +2850,7 @@ newera_grid = {
 mps_atlas_grid = {
     "grid_teffs": MPS_ATLAS_GRID_TEFFS,
     "grid_loggs": MPS_ATLAS_GRID_LOGGS,
-    "grid_fehs": MPS_ATLAS_GRID_FEHS,
+    "grid_metallicities": MPS_ATLAS_GRID_METALLICITIES,
 }
 
 GRID_POINTS = {
@@ -2798,7 +2860,7 @@ GRID_POINTS = {
         # Grid of surface gravities
         "grid_loggs": np.arange(3.0, 6.5, 0.5),
         # Grid of metallicities
-        "grid_fehs": np.array([-0.6, -0.3, -0.0, 0.3]),
+        "grid_metallicities": np.array([-0.6, -0.3, -0.0, 0.3]),
     },
     # MPS-ATLAS availability is refined from the selected ZIP at runtime.
     "mps-atlas": mps_atlas_grid,
@@ -2816,7 +2878,7 @@ GRID_POINTS = {
         # Grid of surface gravities
         "grid_loggs": np.arange(3.5, 6.0, 0.5),
         # Grid of metallicities
-        "grid_fehs": np.array([0.0]),
+        "grid_metallicities": np.array([0.0]),
     },
     "phoenix": {
         # Grid of effective temperatures
@@ -2826,7 +2888,7 @@ GRID_POINTS = {
         # Grid of surface gravities
         "grid_loggs": np.arange(0.0, 6.5, 0.5),
         # Grid of metallicities
-        "grid_fehs": np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0]),
+        "grid_metallicities": np.array([-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, -0.0, +0.5, +1.0]),
     },
     "sphinx": {
         # Distinct values found in SPHINX I V4 filenames. The exact available
@@ -2835,7 +2897,7 @@ GRID_POINTS = {
         "grid_loggs": np.array(
             [4.0, 4.2, 4.25, 4.5, 4.7, 4.75, 5.0, 5.2, 5.25, 5.5]
         ),
-        "grid_fehs": np.arange(-1, 1.25, 0.25),
+        "grid_metallicities": np.arange(-1, 1.25, 0.25),
         "grid_co_ratios": np.array([0.3, 0.5, 0.7, 0.9]),
     },
 }

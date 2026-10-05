@@ -32,14 +32,18 @@ SEDs and magnitude conversion
 
 :class:`~speclib.SED` applies a sequence of filters to a supplied spectrum and
 stores effective wavelength, bandwidth, and flux arrays. ``SED.from_grid``
-first loads one model with :meth:`speclib.Spectrum.from_grid`. The
-``model_grid`` argument is forwarded, but there is no way in this classmethod
-to supply SPHINX C/O or NewEra alpha, so its support for model grids is more
-limited than that of ``Spectrum.from_grid``.
+first loads one model with :meth:`speclib.Spectrum.from_grid`. Use
+``metallicity=`` for the library's native coordinate, or its native alias
+(``feh`` for PHOENIX-ACES, ``mh`` for [M/H] grids). Additional loader keywords
+are forwarded, including required SPHINX ``co_ratio`` and NewEra ``alpha``.
+``SED.meta`` preserves the selected spectrum's coordinate and native type;
+SpecLib does not convert between [Fe/H] and [M/H].
 
 :class:`~speclib.SEDGrid` precomputes and trilinearly interpolates SEDs. It
 currently accepts PHOENIX only and always interpolates; it cannot select the
 nearest model instead.
+Its metallicity bounds use ``metallicity_bds`` (native [Fe/H]). ``get_SED``
+uses ``metallicity`` or native ``feh``.
 
 :func:`~speclib.mag_to_flux` converts a magnitude using the filter zeropoint
 and returns ``(mean, standard_deviation)`` from Monte Carlo samples of both

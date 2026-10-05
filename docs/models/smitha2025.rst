@@ -15,7 +15,9 @@ transfer.
 These are 12 discrete source products: G2V, K0V, and M0V spectra for each of
 the ``quiet``, ``spot``, ``penumbra``, and ``umbra`` surface components. They
 are not another
-:math:`T_\mathrm{eff}`--:math:`\log g`--metallicity atmosphere grid. Each
+:math:`T_\mathrm{eff}`--:math:`\log g`--metallicity atmosphere grid. There is no
+metallicity coordinate, so neither ``metallicity`` nor ``metallicity_type``
+is present in returned metadata. Each
 stellar type represents a separate simulation, and each file provides the
 spatially averaged quiet region, combined spot, penumbra, and umbra. Neither
 stellar types nor surface components are interpolated, and this library is not

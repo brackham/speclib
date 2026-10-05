@@ -7,6 +7,12 @@ corner spectra share a wavelength axis. C/O (SPHINX), alpha enhancement
 (NewEra), and the selected MPS-ATLAS set identify fixed slices or flavors and
 are not interpolated.
 
+``metallicity`` always means the selected library's native coordinate:
+[Fe/H] for PHOENIX-ACES, [M/H] for NewEra, SPHINX, and MPS-ATLAS.
+SpecLib does not convert between [Fe/H] and [M/H]. The numeric plane selected
+by an existing positional request or native alias is unchanged by this API
+migration.
+
 Exact, nearest, and interpolated requests
 -----------------------------------------
 
@@ -49,7 +55,7 @@ Bounds and extrapolation
 ``SpectralGrid`` aligns constructor bounds outward to available axis values.
 Only portions beyond the global library range generate a warning; ordinary
 off-grid interior bounds are silently expanded to bracket the request. A
-retrieval outside the resulting ``teff_bds``, ``logg_bds``, or ``feh_bds``
+retrieval outside the resulting ``teff_bds``, ``logg_bds``, or ``metallicity_bds``
 raises ``ValueError``. No grid retrieval extrapolates beyond loaded bounds.
 
 ``Spectrum.from_grid`` does not run the constructor clipping step. MPS-ATLAS
