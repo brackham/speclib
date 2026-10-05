@@ -11,7 +11,7 @@ def spectral_grid():
     return SpectralGrid(
         teff_bds=(3000, 3000),
         logg_bds=(4.0, 4.5),
-        feh_bds=(0.0, 0.0),
+        metallicity_bds=(0.0, 0.0),
         model_grid="sphinx",
         co_ratio=0.5,
         wavelength=np.linspace(1.0, 2.0, 100) * u.micron,
@@ -43,7 +43,7 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
     grid = BinnedSpectralGrid(
         teff_bds=(3000, 3000),
         logg_bds=(4.0, 4.5),
-        feh_bds=(0.0, 0.0),
+        metallicity_bds=(0.0, 0.0),
         center=center,
         width=width,
         model_grid="sphinx",
@@ -80,10 +80,10 @@ def test_newera_flux_shape_is_1d():
     grid.wavelength = np.linspace(1.0, 3.0, 3) * u.AA
     grid.teff_bds = (1400.0, 1600.0)
     grid.logg_bds = (4.0, 5.0)
-    grid.feh_bds = (-0.5, 0.5)
+    grid.metallicity_bds = (-0.5, 0.5)
     grid.teffs = np.array([1500.0])
     grid.loggs = np.array([4.5])
-    grid.fehs = np.array([0.0])
+    grid.metallicities = np.array([0.0])
     grid.fluxes = {1500.0: {4.5: {0.0: np.array([1.0, 2.0, 3.0]) * grid.unit}}}
 
     flux_interp = grid.get_flux(1500.0, 4.5, 0.0, interpolate=True)
@@ -97,12 +97,12 @@ def test_newera_flux_shape_is_1d():
 def mock_newera_grid(monkeypatch):
     teffs = np.array([2300.0, 2400.0])
     loggs = np.array([5.0])
-    fehs = np.array([0.0])
+    metallicities = np.array([0.0])
 
     grid_points = {
         "grid_teffs": teffs,
         "grid_loggs": loggs,
-        "grid_fehs": fehs,
+        "grid_metallicities": metallicities,
         "grid_alphas": np.array([0.0]),
     }
 
@@ -110,13 +110,13 @@ def mock_newera_grid(monkeypatch):
 
     wavelength = np.array([980.0, 990.0, 1000.0])
 
-    def fake_load_wave(teff, logg, feh, alpha=0.0, grid_name="newera_jwst"):
+    def fake_load_wave(teff, logg, metallicity, alpha=0.0, grid_name="newera_jwst"):
         assert grid_name == "newera_jwst"
-        if teff not in teffs or logg not in loggs or feh not in fehs:
+        if teff not in teffs or logg not in loggs or metallicity not in metallicities:
             raise ValueError("No matching native spectrum")
         return wavelength.copy()
 
-    def fake_load_flux(teff, logg, feh, alpha=0.0, grid_name="newera_jwst"):
+    def fake_load_flux(teff, logg, metallicity, alpha=0.0, grid_name="newera_jwst"):
         assert grid_name == "newera_jwst"
         base = float(teff)
         return np.array([base, base + 10.0, base + 20.0])
@@ -127,7 +127,7 @@ def mock_newera_grid(monkeypatch):
     return {
         "teffs": teffs,
         "loggs": loggs,
-        "fehs": fehs,
+        "metallicities": metallicities,
         "wavelength": wavelength,
     }
 
@@ -165,7 +165,7 @@ def test_newera_spectral_grid_respects_interpolate_flag(mock_newera_grid):
     grid = SpectralGrid(
         teff_bds=(2300.0, 2400.0),
         logg_bds=(5.0, 5.0),
-        feh_bds=(0.0, 0.0),
+        metallicity_bds=(0.0, 0.0),
         model_grid="newera_jwst",
     )
 
@@ -196,16 +196,16 @@ def test_from_grid_nonuniform_bounds(
     """Exercise bracketing, fixed axes, and existing endpoint clamping."""
     teffs = np.array([6800, 6900, 7000, 7200, 7400])
     loggs = np.array([4.0, 5.0])
-    fehs = np.array([-0.5, 0.0])
+    metallicities = np.array([-0.5, 0.0])
     monkeypatch.setitem(utils.GRID_POINTS, selector, {
         "grid_teffs": teffs,
         "grid_loggs": loggs,
-        "grid_fehs": fehs,
+        "grid_metallicities": metallicities,
         "grid_alphas": np.array([0.0]),
     })
 
     def load_wave(tt, gg, ff, alpha=0.0, grid_name=selector):
-        if tt not in teffs or gg not in loggs or ff not in fehs:
+        if tt not in teffs or gg not in loggs or ff not in metallicities:
             raise ValueError("No matching native spectrum")
         return np.array([980.0, 990.0, 1000.0])
 

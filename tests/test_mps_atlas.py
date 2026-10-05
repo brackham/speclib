@@ -256,11 +256,11 @@ def test_download_mps_atlas_grid_removes_partial_and_corrupt_files(
 def test_mps_atlas_published_axes_are_declared_for_both_sets():
     expected_teffs = np.arange(3500.0, 9100.0, 100.0)
     expected_loggs = np.array([3.0, 3.5, 4.0, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.0])
-    assert len(utils.MPS_ATLAS_GRID_FEHS) == 61
+    assert len(utils.MPS_ATLAS_GRID_METALLICITIES) == 61
     np.testing.assert_array_equal(utils.MPS_ATLAS_GRID_TEFFS, expected_teffs)
     np.testing.assert_array_equal(utils.MPS_ATLAS_GRID_LOGGS, expected_loggs)
-    assert utils.MPS_ATLAS_GRID_FEHS[0] == -5.0
-    assert utils.MPS_ATLAS_GRID_FEHS[-1] == 1.5
+    assert utils.MPS_ATLAS_GRID_METALLICITIES[0] == -5.0
+    assert utils.MPS_ATLAS_GRID_METALLICITIES[-1] == 1.5
     for selector in ("mps-atlas-set1", "mps-atlas-set2"):
         np.testing.assert_array_equal(
             utils.GRID_POINTS[selector]["grid_teffs"], expected_teffs
@@ -269,7 +269,7 @@ def test_mps_atlas_published_axes_are_declared_for_both_sets():
             utils.GRID_POINTS[selector]["grid_loggs"], expected_loggs
         )
         np.testing.assert_array_equal(
-            utils.GRID_POINTS[selector]["grid_fehs"], utils.MPS_ATLAS_GRID_FEHS
+            utils.GRID_POINTS[selector]["grid_metallicities"], utils.MPS_ATLAS_GRID_METALLICITIES
         )
 
 
@@ -280,7 +280,7 @@ def test_mps_atlas_index_and_physical_unit_conversion(mps_atlas_cache):
     assert model_list["combinations"].shape == (8, 3)
     np.testing.assert_array_equal(model_list["grid_teffs"], [3500.0, 3600.0])
     np.testing.assert_array_equal(model_list["grid_loggs"], [3.0, 3.5])
-    np.testing.assert_array_equal(model_list["grid_fehs"], [0.0, 0.1])
+    np.testing.assert_array_equal(model_list["grid_metallicities"], [0.0, 0.1])
     assert model_list["archive_path"] != set2_model_list["archive_path"]
     assert model_list["entries"] is not set2_model_list["entries"]
     assert not list(mps_atlas_cache.rglob("mpsa_flux_spectra.dat"))

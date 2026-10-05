@@ -42,6 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized native metallicity selection on `metallicity`, `metallicity_bds`,
+  and `metallicity_range` across spectra, grids, photometry, and model helpers.
+  Existing positional order and numeric model selection are preserved; no
+  [Fe/H]-to-[M/H] abundance conversion is performed.
+- Added `metallicity_type` metadata (`"feh"` for PHOENIX-ACES, `"mh"` for
+  NewEra, SPHINX, MPS-ATLAS, and Kostogryz et al. 2026), plus numeric coordinate
+  metadata for spectra and grid axes. Smitha et al. 2025 has no metallicity axis.
+- Kept native `feh=` only for PHOENIX-ACES and added `mh=` for [M/H] grids.
+  Using `feh=` on [M/H] grids raises `ValueError`; multiple coordinate forms
+  also raise `ValueError`, even when equal. Removed the generic prerelease
+  `feh_bds`, `feh_range`, `fehs`, and `grid_fehs` names; use `metallicity_bds`,
+  `metallicity_range`, `metallicities`, and `grid_metallicities`.
+
 - NewEra V3 now targets FDR release 3.5 (record 18108), with explicit
   supplemental HSR availability from record 17936 and inventory-provided
   download URLs.

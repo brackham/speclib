@@ -17,18 +17,25 @@ Constructing and inspecting a grid
    grid = SpectralGrid(
        teff_bds=(3000, 3200),
        logg_bds=(4.0, 5.0),
-       feh_bds=(-0.5, 0.5),
+       metallicity_bds=(-0.5, 0.5),
        model_grid="sphinx",
        co_ratio=0.5,
    )
 
-``grid.grid_teffs``, ``grid.grid_loggs``, and ``grid.grid_fehs`` describe the
+``grid.grid_teffs``, ``grid.grid_loggs``, and ``grid.grid_metallicities`` describe the
 declared/available axes for that library selection. ``grid.teffs``,
-``grid.loggs``, and ``grid.fehs`` are the values loaded within the aligned
+``grid.loggs``, and ``grid.metallicities`` are the values loaded within the aligned
 bounds. ``grid.points`` lists combinations actually loaded, which is the more
 informative property for an incomplete grid. ``grid.wavelength`` and
 ``grid.unit`` describe the common spectral data; ``grid.data`` has shape
 ``(number_of_loaded_models, number_of_wavelength_samples)``.
+
+``grid.metallicity_type`` and ``grid.meta["metallicity_type"]`` identify the
+native definition (``"feh"`` or ``"mh"``); ``grid.meta["metallicities"]``
+records numeric axis values. No abundance conversion is performed.
+Use ``metallicity_bds`` for bounds and ``metallicities``/``grid_metallicities``
+for the loaded/available coordinate arrays. See :doc:`model_libraries` for
+scientifically native aliases.
 
 Bounds are aligned outward to grid points. Values outside a library's
 declared minimum or maximum are clipped and emit ``UserWarning``. Reversed
@@ -44,7 +51,7 @@ Retrieval
 
    from speclib import Spectrum
 
-   flux = grid.get_flux(3100, 4.5, 0.0, interpolate=True)
+   flux = grid.get_flux(3100, 4.5, metallicity=0.0, interpolate=True)
    spectrum = Spectrum(spectral_axis=grid.wavelength, flux=flux)
 
 ``get_flux`` returns a one-dimensional Astropy quantity aligned with

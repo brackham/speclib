@@ -65,8 +65,10 @@ Both released sets declare 34,160 nominal combinations on these axes:
 * [M/H] = -5.0--+1.5 across 61 values, with especially fine 0.05 dex
   sampling from -1.0 through +0.5.
 
-The historical ``feh`` argument to :meth:`speclib.Spectrum.from_grid` selects
-the upstream **[M/H]** coordinate for this family. Each archive is indexed
+The ``metallicity`` argument to :meth:`speclib.Spectrum.from_grid` selects
+the upstream **[M/H]** coordinate for this family; ``mh`` is a native alias.
+No abundance conversion is performed. Returned metadata records
+``metallicity`` and ``metallicity_type="mh"``. Each archive is indexed
 independently from its actual member names, so a nominal axis value is not
 treated as proof that a particular combination exists.
 
@@ -141,19 +143,19 @@ High-level loading triggers the same acquisition automatically:
    from speclib import Spectrum, SpectralGrid
 
    default_set1 = Spectrum.from_grid(
-       5800, 4.5, 0.0, model_grid="mps-atlas"
+       5800, 4.5, metallicity=0.0, model_grid="mps-atlas"
    )
    explicit_set1 = Spectrum.from_grid(
-       5800, 4.5, 0.0, model_grid="mps-atlas-set1"
+       5800, 4.5, metallicity=0.0, model_grid="mps-atlas-set1"
    )
    set2 = Spectrum.from_grid(
-       5800, 4.5, 0.0, model_grid="mps-atlas-set2"
+       5800, 4.5, metallicity=0.0, model_grid="mps-atlas-set2"
    )
 
    grid = SpectralGrid(
        teff_bds=(5700, 5900),
        logg_bds=(4.4, 4.6),
-       feh_bds=(-0.05, 0.05),
+       metallicity_bds=(-0.05, 0.05),
        model_grid="mps-atlas-set2",
    )
 

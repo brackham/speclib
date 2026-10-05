@@ -93,10 +93,10 @@ def _make_grid():
     grid.points = np.array([[3000.0, 4.0, 0.0], [3100.0, 4.0, 0.0]])
     grid.teffs = np.array([3000.0, 3100.0])
     grid.loggs = np.array([4.0])
-    grid.fehs = np.array([0.0])
+    grid.metallicities = np.array([0.0])
     grid.teff_bds = (3000.0, 3100.0)
     grid.logg_bds = (4.0, 4.0)
-    grid.feh_bds = (0.0, 0.0)
+    grid.metallicity_bds = (0.0, 0.0)
     grid.fluxes = {
         3000.0: {4.0: {0.0: first.flux.copy()}},
         3100.0: {4.0: {0.0: second.flux.copy()}},
@@ -109,9 +109,9 @@ def _make_grid():
 def _assert_grid_unchanged(grid, original_data, original_fluxes):
     np.testing.assert_array_equal(grid.data, original_data)
     for point, expected in zip(grid.points, original_fluxes):
-        teff, logg, feh = point
+        teff, logg, metallicity = point
         np.testing.assert_array_equal(
-            grid.fluxes[teff][logg][feh].value,
+            grid.fluxes[teff][logg][metallicity].value,
             expected,
         )
 
@@ -645,8 +645,8 @@ def test_spectral_grid_resolution_methods_update_all_spectra_without_mutation(
     grid = _make_grid()
     original_data = grid.data.copy()
     original_fluxes = [
-        grid.fluxes[teff][logg][feh].value.copy()
-        for teff, logg, feh in grid.points
+        grid.fluxes[teff][logg][metallicity].value.copy()
+        for teff, logg, metallicity in grid.points
     ]
 
     result = getattr(grid, method_name)(value)
@@ -656,12 +656,12 @@ def test_spectral_grid_resolution_methods_update_all_spectra_without_mutation(
     assert not np.array_equal(result.data, grid.data)
     _assert_grid_unchanged(grid, original_data, original_fluxes)
 
-    for row, (teff, logg, feh) in zip(result.data, result.points):
+    for row, (teff, logg, metallicity) in zip(result.data, result.points):
         np.testing.assert_array_equal(
             row,
-            result.fluxes[teff][logg][feh].value,
+            result.fluxes[teff][logg][metallicity].value,
         )
-        assert not np.array_equal(row, grid.fluxes[teff][logg][feh].value)
+        assert not np.array_equal(row, grid.fluxes[teff][logg][metallicity].value)
 
     np.testing.assert_allclose(
         result.interpolator(result.points[0]).reshape(-1),
@@ -710,8 +710,8 @@ def test_spectral_grid_variable_resolving_power_matches_spectrum_method():
     grid = _make_grid()
     original_data = grid.data.copy()
     original_fluxes = [
-        grid.fluxes[teff][logg][feh].value.copy()
-        for teff, logg, feh in grid.points
+        grid.fluxes[teff][logg][metallicity].value.copy()
+        for teff, logg, metallicity in grid.points
     ]
     curve_wavelength = np.array([4300.0, 5000.0, 5800.0, 6700.0]) * u.AA
     curve_resolving_power = np.array([900.0, 1800.0, 1200.0, 2200.0])
@@ -732,10 +732,10 @@ def test_spectral_grid_variable_resolving_power_matches_spectrum_method():
     np.testing.assert_array_equal(result.wavelength, grid.wavelength)
     _assert_grid_unchanged(grid, original_data, original_fluxes)
 
-    for row, (teff, logg, feh) in zip(result.data, result.points):
+    for row, (teff, logg, metallicity) in zip(result.data, result.points):
         expected = Spectrum(
             spectral_axis=grid.wavelength,
-            flux=grid.fluxes[teff][logg][feh],
+            flux=grid.fluxes[teff][logg][metallicity],
         ).set_variable_resolving_power(
             curve_wavelength,
             curve_resolving_power,
@@ -743,7 +743,7 @@ def test_spectral_grid_variable_resolving_power_matches_spectrum_method():
         np.testing.assert_allclose(row, expected.flux.value)
         np.testing.assert_array_equal(
             row,
-            result.fluxes[teff][logg][feh].value,
+            result.fluxes[teff][logg][metallicity].value,
         )
 
 
@@ -755,11 +755,11 @@ def synthetic_grid_loader(monkeypatch):
         {
             "grid_teffs": np.array([3000.0, 3100.0]),
             "grid_loggs": np.array([4.0]),
-            "grid_fehs": np.array([0.0]),
+            "grid_metallicities": np.array([0.0]),
         },
     )
 
-    def fake_from_grid(cls, teff, logg, feh=0.0, **kwargs):
+    def fake_from_grid(cls, teff, logg, metallicity=0.0, **kwargs):
         return _synthetic_spectrum(scale=1.0 + (teff - 3000.0) / 1000.0)
 
     monkeypatch.setattr(Spectrum, "from_grid", classmethod(fake_from_grid))
@@ -769,7 +769,7 @@ def _construct_synthetic_grid(**kwargs):
     return SpectralGrid(
         teff_bds=(3000.0, 3100.0),
         logg_bds=(4.0, 4.0),
-        feh_bds=(0.0, 0.0),
+        metallicity_bds=(0.0, 0.0),
         model_grid="phoenix",
         **kwargs,
     )
