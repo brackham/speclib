@@ -6,12 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import speclib
+
+# Keep published mode/source tables synchronized with the packaged metadata.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _instrument_tables import write_tables
+
+write_tables(Path(__file__).resolve().parent)
 
 project = "speclib"
 copyright = "2021–2026, Benjamin V. Rackham"

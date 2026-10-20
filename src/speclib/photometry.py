@@ -116,7 +116,7 @@ class SED(object):
             Surface gravity [cgs]
         metallicity : float
             Native metallicity coordinate of the selected model library.
-            SpecLib does not convert between [Fe/H] and [M/H].
+            Speclib does not convert between [Fe/H] and [M/H].
         feh, mh : float, optional
             Native aliases as in ``Spectrum.from_grid``; supply only one form.
         filters : list

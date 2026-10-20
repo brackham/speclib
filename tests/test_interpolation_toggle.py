@@ -1,3 +1,6 @@
+import copy
+import warnings
+
 import pytest
 import numpy as np
 import astropy.units as u
@@ -57,9 +60,29 @@ def test_binned_grid_get_spectrum_nearest_off_grid(spectral_grid):
     assert not np.allclose(spec_interp.value, spec_nearest.value)
 
 
-def test_get_spectrum_deprecated_alias(spectral_grid):
-    with pytest.deprecated_call():
-        spectral_grid.get_spectrum(3000, 4.0, 0.0, interpolate=False)
+def test_grid_flux_and_spectrum_retrieval(spectral_grid):
+    grid = copy.deepcopy(spectral_grid)
+    grid.wavelength = grid.wavelength.to(u.nm)
+    grid.meta['nested'] = {'values': [1]}
+    original_wave = grid.wavelength.copy()
+    for interpolate in (True, False):
+        flux = grid.get_flux(3000, 4.25, 0.0, interpolate)
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', DeprecationWarning)
+            spectrum = grid.get_spectrum(3000, 4.25, interpolate=interpolate, mh=0.0)
+        assert isinstance(flux, u.Quantity)
+        assert type(spectrum) is Spectrum
+        assert spectrum.flux.unit == flux.unit
+        assert spectrum.spectral_axis.unit == grid.wavelength.unit
+        np.testing.assert_array_equal(spectrum.flux, flux)
+        np.testing.assert_array_equal(spectrum.spectral_axis, original_wave)
+        original_flux = flux.copy()
+        spectrum.flux[0] += 1 * flux.unit
+        spectrum.spectral_axis[0] *= .999
+        spectrum.meta['nested']['values'].append(2)
+        np.testing.assert_array_equal(grid.get_flux(3000, 4.25, 0.0, interpolate), original_flux)
+        np.testing.assert_array_equal(grid.wavelength, original_wave)
+        assert grid.meta['nested']['values'] == [1]
 
 
 class _DummyInterpolator:

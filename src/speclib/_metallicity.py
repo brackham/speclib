@@ -98,7 +98,7 @@ def resolve_metallicity(
         raise ValueError(
             f"{definition}`feh` is a native alias only for "
             f"PHOENIX-ACES ([Fe/H]). Use `metallicity=`{alternative} instead. "
-            "SpecLib does not convert between [Fe/H] and [M/H]."
+            "Speclib does not convert between [Fe/H] and [M/H]."
         )
     elif name in (storage_aliases or {}):
         warnings.warn(

@@ -37,7 +37,7 @@ first loads one model with :meth:`speclib.Spectrum.from_grid`. Use
 (``feh`` for PHOENIX-ACES, ``mh`` for [M/H] grids). Additional loader keywords
 are forwarded, including required SPHINX ``co_ratio`` and NewEra ``alpha``.
 ``SED.meta`` preserves the selected spectrum's coordinate and native type;
-SpecLib does not convert between [Fe/H] and [M/H].
+Speclib does not convert between [Fe/H] and [M/H].
 
 :class:`~speclib.SEDGrid` precomputes and trilinearly interpolates SEDs. It
 currently accepts PHOENIX only and always interpolates; it cannot select the

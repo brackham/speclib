@@ -38,7 +38,9 @@ packages = [
   { include = "speclib", from = "src" }
 ]
 include = [
-  "src/speclib/data/filters/*"
+  "src/speclib/data/filters/*",
+  { path = "src/speclib/data/instruments/*", format = ["sdist", "wheel"] },
+  { path = "scripts/instruments/*", format = "sdist" },
 ]
 
 [tool.poetry.group.dev.dependencies]

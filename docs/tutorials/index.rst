@@ -2,10 +2,10 @@ Tutorials and examples
 ======================
 
 These notebooks are the source for both the rendered pages and downloads.
-MyST-NB executes all four during the Sphinx build, so their displayed figures
+MyST-NB executes all five during the Sphinx build, so their displayed figures
 and results track the source checkout. They use only data created in memory,
-packaged filters, or a temporary explicitly synthetic grid; none accesses the
-network or downloads a model archive.
+packaged calibrations/filters, or a temporary explicitly synthetic grid. None
+accesses the network or downloads a model archive.
 
 .. list-table:: Notebook downloads
    :header-rows: 1
@@ -24,6 +24,9 @@ network or downloads a model archive.
      - Compare constant wavelength FWHM, constant resolving power, and sampled
        wavelength-dependent resolving power.
      - :download:`spectral_resolution.ipynb <spectral_resolution.ipynb>`
+   * - Instrument profiles
+     - Apply offline NIRSpec resolution curves, choose sampling, and respect detector coverage.
+     - :download:`instrument_profiles.ipynb <instrument_profiles.ipynb>`
    * - Synthetic photometry
      - Apply packaged filters, build an SED, and convert magnitude to flux with
        uncertainty.
@@ -36,4 +39,5 @@ network or downloads a model archive.
    quickstart
    spectral_grids
    spectral_resolution
+   instrument_profiles
    synthetic_photometry
