@@ -13,3 +13,4 @@ cache-location helpers used during installation. Start with the
    spectral_grids
    photometry
    utilities
+   instruments

@@ -14,4 +14,6 @@ operations. The :doc:`../tutorials/index` provides executable workflows; the
    model_libraries
    interpolation
    resolution
+   instrument_profiles
+   instrument_provenance
    photometry

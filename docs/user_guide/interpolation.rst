@@ -9,7 +9,7 @@ are not interpolated.
 
 ``metallicity`` always means the selected library's native coordinate:
 [Fe/H] for PHOENIX-ACES, [M/H] for NewEra, SPHINX, and MPS-ATLAS.
-SpecLib does not convert between [Fe/H] and [M/H]. The numeric plane selected
+Speclib does not convert between [Fe/H] and [M/H]. The numeric plane selected
 by an existing positional request or native alias is unchanged by this API
 migration.
 

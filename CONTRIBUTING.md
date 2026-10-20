@@ -59,6 +59,14 @@ poetry run sphinx-build -b linkcheck docs docs/_build/linkcheck
 
 Open `docs/_build/html/index.html` to review the rendered pages. The build executes lightweight, offline tutorial notebooks. Link checking needs network access; report any failures caused by unavailable external sites. This guide is also included in the documentation through `docs/contributing.rst`.
 
+### Instrument profiles
+
+New profiles must satisfy the minimum scientific-provenance checklist in
+`docs/development/instrument_profiles.rst` (published under Contributing →
+Instrument-profile provenance). Keep resolving-power sources, coverage sources,
+and Speclib's LSF approximations distinct; provide original-data links and a
+reproducible conversion or analytic prescription before adding a profile.
+
 ## Preparing a pull request
 
 - Describe what changed and why, link a related issue when applicable, and report the tests/checks you ran, including any skipped checks.

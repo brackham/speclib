@@ -49,16 +49,27 @@ Retrieval
 
 .. code-block:: python
 
-   from speclib import Spectrum
-
    flux = grid.get_flux(3100, 4.5, metallicity=0.0, interpolate=True)
-   spectrum = Spectrum(spectral_axis=grid.wavelength, flux=flux)
+   spectrum = grid.get_spectrum(3100, 4.5, metallicity=0.0, interpolate=True)
 
-``get_flux`` returns a one-dimensional Astropy quantity aligned with
-``grid.wavelength``; it does not return a ``Spectrum``. Setting
-``interpolate=False`` selects the nearest loaded model. The older
-``get_spectrum`` name is a deprecated alias for ``get_flux`` and emits a
-``DeprecationWarning``.
+``get_flux()`` returns a one-dimensional Astropy ``Quantity`` aligned with
+``grid.wavelength``. ``get_spectrum()`` uses the same interpolation and returns
+an ordinary Speclib ``Spectrum`` with independent wavelength, flux and metadata.
+Both accept the same parameter-selection arguments; ``interpolate=False``
+selects the nearest loaded model.
+
+Instrument provenance and detector coverage survive extraction:
+
+.. code-block:: python
+
+   # Start with a high-resolution grid covering the mode and its padding.
+   observed_grid = high_resolution_grid.observed_by("jwst/nirspec/g395h/f290lp")
+   spectrum = observed_grid.get_spectrum(5750, 4.5, 0.0)
+   print(spectrum.valid_intervals)
+
+The extracted spectrum's :meth:`~speclib.Spectrum.resample` and
+:meth:`~speclib.Spectrum.bin` respect those intervals. See
+:doc:`instrument_profiles` for source-resolution requirements and gap handling.
 
 Resolution methods operate on every stored spectrum, return independent grid
 objects, and reuse one convolution plan. Constructor keywords

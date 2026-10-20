@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bundled nine NIRSpec BOTS/S1600A1/SUB2048 instrument profiles with official
+  STScI wavelength-dependent resolving-power curves, offline lookup and
+  programmatic scientific provenance through `InstrumentProfile.provenance`.
+- Added `Spectrum.observed_by()` and `SpectralGrid.observed_by()` for nominal
+  Gaussian instrument-resolution matching and automatic wavelength coverage,
+  preserving native sampling or accepting explicit/resolution-matched sampling.
+- Added explicit `valid_intervals` detector coverage and gap-aware resampling,
+  binning and wavelength selection, with rejection of unsafe gap-crossing work.
+
 - Added Smitha et al. (2025) G2V, K0V, and M0V quiet, spot, penumbral, and
   umbral spectra from the Edmond data release, with direct `Spectrum` access,
   checksum-validated caching, and no interpolation.
@@ -29,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Added the instrument-profiles tutorial, configuration/source tables, scientific
+  assumptions, reproducible calibration conversion and a permanent contributor
+  provenance checklist.
+
 - Added Smitha et al. (2025) model-library documentation covering the discrete
   surface components, native sampling and flux convention, cache behavior,
   metadata, scientific limitations, and citations.
@@ -41,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including a comparison of the NewEra Gaia, JWST, and Low-Res products.
 
 ### Changed
+
+- `SpectralGrid.get_spectrum()` intentionally returns an independent Speclib
+  `Spectrum` with wavelength, flux and copied metadata, including detector
+  coverage. `get_flux()` retains its interpolated Astropy `Quantity` result.
+  This replaces the prerelease deprecated-alias behavior; no warning is emitted.
 
 - Standardized native metallicity selection on `metallicity`, `metallicity_bds`,
   and `metallicity_range` across spectra, grids, photometry, and model helpers.

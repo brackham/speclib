@@ -1,0 +1,80 @@
+# Numerical wavelengths and coverage intervals are in vacuum micrometers.
+schema_version = 1
+
+[defaults]
+quality = "tabulated"
+calibration_version = "STScI JDox snapshot retrieved 2026-10-17 (source bytes pinned by SHA-256)"
+source = "STScI NIRSpec Dispersers and Filters; Jakobsen et al. (2022), A&A 661, A80"
+source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-instrumentation/nirspec-dispersers-and-filters"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-operations/nirspec-bots-operations/nirspec-bots-wavelength-ranges-and-gaps"
+configuration = "BOTS/S1600A1/SUB2048"
+resolution_definition = "Published R=lambda/delta_lambda for a 2.2-pixel spectral element, treated as Gaussian FWHM"
+assumptions = [
+  "Nominal disperser model, not a measured BOTS point-source LSF; no slit-illumination correction",
+  "Approximate SUB2048 coverage from BOTS Table 1; boundaries/gaps depend on the observation",
+  "Negligible intrinsic source width; no finite-resolution correction or deconvolution",
+  "Coordinates treated as vacuum wavelengths; FITS labels MICRONS without an air/vacuum flag; linear interpolation of published R; no extrapolation",
+]
+
+[[profiles]]
+mode = "jwst/nirspec/prism/clear"
+curve = "prism.csv"
+provenance_ref = "sources.json#prism"
+valid_intervals_um = [[0.6, 5.3]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/prism/clear"]
+
+[[profiles]]
+mode = "jwst/nirspec/g140m/f070lp"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[0.7, 1.27]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g140m/f070lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g140m/f100lp"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[0.97, 1.87]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g140m/f100lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g140h/f070lp"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[0.82, 1.27]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g140h/f070lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g140h/f100lp"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[0.97, 1.31], [1.35, 1.83]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g140h/f100lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g235m/f170lp"
+curve = "g235m.csv"
+provenance_ref = "sources.json#g235m"
+valid_intervals_um = [[1.66, 3.12]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g235m/f170lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g235h/f170lp"
+curve = "g235h.csv"
+provenance_ref = "sources.json#g235h"
+valid_intervals_um = [[1.66, 2.2], [2.27, 3.07]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g235h/f170lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g395m/f290lp"
+curve = "g395m.csv"
+provenance_ref = "sources.json#g395m"
+valid_intervals_um = [[2.87, 5.18]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g395m/f290lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/g395h/f290lp"
+curve = "g395h.csv"
+provenance_ref = "sources.json#g395h"
+valid_intervals_um = [[2.87, 3.72], [3.82, 5.18]]
+aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g395h/f290lp"]

@@ -26,7 +26,7 @@ The three numeric coordinates are effective temperature in kelvin, base-10
 surface gravity in cgs, and native metallicity.
 
 ``metallicity`` specifies the native metallicity coordinate of the selected
-model library. SpecLib does not convert between ``[Fe/H]`` and ``[M/H]``.
+model library. Speclib does not convert between ``[Fe/H]`` and ``[M/H]``.
 Users comparing libraries must determine whether their abundance conventions
 are scientifically equivalent for their application; alpha enhancement and
 the adopted solar abundance mixture can matter.

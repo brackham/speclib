@@ -68,7 +68,7 @@ Different required corner spectra must also share exactly the same wavelength
 axis.
 
 Returned spectra record ``meta["metallicity"]`` and
-``meta["metallicity_type"] = "mh"``. SpecLib does not convert between
+``meta["metallicity_type"] = "mh"``. Speclib does not convert between
 [Fe/H] and [M/H]. Use ``metallicity=`` or the native alias ``mh=``.
 
 For publication, the Zenodo record asks users to cite both the data DOI and

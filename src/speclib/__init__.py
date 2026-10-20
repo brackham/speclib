@@ -25,6 +25,7 @@ from .core import (
     BinnedSpectralGrid,
 )
 from .photometry import Filter, SED, SEDGrid, apply_filter, mag_to_flux
+from .instruments import InstrumentProfile, get_profile, list_instrument_profiles
 from .utils import (
     download_file,
     download_kostogryz2026_spectra,
@@ -36,6 +37,9 @@ from .utils import (
 )
 
 __all__ = [
+    "InstrumentProfile",
+    "get_profile",
+    "list_instrument_profiles",
     "Spectrum",
     "BinnedSpectrum",
     "SpecificIntensitySpectrum",
