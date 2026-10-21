@@ -112,3 +112,123 @@ of the source page and all seven headers found no contrary notice. This is the
 redistribution basis, not a dataset-specific license or endorsement; Speclib's
 code license does not relicense the source data. Attribution and the review date
 are in :download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`.
+
+STIS, WFC3 and NIRISS prescriptions
+-----------------------------------
+
+The :download:`Phase 2 manifest <../../src/speclib/data/instruments/phase2_sources.json>`
+records the original sources, equations, coefficients, calibration domains and
+output checksums. These profiles use the same offline representation and
+Gaussian engine as NIRSpec. Their configuration and practical coverage are in
+``profiles.toml``; the tables below are generated from those records.
+
+.. include:: ../_build/instrument_tables/phase2_sources.rst
+
+STIS: model LSFs reduced to Gaussian widths
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The `STScI spectral-resolution page
+<https://www.stsci.edu/hst/instrumentation/stis/performance/spectral-resolution>`_
+provides model LSF text files, with relative pixel offset and four aperture
+columns. The converter selects ``52x2.0`` and finds the half-maximum crossings
+on each side of the global peak by linear interpolation. It preserves the source
+amplitudes while measuring the width; no normalization, Gaussian fit or
+second-moment width is substituted. These are **model point-source LSFs**, not
+measurements of a particular observation. The files have no formal calibration
+version; exact SHA-256 pins identify the retrieved source bytes.
+The `STIS handbook's LSF introduction
+<https://hst-docs.stsci.edu/stisihb/chapter-13-spectroscopic-reference-material/13-6-line-spread-functions>`_
+states that internal-lamp and on-orbit observations confirmed and revised the
+original pre-flight models. The public text files do not identify which
+individual revisions they contain.
+
+.. include:: ../_build/instrument_tables/stis_widths.rst
+
+The derived widths differ from the rounded `handbook Table 13.41
+<https://hst-docs.stsci.edu/stisihb/chapter-13-spectroscopic-reference-material/13-6-line-spread-functions/first-order-line-spread-functions>`_
+values by less than 0.1 pixel. The percentage differences above are a source
+consistency check, not a physical-accuracy estimate. In particular, the blue
+G430L difference is not established to arise from rounding alone; the
+unversioned files do not resolve the discrepancy. The converter retains the
+LSF-derived widths without tuning them to the handbook.
+There is only one downloadable G750L LSF wavelength on the source page. Its
+additional handbook anchors, shown above, provide the wavelength dependence;
+G430L uses both downloadable wavelengths. Pixel FWHM is interpolated linearly
+between anchors and held constant beyond the outer anchors. This endpoint
+extension over the complete grating coverage and padding is an explicit nominal
+approximation, not additional calibration data. Average dispersion converts
+pixel FWHM to wavelength FWHM. A dense sampled R curve retains each anchor;
+runtime interpolation is in R, as for every profile.
+
+Coverage comes separately from the complete spectral ranges for the prime CCD
+grating settings in the linked grating reference pages. It does not promise
+observation-specific pixel centers. A centered point source through 52X2 is
+assumed; a slit-filling source has a much broader LSF. Gaussian matching omits
+the original asymmetric wings, slit losses and G750L fringing. The tables are
+``quality='derived'`` because Speclib reduces LSFs and interpolates their widths.
+
+WFC3: reference resolving power with constant wavelength FWHM
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`WFC3 Instrument Handbook Table 8.1
+<https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview>`_
+supplies first-order coverage, mean dispersions and resolving powers at reference
+wavelengths. Speclib holds the reference wavelength FWHM constant, so R increases
+linearly with wavelength. It does not assume a two-pixel FWHM: the effective
+pixel width follows from the reference wavelength, R and dispersion. The
+handbook defines R from the Gaussian image core measured perpendicular to
+dispersion. The prescription assumes an unresolved source at nominal field
+center and ignores morphology, scan geometry and field-dependent dispersion.
+It is ``quality='nominal'``, not a measured wavelength-dependent calibration.
+The two endpoint samples reproduce the linear R equation exactly, including
+its declared padding domain.
+
+NIRISS/SOSS: independent order-specific nominal curves
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`Albert et al. (2023), PASP 135, 075001
+<https://doi.org/10.1088/1538-3873/acd7a3>`_
+(`author preprint <https://arxiv.org/abs/2306.04572>`__), Table 2 and Section 5.3,
+supply separate CV3 average dispersions and the two-pixel Nyquist resolution
+convention. Speclib uses the measured dispersions, rather than the parenthesized
+optical-model values. Each order's R increases with wavelength under this
+constant-average-dispersion approximation. This reproduces the paper's nominal
+first-order check near its reference wavelength, but does not reconstruct the
+full derivative of an in-flight wavelength solution. Individual LED LSF widths
+in Figure 6 vary around the adopted two-pixel convention. The curves are
+``quality='nominal'``; no publication figure is digitized or redistributed.
+
+The `GR700XD documentation
+<https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-gr700xd-grism>`_
+provides the rounded first-order coverage and the CLEAR/SUBSTRIP256 setup.
+For order 2, the separate `calibration-status page
+<https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status>`_
+(updated June 2026) advises against using wavelengths above 1 µm because the
+signal is low and photometric calibration is uncertain. Speclib therefore uses
+a shorter practical interval than the geometric range. The manifest retains
+both the paper's geometric limits and this coverage decision. This review
+informs useful coverage; it is not an in-flight resolution calibration. Visit
+wavelength shifts, order contamination and extraction corrections are outside
+this approximation. The two orders remain independent ordinary spectra.
+
+Reproduction and attribution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :download:`Phase 2 converter <../../scripts/instruments/convert_phase2.py>`
+reproduces all six outputs offline using checksum-pinned STIS inputs and the
+manifest's numerical prescriptions. It rejects changed source and output bytes;
+it never rewrites pins. See the :download:`reproduction procedure
+<../../scripts/instruments/README.md>`. Analytic sources require no fictitious
+input filename or checksum; their equations and coefficients are the inputs.
+All derived CSVs have output checksums. Domains include explicit nominal
+padding, with no runtime extrapolation. Wavelength labels do not explicitly
+identify air versus vacuum; Speclib treats these approximate coordinates as
+vacuum without conversion.
+
+The STIS source headers and STScI pages were reviewed against the `STScI
+content-use policy <https://www.stsci.edu/copyright>`_. No contrary restriction
+was found on the selected numerical LSFs. WFC3 and SOSS CSVs are original
+evaluations of cited numerical prescriptions; publication text and figures are
+not bundled. NASA/STScI and the SOSS instrument team are acknowledged in
+:download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`. No NASA,
+STScI or author endorsement is implied.

@@ -93,8 +93,8 @@ assume upstream operations reconcile coverage or retain it after replacing
 metadata. Manually removing the coverage declaration removes its safeguards.
 
 Independent spectral orders may overlap and need explicit weighting/stitching.
-That future functionality is separate; no order collection or stitching is added
-here. Planned NIRISS/SOSS order identifiers can each produce ordinary spectra.
+That functionality is separate; no order collection or stitching is added here.
+NIRISS/SOSS order identifiers each produce an ordinary independent spectrum.
 
 Resolving power versus sampling
 -------------------------------
@@ -133,6 +133,40 @@ gaps. G140M and G140H filter pairs share their disperser's curve but have differ
 coverage. Original-data and coverage links have different roles; the table is
 generated from the registry and manifest, rather than maintained separately.
 See :doc:`instrument_provenance` for original filenames, definitions and conversion.
+
+Supported STIS, WFC3 and NIRISS modes
+-------------------------------------
+
+STIS shorthand identifiers select the prime CCD setting, a centered point source
+and the **52X2 aperture**. Explicit aliases have the form
+``hst/stis/ccd/52x2/g430l``. WFC3 profiles describe first-order unresolved sources
+at nominal field center. SOSS shorthand identifiers select **CLEAR/SUBSTRIP256**;
+explicit aliases include ``jwst/niriss/soss/substrip256/order1``. Unsupported
+apertures, field-specific configurations and subarrays fail clearly.
+
+.. include:: ../_build/instrument_tables/phase2_modes.rst
+
+STIS uses FWHMs derived from model LSF tables, with supplementary handbook
+anchors and explicit endpoint-width approximations. WFC3 and SOSS use nominal
+analytic prescriptions with wavelength-dependent R. See
+:doc:`instrument_provenance` for equations, definitions, direct data links,
+padding assumptions and redistribution terms.
+
+SOSS order 2 uses practical coverage restricted according to current STScI
+calibration advice. Its geometric extent is wider; the excluded red region has
+low signal and uncertain photometric calibration. Each order is processed
+independently; their overlapping wavelength ranges do not imply stitching.
+
+.. code-block:: python
+
+   # The source must cover each profile plus real convolution padding.
+   optical_wave = np.geomspace(0.25, 3.0, 40000) * u.um
+   optical_source = Spectrum(spectral_axis=optical_wave,
+                             flux=np.ones(optical_wave.size) * unit)
+   stis = optical_source.observed_by("hst/stis/g430l")
+   wfc3 = optical_source.observed_by("hst/wfc3/g141")
+   order1 = optical_source.observed_by("jwst/niriss/soss/order1")
+   order2 = optical_source.observed_by("jwst/niriss/soss/order2")
 
 Calibration and limitations
 ---------------------------

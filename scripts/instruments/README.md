@@ -63,3 +63,43 @@ redistribution policy; the numerical R columns are preserved unchanged. Some
 internal intermediate files and the header-cited technical note have no verified
 public URL; the linked FITS files, not those intermediates, are the reproducible
 inputs. Attachment version numbers are not formal calibration release versions.
+
+## Reproducing Phase 2: STIS, WFC3 and NIRISS/SOSS
+
+```sh
+poetry run python scripts/instruments/convert_phase2.py --download --source-dir /tmp/stis-lsf
+poetry run python scripts/instruments/convert_phase2.py --source-dir /tmp/stis-lsf --output-dir /tmp/phase2-csv
+SPECLIB_STIS_SOURCE_DIR=/tmp/stis-lsf poetry run pytest tests/test_phase2_instruments.py
+```
+
+`phase2_sources.json` is the canonical record of source links, byte pins, derived
+LSF widths, supplementary handbook anchors, equations, coefficients, domains,
+processing and redistribution review. The script validates input checksums,
+aperture/wavelength headers, array dimensions, finite ordered offsets and
+nonnegative amplitudes before deriving STIS half-height widths. It linearly
+interpolates pixel FWHM between anchors, holds endpoint FWHM outside them,
+converts with the mean dispersion and samples R at 0.001 µm spacing with exact
+anchors. Runtime interpolation remains linear in R. Those endpoint extensions
+are explicit approximations, including over padding, rather than extrapolation
+of an empirical calibration. G750L uses the 7000 Å model LSF plus the handbook's
+5500 and 10000 Å widths. The less-than-0.1-pixel differences from rounded
+handbook values are retained, not tuned away.
+
+WFC3 uses `R(lambda) = R_ref * lambda / lambda_ref`, a constant wavelength FWHM
+anchored to Table 8.1, not an arbitrary two-pixel width. SOSS uses separate
+measured order dispersions from Albert et al. (2023), Table 2, and the paper's
+two-pixel convention, yielding a linear R curve for each order. Two endpoint
+samples reproduce these analytic equations exactly. The selected padding domain
+is a declared part of each nominal prescription, not a measured validity claim.
+No numerical optical-model derivative or visit-specific correction is inferred.
+No network calls occur without `--download`; WFC3/SOSS reproduction needs no
+external data files. Output checksums are verified before writing. Changes to
+inputs or scientific choices require explicit review and deliberate pin updates.
+
+SOSS uses CLEAR/SUBSTRIP256, with independent ordinary output spectra. Order 2
+practical coverage follows the current STScI calibration-status advice against
+using wavelengths above 1 µm; the manifest also records the wider geometric
+range. Orders are not stitched or decontaminated. STIS assumes the prime CCD
+settings, unbinned pixels and centered point sources through 52X2. Unsupported
+apertures/subarrays do not fall back to the defaults. See the generated tables
+and source discussion in `docs/user_guide/instrument_provenance.rst`.

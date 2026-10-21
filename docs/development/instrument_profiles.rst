@@ -4,8 +4,8 @@ Instrument-profile provenance standard
 Every bundled profile must connect its numerical prescription to authoritative,
 clickable sources. Keep the record small and specific to the source type; do not
 invent a file, version, precision or measurement pedigree to fill a field.
-This checklist applies to future STIS, WFC3, NIRISS, NIRCam, MIRI and other
-profiles without implementing them now.
+This checklist applies to bundled STIS, WFC3, NIRISS and NIRSpec profiles and
+future NIRCam, MIRI and other profiles.
 
 Minimum record
 --------------
@@ -83,10 +83,10 @@ Review and reproduction checklist
 #. Inspect ``get_profile(mode).provenance`` and the rendered configuration/source
    tables. Confirm links, offline wheel/sdist access, attribution and installation.
 #. Build Sphinx with warnings as errors and execute the lightweight tutorials;
-   add concise user examples and an unreleased changelog entry.
+   add concise user examples. Change the changelog only when requested.
 
-For the present curves, follow the :download:`NIRSpec reproduction procedure
+For bundled curves, follow the :download:`reproduction procedures
 <../../scripts/instruments/README.md>` and the
 :doc:`scientific reference <../user_guide/instrument_provenance>`. The source
-manifest is downloaded from that reference; reproducing data must not silently
+manifests are downloadable from that reference; reproducing data must not silently
 replace checksum pins when upstream attachments change.

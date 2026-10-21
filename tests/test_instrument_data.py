@@ -42,7 +42,8 @@ def test_bundled_nirspec_registry_and_calibration_offline(monkeypatch):
         pytest.fail('Registry attempted network access')
     monkeypatch.setattr(socket, 'socket', no_network)
     expected = tuple(sorted('jwst/nirspec/'+name for name in COVERAGE))
-    assert list_instrument_profiles() == expected
+    assert tuple(mode for mode in list_instrument_profiles()
+                 if mode.startswith('jwst/nirspec/')) == expected
     for mode in expected:
         p = get_profile(mode.upper())
         assert get_profile(p) is p

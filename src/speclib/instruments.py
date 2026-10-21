@@ -169,6 +169,8 @@ def get_profile(mode):
 
     NIRSpec shorthand identifiers default to BOTS/S1600A1/SUB2048. Explicit
     identifiers use ``jwst/nirspec/bots/s1600a1/sub2048/<disperser>/<filter>``.
+    STIS defaults to the prime CCD setting with a centered point source through
+    52X2; SOSS defaults to CLEAR/SUBSTRIP256, with each order a separate profile.
     Unsupported configurations fail instead of falling back to this default.
     """
     if isinstance(mode, InstrumentProfile):

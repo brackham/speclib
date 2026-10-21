@@ -33,3 +33,57 @@ def write_tables(directory):
                         f'     - {record["fits_date"]}', f'     - {record["rows"]}']
     (output/'modes.rst').write_text('\n'.join(modes)+'\n')
     (output/'sources.rst').write_text('\n'.join(sources)+'\n')
+    _write_phase2_tables(output)
+
+
+def _write_phase2_tables(output):
+    modes = ['.. list-table:: STIS, WFC3 and SOSS (vacuum micrometers)',
+             '   :header-rows: 1', '', '   * - Profile identifier',
+             '     - Configuration', '     - Valid interval', '     - Quality',
+             '     - Coverage authority']
+    sources = ['.. list-table:: Phase 2 resolution prescriptions',
+               '   :header-rows: 1', '', '   * - Bundled curve',
+               '     - Resolution source', '     - Adopted prescription']
+    widths = ['.. list-table:: STIS model LSF half-height checks (52X2)',
+              '   :header-rows: 1', '', '   * - Original LSF',
+              '     - Wavelength (µm)', '     - Derived FWHM (pixels)',
+              '     - Handbook FWHM (pixels)', '     - Width difference (%)']
+    for mode in list_instrument_profiles():
+        profile = get_profile(mode)
+        if not profile.provenance_ref.startswith('phase2_sources.json#'):
+            continue
+        record = profile.provenance
+        coverage = '; '.join(f'{a:g}–{b:g}' for a, b in profile.valid_intervals.value)
+        modes += [f'   * - ``{mode}``', f'     - {profile.configuration}',
+                  f'     - {coverage}', f'     - {profile.quality}',
+                  f'     - `Reference <{profile.coverage_source_url}>`__']
+        if 'lsf_sources' in record:
+            links = '; '.join(f'`{s["filename"]} <{s["url"]}>`__'
+                              for s in record['lsf_sources'])
+            anchors = '; '.join(f'{w:g} µm: {p:g} pixels'
+                                for w, p in record['handbook_anchors_um_pixels'])
+            prescription = (f'LSF half-height width × {record["dispersion_angstrom_per_pixel"]:g}'
+                            f' Å/pixel (`dispersion <{record["dispersion_source_url"]}>`__)')
+            if anchors:
+                prescription += f'; additional `handbook anchors <{record["handbook_source_url"]}>`__: {anchors}'
+            checks = dict(record['handbook_comparison_um_pixels'])
+            for source, (wave, width) in zip(record['lsf_sources'], record['derived_lsf_anchors_um_pixels']):
+                widths += [f'   * - `{source["filename"]} <{source["url"]}>`__',
+                           f'     - {wave:g}', f'     - {width:.6f}',
+                           f'     - `{checks[wave]:g} <{record["handbook_source_url"]}>`__',
+                           f'     - {100 * (width / checks[wave] - 1):+.3f}']
+        else:
+            c = record['coefficients']
+            if 'reference_wavelength_um' in c:
+                links = f'`WFC3 Table 8.1 <{record["documentation_url"]}>`__'
+                prescription = (f'R = {c["resolving_power"]:g} × λ / {c["reference_wavelength_um"]:g} µm; '
+                                f'reference dispersion {c["dispersion_nm_per_pixel"]:g} nm/pixel')
+            else:
+                links = (f'`Albert et al., Table 2 / §5.3 <{record["publication_url"]}>`__ '
+                         f'(`preprint <{record["preprint_url"]}>`__)')
+                prescription = (f'R = λ / ({c["resolution_pixels"]:g} × '
+                                f'{c["dispersion_nm_per_pixel"]:g} nm); order {c["order"]}')
+        sources += [f'   * - ``{record["output_file"]}``',
+                    f'     - {links}', f'     - {prescription}']
+    for name, lines in [('phase2_modes', modes), ('phase2_sources', sources), ('stis_widths', widths)]:
+        (output/f'{name}.rst').write_text('\n'.join(lines)+'\n')
