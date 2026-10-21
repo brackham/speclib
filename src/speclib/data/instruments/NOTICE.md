@@ -30,3 +30,34 @@ The policy includes exceptions for third-party restrictions; this review found
 no contrary notice but does not supply a separate dataset-specific license grant.
 No endorsement by NASA or STScI is implied. Speclib's code license does not
 relicense third-party material.
+
+# Phase 2: STIS, WFC3 and NIRISS/SOSS
+
+Source review and retrieval: 2026-10-20. `phase2_sources.json` contains direct
+links, source/output SHA-256 checksums where applicable, equations, coefficients
+and processing assumptions. These files acknowledge NASA/STScI and the
+NIRISS/SOSS instrument team; they imply no endorsement.
+
+STIS numerical widths are reduced from the public model LSF tables on the
+[STScI spectral-resolution page](https://www.stsci.edu/hst/instrumentation/stis/performance/spectral-resolution).
+Only the 52x2.0 column is used. Supplementary widths and mean dispersions are
+factual numerical parameters from the linked STIS handbook tables. The three
+original text headers and the source pages contain no contrary copyright or
+redistribution notice. The reviewed basis is the
+[STScI content-use policy](https://www.stsci.edu/copyright) for NASA-prepared
+material, with the same exceptions and attribution conditions described above.
+These are model profiles, not measured in-flight LSFs; the original asymmetric
+LSF wings are not reproduced by the Gaussian approximation.
+
+WFC3 curves evaluate a nominal equation anchored to the numerical reference
+resolving powers in
+[WFC3 Handbook Table 8.1](https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview).
+SOSS curves evaluate separate order-specific nominal equations using the
+measured CV3 dispersions and two-pixel convention in
+[Albert et al. (2023), PASP 135, 075001](https://doi.org/10.1088/1538-3873/acd7a3)
+([author preprint](https://arxiv.org/abs/2306.04572)), Table 2 and Section 5.3.
+The source prescriptions are acknowledged; these CSVs are original numerical
+evaluations, with no publication text or figures redistributed. Useful SOSS
+coverage also follows the
+[STScI calibration-status guidance](https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status).
+Speclib's code license does not relicense third-party material.

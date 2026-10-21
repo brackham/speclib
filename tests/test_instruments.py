@@ -638,3 +638,77 @@ def test_covered_multidimensional_binning_is_rejected(covered_spectrum):
                       meta=covered_spectrum.meta)
     with pytest.raises(ValueError, match='one-dimensional'):
         source.bin(center=[1.]*u.um, width=[.02]*u.um)
+
+
+PHASE2_LINES = [
+    ('hst/stis/g430l', .43), ('hst/stis/g750l', .75),
+    ('hst/wfc3/g102', .97), ('hst/wfc3/g141', 1.4),
+    ('jwst/niriss/soss/order1', 1.25), ('jwst/niriss/soss/order2', .8),
+]
+
+
+@pytest.fixture(scope='module')
+def phase2_source():
+    wave = np.geomspace(.25, 3., 40000)*u.um
+    return Spectrum(spectral_axis=wave, flux=np.ones(wave.size)*FLUX_UNIT,
+                    meta={'nested': {'values': [1, 2]}})
+
+
+@pytest.mark.parametrize('mode,center', PHASE2_LINES)
+def test_phase2_coverage_sampling_grid_and_ownership(mode, center, phase2_source):
+    profile = get_profile(mode)
+    lower, upper = profile.valid_intervals[0].to_value(u.um)
+    targets = np.linspace(lower+.1*(upper-lower), upper-.1*(upper-lower), 40)*u.um
+    for options in ({}, {'samples_per_resolution_element': 5}, {'wavelength': targets}):
+        observed = phase2_source.observed_by(mode, **options)
+        assert type(observed) is Spectrum
+        np.testing.assert_array_equal(observed.valid_intervals, profile.valid_intervals)
+        assert observed.wavelength.min() >= lower*u.um
+        assert observed.wavelength.max() <= upper*u.um
+        # Full interval boundaries retain sufficient local model/calibration padding.
+        np.testing.assert_allclose(observed.flux.value, 1., rtol=2e-3)
+        assert observed.meta['instrument_profile']['configuration'] == profile.configuration
+        if not options:
+            selected = ((phase2_source.wavelength >= lower*u.um)
+                        & (phase2_source.wavelength <= upper*u.um))
+            np.testing.assert_array_equal(observed.wavelength, phase2_source.wavelength[selected])
+    grid = make_grid(phase2_source).observed_by(profile, wavelength=targets)
+    assert type(grid) is SpectralGrid
+    np.testing.assert_allclose(grid.wavelength.to_value(u.um),
+                               observed.wavelength.to_value(u.um), rtol=1e-14)
+    np.testing.assert_allclose(grid.data[0], observed.flux.value, rtol=1e-12)
+    np.testing.assert_allclose(grid.data[1], 2*observed.flux.value, rtol=1e-12)
+    extracted = grid.get_spectrum(3000., 4., 0., interpolate=False)
+    extracted.meta['instrument_profile']['mode'] = 'changed'
+    extracted.meta['nested']['values'].append(3)
+    assert grid.meta['instrument_profile']['mode'] == mode
+    assert phase2_source.meta == {'nested': {'values': [1, 2]}}
+    assert np.all(phase2_source.flux.value == 1)
+    # No source padding must still fail for the new nominal prescriptions.
+    with pytest.raises(ValueError, match='padding'):
+        phase2_source.select_wavelength(lower*u.um, upper*u.um).observed_by(mode)
+
+
+@pytest.mark.parametrize('mode,center', PHASE2_LINES)
+def test_phase2_isolated_line_widths(mode, center):
+    profile = get_profile(mode)
+    reference_r = profile.resolving_power_at(center*u.um)
+    fwhm = center/reference_r
+    # Resolve the intrinsically narrow line and its wings on a local fine mesh.
+    wave = np.unique(np.r_[np.geomspace(.25, 3., 40000),
+                           np.linspace(center-5*fwhm, center+5*fwhm, 6001)])
+    flux = np.exp(-.5*((wave-center)/(fwhm/100))**2)
+    source = Spectrum(spectral_axis=wave*u.um, flux=flux*FLUX_UNIT)
+    result = source.observed_by(profile)
+    assert measured_r(result, center, reference_r) == pytest.approx(reference_r, rel=.005)
+
+
+def test_soss_orders_stay_independent(phase2_source):
+    first = phase2_source.observed_by('jwst/niriss/soss/order1')
+    second = phase2_source.observed_by('jwst/niriss/soss/order2')
+    assert type(first) is Spectrum and type(second) is Spectrum
+    assert first.valid_intervals[0, 0] < second.valid_intervals[0, 1]
+    assert first.meta['instrument_profile']['mode'].endswith('order1')
+    assert second.meta['instrument_profile']['mode'].endswith('order2')
+    with pytest.raises(ValueError, match='outside|coverage'):
+        phase2_source.observed_by('jwst/niriss/soss/order2', wavelength=[1.1, 1.2]*u.um)

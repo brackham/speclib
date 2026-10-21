@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added six instrument profiles for HST/STIS G430L and G750L, HST/WFC3 G102
+  and G141, and separate JWST/NIRISS SOSS orders 1 and 2, with bundled
+  resolution prescriptions, offline provenance and documented coverage.
 - Bundled nine NIRSpec BOTS/S1600A1/SUB2048 instrument profiles with official
   STScI wavelength-dependent resolving-power curves, offline lookup and
   programmatic scientific provenance through `InstrumentProfile.provenance`.

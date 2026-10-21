@@ -78,3 +78,132 @@ curve = "g395h.csv"
 provenance_ref = "sources.json#g395h"
 valid_intervals_um = [[2.87, 3.72], [3.82, 5.18]]
 aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g395h/f290lp"]
+
+[[profiles]]
+mode = "hst/stis/g430l"
+curve = "stis_g430l.csv"
+provenance_ref = "phase2_sources.json#stis_g430l"
+valid_intervals_um = [[0.29, 0.57]]
+aliases = ["hst/stis/ccd/52x2/g430l"]
+quality = "derived"
+configuration = "CCD/G430L/4300/52X2; centered point source; unbinned pixels"
+source = "NASA/STScI STIS tabulated model LSFs (52x2.0); Instrument Handbook Table 13.41 and grating reference"
+source_url = "https://www.stsci.edu/hst/instrumentation/stis/performance/spectral-resolution"
+coverage_source_url = "https://hst-docs.stsci.edu/stisihb/chapter-13-spectroscopic-reference-material/13-3-gratings/first-order-grating-g430l"
+calibration_version = "Unversioned STScI model LSF text files; spectral-resolution page last updated 2023-06-02; source bytes pinned by SHA-256"
+resolution_definition = "R=lambda/(average dispersion * derived LSF half-maximum width); adopted as Gaussian FWHM"
+assumptions = [
+  "Centered point source through 52X2, not an extended/slit-filling source; no non-Gaussian LSF wings",
+  "Interpolate pixel FWHM between available model LSF and handbook anchors; hold endpoint widths beyond anchors and over convolution padding",
+  "Average grating dispersion; nominal complete prime-setting coverage, not an observation-specific wavelength solution",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
+
+[[profiles]]
+mode = "hst/stis/g750l"
+curve = "stis_g750l.csv"
+provenance_ref = "phase2_sources.json#stis_g750l"
+valid_intervals_um = [[0.524, 1.027]]
+aliases = ["hst/stis/ccd/52x2/g750l"]
+quality = "derived"
+configuration = "CCD/G750L/7751/52X2; centered point source; unbinned pixels"
+source = "NASA/STScI STIS tabulated model LSFs (52x2.0); Instrument Handbook Table 13.41 and grating reference"
+source_url = "https://www.stsci.edu/hst/instrumentation/stis/performance/spectral-resolution"
+coverage_source_url = "https://hst-docs.stsci.edu/stisihb/chapter-13-spectroscopic-reference-material/13-3-gratings/first-order-grating-g750l"
+calibration_version = "Unversioned STScI model LSF text files; spectral-resolution page last updated 2023-06-02; source bytes pinned by SHA-256"
+resolution_definition = "R=lambda/(average dispersion * derived LSF half-maximum width); adopted as Gaussian FWHM"
+assumptions = [
+  "Centered point source through 52X2, not an extended/slit-filling source; no non-Gaussian LSF wings",
+  "Interpolate pixel FWHM between available model LSF and handbook anchors; hold endpoint widths beyond anchors and over convolution padding",
+  "G750L has one downloadable LSF anchor at 7000 A; handbook widths at 5500 and 10000 A supply wavelength dependence",
+  "Average grating dispersion; nominal complete prime-setting coverage, not an observation-specific wavelength solution",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
+
+[[profiles]]
+mode = "hst/wfc3/g102"
+curve = "wfc3_g102.csv"
+provenance_ref = "phase2_sources.json#wfc3_g102"
+valid_intervals_um = [[0.8, 1.15]]
+aliases = []
+quality = "nominal"
+configuration = "IR/G102; first order; unresolved point source at nominal field center"
+source = "NASA/STScI WFC3 Instrument Handbook, Table 8.1"
+source_url = "https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview"
+coverage_source_url = "https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview"
+calibration_version = "WFC3 Instrument Handbook Table 8.1, Cycle 34 online snapshot retrieved 2026-10-20; no separate calibration release version"
+resolution_definition = "Reference lambda/R held constant as Gaussian FWHM; R increases linearly with wavelength"
+assumptions = [
+  "Unresolved point source at nominal field center; constant wavelength FWHM anchored to the handbook reference R",
+  "No source morphology, field-dependent dispersion, scan geometry, contamination or throughput modeling",
+  "First-order handbook coverage; actual useful limits depend on source position and extraction",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
+
+[[profiles]]
+mode = "hst/wfc3/g141"
+curve = "wfc3_g141.csv"
+provenance_ref = "phase2_sources.json#wfc3_g141"
+valid_intervals_um = [[1.075, 1.7]]
+aliases = []
+quality = "nominal"
+configuration = "IR/G141; first order; unresolved point source at nominal field center"
+source = "NASA/STScI WFC3 Instrument Handbook, Table 8.1"
+source_url = "https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview"
+coverage_source_url = "https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview"
+calibration_version = "WFC3 Instrument Handbook Table 8.1, Cycle 34 online snapshot retrieved 2026-10-20; no separate calibration release version"
+resolution_definition = "Reference lambda/R held constant as Gaussian FWHM; R increases linearly with wavelength"
+assumptions = [
+  "Unresolved point source at nominal field center; constant wavelength FWHM anchored to the handbook reference R",
+  "No source morphology, field-dependent dispersion, scan geometry, contamination or throughput modeling",
+  "First-order handbook coverage; actual useful limits depend on source position and extraction",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
+
+[[profiles]]
+mode = "jwst/niriss/soss/order1"
+curve = "niriss_soss_order1.csv"
+provenance_ref = "phase2_sources.json#niriss_soss_order1"
+valid_intervals_um = [[0.9, 2.8]]
+aliases = ["jwst/niriss/soss/substrip256/order1"]
+quality = "nominal"
+configuration = "SOSS/GR700XD/CLEAR/SUBSTRIP256; order 1; point source"
+source = "Albert et al. (2023), PASP 135, 075001, Table 2 and Section 5.3; STScI NIRISS calibration-status review"
+source_url = "https://doi.org/10.1088/1538-3873/acd7a3"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-gr700xd-grism"
+calibration_version = "Albert et al. (2023), PASP 135, 075001, Table 2 and Section 5.3; calibration-status review 2026-10-20"
+resolution_definition = "R=lambda/(2 * order-specific average dispersion); two-pixel resolution element adopted as Gaussian FWHM"
+assumptions = [
+  "Point source; two-pixel Nyquist convention with order-specific CV3 average dispersion, not an in-flight measured Gaussian LSF",
+  "Constant average dispersion approximates wavelength dependence; no visit-dependent wavelength solution or LSF corrections",
+  "Orders are independent ordinary spectra; no overlap decontamination, weighting or stitching",
+  "Order 1 uses rounded 0.9-2.8 um JDox coverage; order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
+
+[[profiles]]
+mode = "jwst/niriss/soss/order2"
+curve = "niriss_soss_order2.csv"
+provenance_ref = "phase2_sources.json#niriss_soss_order2"
+valid_intervals_um = [[0.6, 1.0]]
+aliases = ["jwst/niriss/soss/substrip256/order2"]
+quality = "nominal"
+configuration = "SOSS/GR700XD/CLEAR/SUBSTRIP256; order 2; point source"
+source = "Albert et al. (2023), PASP 135, 075001, Table 2 and Section 5.3; STScI NIRISS calibration-status review"
+source_url = "https://doi.org/10.1088/1538-3873/acd7a3"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status"
+calibration_version = "Albert et al. (2023), PASP 135, 075001, Table 2 and Section 5.3; calibration-status review 2026-10-20"
+resolution_definition = "R=lambda/(2 * order-specific average dispersion); two-pixel resolution element adopted as Gaussian FWHM"
+assumptions = [
+  "Point source; two-pixel Nyquist convention with order-specific CV3 average dispersion, not an in-flight measured Gaussian LSF",
+  "Constant average dispersion approximates wavelength dependence; no visit-dependent wavelength solution or LSF corrections",
+  "Orders are independent ordinary spectra; no overlap decontamination, weighting or stitching",
+  "Order 1 uses rounded 0.9-2.8 um JDox coverage; order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
+  "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
+  "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
+]
