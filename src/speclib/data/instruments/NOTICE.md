@@ -61,3 +61,28 @@ evaluations, with no publication text or figures redistributed. Useful SOSS
 coverage also follows the
 [STScI calibration-status guidance](https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status).
 Speclib's code license does not relicense third-party material.
+
+
+# Phase 3A: NIRCam Module A Grism R time series
+
+Reviewed 2026-10-21. `nircam_grismr.csv` is an original numerical evaluation of
+the resolving-power polynomial in
+[Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 / Figure 2](https://doi.org/10.1117/1.JATIS.3.3.035001)
+([original paper at STScI](https://www.stsci.edu/files/live/sites/www/files/home/jwst/documentation/technical-documents/_documents/JATIS_3_3_035001.pdf)),
+also reproduced in
+[STScI NIRCam Grisms, Figure 1](https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms).
+Acknowledge Greene et al., NASA/STScI and the NIRCam instrument team.
+The source is a nominal optical-model point-source prediction, not empirical
+in-flight LSF data. No publication text, figure, simulated PSF or FITS file is
+redistributed. The factual coefficients and units are the reproducible input;
+`nircam_sources.json` identifies the output checksum and processing.
+
+Coverage facts come from STScI Table 4 and the
+[grism time-series documentation](https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series).
+Speclib's inward edge cuts preserve convolution support in 2.4-5.0 um and are
+not new STScI calibration limits. The
+[STScI content-use policy](https://www.stsci.edu/copyright) was reviewed;
+the redistribution basis is original numerical evaluation of published factual
+parameters with attribution. This does not assert that the SPIE publication
+or figures are public domain or relicensed under Speclib's code license.
+No author, NASA or STScI endorsement is implied.

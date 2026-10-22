@@ -1,7 +1,8 @@
 """Offline nominal Gaussian instrument-resolution profiles.
 
 Calibration coordinates are treated as vacuum wavelengths. Coverage describes
-detector geometry separately from the continuous source used for convolution.
+nominal bandpasses/detector geometry separately from the continuous source
+used for convolution.
 """
 
 from dataclasses import dataclass
@@ -171,7 +172,9 @@ def get_profile(mode):
     identifiers use ``jwst/nirspec/bots/s1600a1/sub2048/<disperser>/<filter>``.
     STIS defaults to the prime CCD setting with a centered point source through
     52X2; SOSS defaults to CLEAR/SUBSTRIP256, with each order a separate profile.
-    Unsupported configurations fail instead of falling back to this default.
+    NIRCam shorthand selects first-order Module A Grism R time series; canonical
+    identifiers use ``jwst/nircam/tsgrism/modulea/grismr/<filter>``.
+    Unsupported configurations fail instead of falling back to these defaults.
     """
     if isinstance(mode, InstrumentProfile):
         return mode

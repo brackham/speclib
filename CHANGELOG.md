@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added four nominal JWST/NIRCam Module A Grism R time-series profiles
+  (F277W, F322W2, F356W, F444W), with a shared wavelength-dependent
+  resolving-power prescription, offline provenance and filter-specific coverage.
+
 - Added six instrument profiles for HST/STIS G430L and G750L, HST/WFC3 G102
   and G141, and separate JWST/NIRISS SOSS orders 1 and 2, with bundled
   resolution prescriptions, offline provenance and documented coverage.

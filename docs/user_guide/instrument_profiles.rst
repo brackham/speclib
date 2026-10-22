@@ -168,6 +168,61 @@ independently; their overlapping wavelength ranges do not imply stitching.
    order1 = optical_source.observed_by("jwst/niriss/soss/order1")
    order2 = optical_source.observed_by("jwst/niriss/soss/order2")
 
+Supported NIRCam long-wavelength time series
+--------------------------------------------
+
+NIRCam profiles select **Module A, Grism R, first order**, using the canonical
+identifier ``jwst/nircam/tsgrism/modulea/grismr/<filter>``. The shorter
+``jwst/nircam/grismr/<filter>`` is an alias for that configuration. Grism C,
+Module B, wide-field slitless spectroscopy and short-wavelength DHS profiles
+are not supported.
+
+.. include:: ../_build/instrument_tables/nircam_modes.rst
+
+The shared, wavelength-dependent resolving power follows the point-source
+optical prediction of `Greene et al. (2017), Section 3.2
+<https://doi.org/10.1117/1.JATIS.3.3.035001>`_, also reproduced by
+`STScI <https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms>`_:
+
+.. math::
+
+   R(x) \simeq 3.35x^4 - 41.9x^3 + 95.5x^2 + 536x - 240,
+   \qquad x = \lambda/(1\,\mu\mathrm{m}).
+
+This is a **nominal prediction**, not a measured in-flight LSF. Speclib adopts
+:math:`\lambda/R` as Gaussian FWHM. The polynomial is used only within its
+published **2.4–5.0 µm** model domain. To retain safe convolution padding,
+Speclib trims F277W's blue edge to **2.410 µm** and F444W's red edge to
+**4.985 µm**. These are conservative Speclib output cuts, not official filter
+edges. F322W2 and F356W retain the 5% filter-transmission limits.
+
+The full filter limits are 2.395–3.179, 2.413–4.083, 3.100–4.041 and
+3.835–5.084 µm, respectively. The `TSO documentation
+<https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series>`_
+also identifies a detector cutoff near 5.03 µm for F444W at the standard target
+placement, outside Speclib's adopted interval. None of these limits promises
+useful signal or an exact visit wavelength solution. See
+:doc:`instrument_provenance` for the source and padding assumptions.
+
+.. code-block:: python
+
+   nircam = source.observed_by("jwst/nircam/grismr/f322w2")
+   nircam_sampled = source.observed_by(
+       "jwst/nircam/grismr/f444w", samples_per_resolution_element=5
+   )
+   # Identical interface for an existing SpectralGrid:
+   # nircam_grid = grid.observed_by("jwst/nircam/grismr/f356w")
+
+The source must extend beyond the nominal output interval for convolution.
+Native sampling remains the default; explicit wavelengths and automatic spacing
+use the same bin integration described above. The profiles do not multiply by
+filter transmission. Faint second-order spectra can occur with F277W/F322W2,
+and neighboring sources can contaminate slitless spectra. No order removal,
+field-dependent PSF, exact detector sampling or extraction model is applied.
+See the `TSO recommended strategies
+<https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-strategies/nircam-time-series-observation-recommended-strategies>`_
+and the :doc:`scientific reference <instrument_provenance>`.
+
 Calibration and limitations
 ---------------------------
 

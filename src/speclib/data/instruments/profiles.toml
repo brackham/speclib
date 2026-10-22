@@ -207,3 +207,93 @@ assumptions = [
   "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
   "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
 ]
+
+# Phase 3A: first-order NIRCam LW time series, Module A Grism R only.
+
+[[profiles]]
+mode = "jwst/nircam/tsgrism/modulea/grismr/f277w"
+aliases = ["jwst/nircam/grismr/f277w"]
+curve = "nircam_grismr.csv"
+provenance_ref = "nircam_sources.json#nircam_grismr"
+valid_intervals_um = [[2.41, 3.179]]
+quality = "nominal"
+configuration = "LW grism time series / Module A / Grism R / F277W / first order; nominal point source; full-width TSO subarrays"
+source = "Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 / Figure 2; STScI NIRCam Grisms Figure 1"
+source_url = "https://doi.org/10.1117/1.JATIS.3.3.035001"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms"
+calibration_version = "Greene et al. (2017) Section 3.2 polynomial; STScI JDox reviewed 2026-10-21; not a calibration release"
+resolution_definition = "Published point-source FWHM resolving-power polynomial; lambda/R adopted as Gaussian FWHM"
+assumptions = [
+  "Module A Grism R, first order, time-series observations only; no Grism C, Module B or WFSS fallback",
+  "Nominal optical-model point-source FWHM, including PSF pixel sampling and pupil beam factor; not measured in-flight LSFs",
+  "Published 2.4-5.0 um model domain retained without extrapolation; Speclib trims F277W blue coverage to 2.410 um and F444W red coverage to 4.985 um for convolution padding",
+  "Other edges follow STScI 5% filter-transmission limits; not observation-specific useful coverage; F444W detector truncation near 5.03 um lies outside adopted coverage",
+  "No field/visit/subarray-specific LSF, throughput, exact pixel sampling, neighboring-source or second-order contamination model; faint second orders may occur with F277W/F322W2",
+  "Vacuum wavelength coordinates adopted; sampled polynomial with linear R interpolation; negligible intrinsic model width; real source padding required; no deconvolution",
+]
+
+[[profiles]]
+mode = "jwst/nircam/tsgrism/modulea/grismr/f322w2"
+aliases = ["jwst/nircam/grismr/f322w2"]
+curve = "nircam_grismr.csv"
+provenance_ref = "nircam_sources.json#nircam_grismr"
+valid_intervals_um = [[2.413, 4.083]]
+quality = "nominal"
+configuration = "LW grism time series / Module A / Grism R / F322W2 / first order; nominal point source; full-width TSO subarrays"
+source = "Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 / Figure 2; STScI NIRCam Grisms Figure 1"
+source_url = "https://doi.org/10.1117/1.JATIS.3.3.035001"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms"
+calibration_version = "Greene et al. (2017) Section 3.2 polynomial; STScI JDox reviewed 2026-10-21; not a calibration release"
+resolution_definition = "Published point-source FWHM resolving-power polynomial; lambda/R adopted as Gaussian FWHM"
+assumptions = [
+  "Module A Grism R, first order, time-series observations only; no Grism C, Module B or WFSS fallback",
+  "Nominal optical-model point-source FWHM, including PSF pixel sampling and pupil beam factor; not measured in-flight LSFs",
+  "Published 2.4-5.0 um model domain retained without extrapolation; Speclib trims F277W blue coverage to 2.410 um and F444W red coverage to 4.985 um for convolution padding",
+  "Other edges follow STScI 5% filter-transmission limits; not observation-specific useful coverage; F444W detector truncation near 5.03 um lies outside adopted coverage",
+  "No field/visit/subarray-specific LSF, throughput, exact pixel sampling, neighboring-source or second-order contamination model; faint second orders may occur with F277W/F322W2",
+  "Vacuum wavelength coordinates adopted; sampled polynomial with linear R interpolation; negligible intrinsic model width; real source padding required; no deconvolution",
+]
+
+[[profiles]]
+mode = "jwst/nircam/tsgrism/modulea/grismr/f356w"
+aliases = ["jwst/nircam/grismr/f356w"]
+curve = "nircam_grismr.csv"
+provenance_ref = "nircam_sources.json#nircam_grismr"
+valid_intervals_um = [[3.1, 4.041]]
+quality = "nominal"
+configuration = "LW grism time series / Module A / Grism R / F356W / first order; nominal point source; full-width TSO subarrays"
+source = "Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 / Figure 2; STScI NIRCam Grisms Figure 1"
+source_url = "https://doi.org/10.1117/1.JATIS.3.3.035001"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms"
+calibration_version = "Greene et al. (2017) Section 3.2 polynomial; STScI JDox reviewed 2026-10-21; not a calibration release"
+resolution_definition = "Published point-source FWHM resolving-power polynomial; lambda/R adopted as Gaussian FWHM"
+assumptions = [
+  "Module A Grism R, first order, time-series observations only; no Grism C, Module B or WFSS fallback",
+  "Nominal optical-model point-source FWHM, including PSF pixel sampling and pupil beam factor; not measured in-flight LSFs",
+  "Published 2.4-5.0 um model domain retained without extrapolation; Speclib trims F277W blue coverage to 2.410 um and F444W red coverage to 4.985 um for convolution padding",
+  "Other edges follow STScI 5% filter-transmission limits; not observation-specific useful coverage; F444W detector truncation near 5.03 um lies outside adopted coverage",
+  "No field/visit/subarray-specific LSF, throughput, exact pixel sampling, neighboring-source or second-order contamination model; faint second orders may occur with F277W/F322W2",
+  "Vacuum wavelength coordinates adopted; sampled polynomial with linear R interpolation; negligible intrinsic model width; real source padding required; no deconvolution",
+]
+
+[[profiles]]
+mode = "jwst/nircam/tsgrism/modulea/grismr/f444w"
+aliases = ["jwst/nircam/grismr/f444w"]
+curve = "nircam_grismr.csv"
+provenance_ref = "nircam_sources.json#nircam_grismr"
+valid_intervals_um = [[3.835, 4.985]]
+quality = "nominal"
+configuration = "LW grism time series / Module A / Grism R / F444W / first order; nominal point source; full-width TSO subarrays"
+source = "Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 / Figure 2; STScI NIRCam Grisms Figure 1"
+source_url = "https://doi.org/10.1117/1.JATIS.3.3.035001"
+coverage_source_url = "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms"
+calibration_version = "Greene et al. (2017) Section 3.2 polynomial; STScI JDox reviewed 2026-10-21; not a calibration release"
+resolution_definition = "Published point-source FWHM resolving-power polynomial; lambda/R adopted as Gaussian FWHM"
+assumptions = [
+  "Module A Grism R, first order, time-series observations only; no Grism C, Module B or WFSS fallback",
+  "Nominal optical-model point-source FWHM, including PSF pixel sampling and pupil beam factor; not measured in-flight LSFs",
+  "Published 2.4-5.0 um model domain retained without extrapolation; Speclib trims F277W blue coverage to 2.410 um and F444W red coverage to 4.985 um for convolution padding",
+  "Other edges follow STScI 5% filter-transmission limits; not observation-specific useful coverage; F444W detector truncation near 5.03 um lies outside adopted coverage",
+  "No field/visit/subarray-specific LSF, throughput, exact pixel sampling, neighboring-source or second-order contamination model; faint second orders may occur with F277W/F322W2",
+  "Vacuum wavelength coordinates adopted; sampled polynomial with linear R interpolation; negligible intrinsic model width; real source padding required; no deconvolution",
+]

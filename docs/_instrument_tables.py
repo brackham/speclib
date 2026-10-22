@@ -34,6 +34,7 @@ def write_tables(directory):
     (output/'modes.rst').write_text('\n'.join(modes)+'\n')
     (output/'sources.rst').write_text('\n'.join(sources)+'\n')
     _write_phase2_tables(output)
+    _write_nircam_tables(output)
 
 
 def _write_phase2_tables(output):
@@ -87,3 +88,35 @@ def _write_phase2_tables(output):
                     f'     - {links}', f'     - {prescription}']
     for name, lines in [('phase2_modes', modes), ('phase2_sources', sources), ('stis_widths', widths)]:
         (output/f'{name}.rst').write_text('\n'.join(lines)+'\n')
+
+
+def _write_nircam_tables(output):
+    modes = ['.. list-table:: NIRCam Module A Grism R time series (vacuum micrometers)',
+             '   :header-rows: 1', '', '   * - Canonical profile identifier',
+             '     - Filter', '     - Filter 5% interval',
+             '     - Speclib output interval', '     - Coverage source']
+    sources = ['.. list-table:: NIRCam nominal resolving-power prescription',
+               '   :header-rows: 1', '', '   * - Shared curve',
+               '     - Original prescription', '     - Wavelength support']
+    seen = set()
+    for mode in list_instrument_profiles():
+        if not mode.startswith('jwst/nircam/'):
+            continue
+        p = get_profile(mode)
+        record = p.provenance
+        coverage = '; '.join(f'{a:g}–{b:g}' for a, b in p.valid_intervals.value)
+        name = mode.split('/')[-1]
+        a, b = record['filter_5_percent_limits_um'][name]
+        modes += [f'   * - ``{mode}``', f'     - {name.upper()}',
+                  f'     - {a:g}–{b:g}', f'     - {coverage}',
+                  f'     - `STScI coverage <{p.coverage_source_url}>`__']
+        if record['output_file'] not in seen:
+            seen.add(record['output_file'])
+            lo, hi = record['calibration_domain_um']
+            sources += [f'   * - ``{record["output_file"]}``',
+                        f'     - `Greene et al. (2017), §3.2 / Figure 2 <{record["publication_url"]}>`__ '
+                        f'(`original paper <{record["original_publication_url"]}>`__); '
+                        f'`STScI Figure 1 <{record["documentation_url"]}>`__',
+                        f'     - {lo:g}–{hi:g} µm (see boundary assumption below)']
+    (output/'nircam_modes.rst').write_text('\n'.join(modes)+'\n')
+    (output/'nircam_sources.rst').write_text('\n'.join(sources)+'\n')
