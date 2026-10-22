@@ -47,3 +47,6 @@ Instrument matching returns ordinary spectra/grids with explicit
 MIRI shorthand ``jwst/miri/lrs/slitless`` selects the canonical
 ``jwst/miri/lrs/slitless/slitlessprism`` profile: P750L, conventional
 SLITLESSPRISM time series only. IP/IPS, fixed slit, WFSS and MRS are unsupported.
+
+WFC3/UVIS G280 has no bundled profile or default alias. Lookup rejects it;
+see :ref:`g280-calibration-status` for the conditional calibration decision.

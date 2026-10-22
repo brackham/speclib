@@ -6,6 +6,62 @@ the valid detector coverage, and Speclib's approximation to the LSF. Practical
 examples are in :doc:`instrument_profiles`; contributor requirements are in
 :doc:`../development/instrument_profiles`.
 
+.. _g280-calibration-status:
+
+WFC3/UVIS G280: conditional deferral
+-------------------------------------
+
+The 2026-10-22 review did not establish a sufficiently supported
+wavelength-dependent spectral FWHM prescription for a bundled G280 profile.
+The intended configuration was a point source in positive first order near
+the center of UVIS chip 2. No G280 identifier, alias, curve or adopted output
+interval is registered.
+
+`Handbook Table 8.1
+<https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-1-grism-overview>`_
+quotes R approximately 70 at 300 nm, based on a Gaussian image core measured
+perpendicular to dispersion. This implies a reference width of about 4.29 nm;
+it does not determine its wavelength dependence. A two-pixel element at the
+listed mean dispersion of 1.3 nm/pixel would instead imply R approximately 115.
+Neither a fixed pixel width nor a constant wavelength FWHM is adopted.
+
+`ISR 2017-20
+<https://www.stsci.edu/files/live/sites/www/files/home/hst/instrumentation/wfc3/documentation/instrument-science-reports-isrs/_documents/2017/WFC3-2017-20.pdf>`_
+and `ISR 2020-09
+<https://www.stsci.edu/files/live/sites/www/files/home/hst/instrumentation/wfc3/documentation/instrument-science-reports-isrs/_documents/2020/WFC3-ISR-2020-09.pdf>`_
+calibrate field-dependent traces and wavelength solutions. Their centroid
+residuals are wavelength errors, not instrumental linewidths. The official
+`G280 reference files
+<https://www.stsci.edu/hst/instrumentation/wfc3/documentation/grism-resources/wfc3-g280-calibrations>`_
+reviewed here include chip-specific V2.5/V3.0 configuration files and 2021
+positive/negative first-order sensitivity tables. These supply coordinates,
+dispersion and sensitivity, without a calibrated spectral-width relation.
+
+`ST-ECF TIR 2009-04
+<https://www.stecf.org/documents/isr/WFC3_TIR-2009-04.pdf>`_, Section 3,
+measures wavelength-dependent cross-dispersion Gaussian cores in ground tests.
+The monochromator spots are elongated along dispersion. Transferring the
+transverse widths to spectral FWHM would require an additional optical or
+empirical justification; direct-imaging widths do not supply that relation.
+
+The `G280 handbook discussion
+<https://hst-docs.stsci.edu/wfc3ihb/chapter-8-slitless-spectroscopy-with-wfc3/8-2-slitless-spectroscopy-with-the-uvis-g280-grism>`_
+distinguishes the higher-throughput positive order, favors chip 2 for a single
+UV target, and describes changing dispersion and higher-order overlap beyond
+about 400 nm. Nominal 190–800 nm coverage therefore does not establish a useful
+single-order Gaussian-matching interval or resolution support for padding.
+
+A future profile needs a published spectral Gaussian-width prescription or
+independent point-source line-width/optical-model constraints at several
+wavelengths for the selected chip, position and order, including support beyond
+the output boundaries. G280's inclusion in Issue #91 was conditional on suitable
+data. Its deferral leaves the 55 supported profiles unchanged. No G280 source
+files or publication figures are redistributed with the package.
+Future G280 calibration and profile work is tracked in
+`Issue #99 <https://github.com/brackham/speclib/issues/99>`_, separately from
+the initial instrument-profile implementation in
+`Issue #91 <https://github.com/brackham/speclib/issues/91>`_.
+
 Original resolving-power data
 -----------------------------
 
