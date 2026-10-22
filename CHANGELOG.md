@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Documented the conditional deferral of WFC3/UVIS G280 after reviewing
+  wavelength, sensitivity and image-core calibrations; no unsupported spectral
+  FWHM prescription is bundled. The instrument registry remains at 55 profiles.
+  Future G280 calibration and profile work is tracked in
+  [#99](https://github.com/brackham/speclib/issues/99).
+
 - Added the instrument-profiles tutorial, configuration/source tables, scientific
   assumptions, reproducible calibration conversion and a permanent contributor
   provenance checklist.

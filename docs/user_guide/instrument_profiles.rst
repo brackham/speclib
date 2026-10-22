@@ -6,6 +6,13 @@ Gaussian resolving power and valid wavelength coverage. It is **resolution
 matching, not a full instrument simulation**. Profiles and calibration curves
 are bundled and available offline.
 
+The registry contains 55 profiles across STIS, WFC3/IR, NIRISS/SOSS,
+NIRSpec/BOTS, NIRCam grism time series and MIRI/LRS slitless. WFC3/UVIS G280
+is deferred: the reviewed wavelength calibrations do not establish a suitable
+wavelength-dependent spectral FWHM. See :ref:`g280-calibration-status`;
+future calibration work is tracked in
+`Issue #99 <https://github.com/brackham/speclib/issues/99>`_.
+
 Usage and profile information
 -----------------------------
 
