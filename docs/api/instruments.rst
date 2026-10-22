@@ -35,3 +35,7 @@ wide-field slitless configurations are unsupported.
 Instrument matching returns ordinary spectra/grids with explicit
 ``valid_intervals`` metadata. See :attr:`speclib.Spectrum.valid_intervals` and
 :attr:`speclib.SpectralGrid.valid_intervals`.
+
+MIRI shorthand ``jwst/miri/lrs/slitless`` selects the canonical
+``jwst/miri/lrs/slitless/slitlessprism`` profile: P750L, conventional
+SLITLESSPRISM time series only. IP/IPS, fixed slit, WFSS and MRS are unsupported.

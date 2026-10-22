@@ -314,3 +314,80 @@ and the reviewed `STScI content-use policy <https://www.stsci.edu/copyright>`_
 are recorded in :download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`.
 No publication text, figure or simulated PSF is redistributed, and no publisher
 material is claimed to be public domain or relicensed under Speclib's license.
+
+
+MIRI: P750L slitless time-series design approximation
+-----------------------------------------------------
+
+.. include:: ../_build/instrument_tables/miri_sources.rst
+
+`STScI Filters and Dispersers <https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-filters-and-dispersers>`_ explicitly describes
+a linear rise from R approximately 40 at 5 µm to 160 at 10 µm, also giving
+R approximately 100 at 7.5 µm in the `LRS mode description <https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-observing-modes/miri-low-resolution-spectroscopy>`_.
+`Kendrew et al. (2015), Section 2 / Figure 3 <https://doi.org/10.1086/682255>`_
+(`author preprint <https://arxiv.org/abs/1512.03000>`__) shows the linear **as-designed**
+curve through 14 µm. Speclib evaluates :math:`R=24(\lambda/\mu\mathrm{m})-80`
+on 5–14 µm. Values above 10 µm follow the published nominal design trend,
+not additional measured anchors. The approximate inputs supply no quantitative
+physical accuracy bound or universal pixel FWHM. Adopting :math:`\lambda/R`
+as Gaussian FWHM is a Speclib modeling assumption, not a source LSF measurement.
+
+Kendrew Section 3.3 reports ground monochromator measurements over only 7–8 µm:
+R = 95.3 ± 0.6 at 7.5 µm after removing the monochromator linewidth, without
+correcting increasing PSF size. This is not an in-flight SLITLESSPRISM uncertainty
+or a reason to tune the design curve. `Bouwman et al. (2023), Section 1.3
+<https://doi.org/10.1088/1538-3873/acbc49>`_ repeats nominal slitless resolution values;
+its R=50 spectrophotometric performance uses binned data and supplies no full
+measured slitless resolving-power curve. Gaussian convolution validation cannot
+establish physical agreement with MIRI's actual LSF.
+
+The `pipeline SPECWCS reference description <https://jwst-pipeline.readthedocs.io/en/stable/jwst/references_general/specwcs_reffile.html>`_
+and inspected slitless FITS files provide wavelength coordinates and detector
+pixel geometry, not spectral LSF widths. Differentiating a wavelength solution
+alone does not determine resolving power. The `MIRI calibration-status page
+<https://jwst-docs.stsci.edu/jwst-calibration-status/miri-calibration-status/miri-lrs-calibration-status>`_ records wavelength and photometric updates,
+including separate slit/slitless wavelength calibrations and pointing shifts;
+these are not resolving-power calibrations. The prism's shared optics do not
+justify substituting a fixed-slit dispersion relation: field distortion differs.
+No MRS resolution data are used.
+
+Coverage, subarrays and reproduction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The `known-issues coverage discussion <https://jwst-docs.stsci.edu/known-issues/miri-known-issues/miri-lrs-known-issues>`_ distinguishes
+nominal 5–14 µm coverage, source-dependent blue foldover (sometimes compromising
+wavelengths up to 5.2 µm), and weak red signal that can shorten useful coverage
+to 12–13 µm. Slitless lacks the fixed-slit filter blocking light below 4.5 µm.
+Speclib chooses 5.5–12 µm output, with 5–14 µm model support for convolution.
+The blue cut is an additional numerical safety margin, not a universal
+contamination threshold. A wider red default would retain real optical coverage
+but less reliable practical signal; 12 µm is recommended for this nominal profile.
+These cuts neither certify an extraction nor simulate throughput or foldover.
+
+Only conventional SLITLESSPRISM is supported. The `Cycle 6 subarray table
+<https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-detector-overview/miri-detector-subarrays>`_ lists SLITLESSPRISM (416×72), IP (384×68)
+and IPS (256×52) at different detector locations. IP/IPS synchronize readout
+with the 390 Hz EMI; IPS sacrifices red wavelength coverage and background.
+The `LRS TSO page <https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-observing-modes/miri-time-series-observations/miri-lrs-tsos>`_ supports these observing options,
+but separate coverage/LSF equivalence is not established here. IP/IPS therefore
+fail lookup instead of inheriting the conventional profile. Pointing, extraction,
+detector scattering and subarray changes remain physical limitations.
+
+The :download:`manifest <../../src/speclib/data/instruments/miri_sources.json>`
+records the equation, approximate published anchors, model-domain justification,
+inspected-reference checksums (audit only), coverage decisions and retrieval date
+2026-10-22. There is no invented source calibration file for this model.
+The :download:`converter <../../scripts/instruments/convert_miri.py>` reproduces
+901 samples spaced by 0.01 µm, verifies the pinned output SHA-256 and never
+updates pins. Dense cells keep padding bounds local; linear interpolation
+reproduces the adopted equation to floating-point roundoff. All rows are model
+evaluations, not measured intermediate values. No calibration coefficient or
+convolution algorithm is changed to compensate for numerical broadening.
+See the :download:`offline reproduction instructions <../../scripts/instruments/README.md>`.
+The CSV and manifest ship in both wheels and sdists.
+
+The CSV is an original numerical evaluation of factual approximate values and
+the published linear trend. NASA/STScI, the MIRI team, Kendrew et al. and Bouwman
+et al. are acknowledged under the reviewed `STScI content-use policy
+<https://www.stsci.edu/copyright>`_; no publication text, figure or CRDS file is
+redistributed or relicensed. See :download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`.

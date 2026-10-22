@@ -86,3 +86,19 @@ the redistribution basis is original numerical evaluation of published factual
 parameters with attribution. This does not assert that the SPIE publication
 or figures are public domain or relicensed under Speclib's code license.
 No author, NASA or STScI endorsement is implied.
+
+
+## MIRI LRS slitless (reviewed 2026-10-22)
+
+The MIRI CSV is Speclib's original evaluation of approximate factual resolving
+powers and the explicit linear design trend published by NASA/STScI and
+Kendrew et al. (2015), PASP 127, 623 (https://doi.org/10.1086/682255), also
+consistent with the nominal slitless description in Bouwman et al. (2023),
+PASP 135, 038002 (https://doi.org/10.1088/1538-3873/acbc49).
+Acknowledge these authors, NASA/STScI and the MIRI instrument team.
+The STScI content-use policy (https://www.stsci.edu/copyright) was reviewed;
+no contrary restriction was found for these factual numerical descriptions.
+No paper text, figures, CRDS calibration files or measured LSFs are distributed.
+This does not relicense publisher material under Speclib's code license, claim
+public-domain status for third-party material, or imply endorsement.
+`miri_sources.json` records the precise interpretation and reproduction path.

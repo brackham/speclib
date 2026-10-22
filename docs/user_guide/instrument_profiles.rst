@@ -223,6 +223,54 @@ See the `TSO recommended strategies
 <https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-strategies/nircam-time-series-observation-recommended-strategies>`_
 and the :doc:`scientific reference <instrument_provenance>`.
 
+Supported MIRI LRS slitless time series
+---------------------------------------
+
+``jwst/miri/lrs/slitless`` selects **P750L / SLITLESSPRISM**, an isolated
+point source at the conventional time-series placement. The canonical identifier
+includes the subarray. Fixed slit, MIRI WFSS, MRS and the Cycle 6
+SLITLESSPRISM_IP/IPS subarrays are unsupported, with no implicit fallback.
+The `new subarrays <https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-detector-overview/miri-detector-subarrays>`_ change placement and readout;
+IPS also loses red coverage. Identical wavelength solutions/LSFs are not assumed.
+
+.. include:: ../_build/instrument_tables/miri_modes.rst
+
+The **nominal** prescription is :math:`R = 24\,(\lambda/\mu\mathrm{m})-80`,
+giving approximately 40, 100 and 160 at 5, 7.5 and 10 µm. It follows
+`STScI's explicit linear description <https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-filters-and-dispersers>`_ and the
+`Kendrew et al. (2015) design curve <https://arxiv.org/abs/1512.03000>`_ through 14 µm.
+It is not a measured in-flight slitless Gaussian LSF. Speclib adopts
+:math:`\lambda/R` as Gaussian FWHM; no universal pixel-width convention is inferred.
+
+Output is conservatively **5.5–12 µm**, with model support **5–14 µm**.
+The 5.5 µm cut leaves real convolution support above the 5 µm model boundary;
+it is a Speclib numerical cut, not a measured optical edge. The 12 µm cut
+follows commonly used coverage as prism throughput falls toward the nominal
+14 µm red edge. Some spectra remain useful to 13–14 µm, but this default
+prioritizes conservative matching. Useful limits depend on source and extraction.
+`Slitless spectral foldover <https://jwst-docs.stsci.edu/known-issues/miri-known-issues/miri-lrs-known-issues>`_ below about 4.5 µm
+has no fixed-slit blocking filter and can compromise the blue spectrum,
+moving the useful limit toward 5.2 µm for some spectral shapes. Matching does
+not correct contamination or guarantee useful observed data at any limit.
+
+.. code-block:: python
+
+   mid_ir_wave = np.linspace(5.0, 14.0, 45001) * u.um
+   mid_ir = Spectrum(spectral_axis=mid_ir_wave,
+                     flux=np.ones(mid_ir_wave.size) * unit)
+   miri = mid_ir.observed_by("jwst/miri/lrs/slitless")
+   miri_sampled = mid_ir.observed_by("jwst/miri/lrs/slitless",
+                                     samples_per_resolution_element=10)
+   # For a suitably covered grid:
+   # miri_grid = grid.observed_by("jwst/miri/lrs/slitless")
+
+Input must include real flux outside the output interval for broad low-R kernels.
+A well-sampled 5–14 µm source is sufficient; input starting at 5.5 µm is not.
+Default sampling retains input wavelengths without additional output-bin
+integration. Coarse output bins can alter apparent widths and depths;
+resolution matching and observational binning remain distinct. See
+:doc:`instrument_provenance` for definitions, evidence and reproduction.
+
 Calibration and limitations
 ---------------------------
 

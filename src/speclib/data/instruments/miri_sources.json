@@ -1,0 +1,101 @@
+{
+  "retrieved": "2026-10-22",
+  "sources": {
+    "miri_lrs_slitless": {
+      "institution": "NASA/STScI MIRI team; Kendrew et al.; Bouwman et al.",
+      "source_kind": "Nominal linear design resolving-power approximation, not a measured slitless LSF curve",
+      "documentation_url": "https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-filters-and-dispersers",
+      "publication_url": "https://doi.org/10.1086/682255",
+      "preprint_url": "https://arxiv.org/abs/1512.03000",
+      "publication_section": "Kendrew et al. (2015), PASP 127, 623, Section 2 / Figure 3 (design), Section 3.3 / Figure 5 (ground measurements)",
+      "inflight_publication_url": "https://doi.org/10.1088/1538-3873/acbc49",
+      "inflight_publication_section": "Bouwman et al. (2023), PASP 135, 038002, Section 1.3; nominal slitless reference values, not a new measured R curve; R=50 performance results use binned data",
+      "coverage_source_url": "https://jwst-docs.stsci.edu/known-issues/miri-known-issues/miri-lrs-known-issues",
+      "mode_source_url": "https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-observing-modes/miri-low-resolution-spectroscopy",
+      "tso_source_url": "https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-observing-modes/miri-time-series-observations/miri-lrs-tsos",
+      "subarray_source_url": "https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-detector-overview/miri-detector-subarrays",
+      "calibration_status_url": "https://jwst-docs.stsci.edu/jwst-calibration-status/miri-calibration-status/miri-lrs-calibration-status",
+      "calibration_identifier": "STScI JDox reviewed 2026-10-22; Kendrew et al. (2015) linear design approximation; not a CRDS calibration release",
+      "source_definition": "R=lambda/delta_lambda. STScI explicitly describes a linear rise from approximately 40 at 5 um to 160 at 10 um. Kendrew Figure 3 labels a linear as-designed curve through 14 um, with R=100 at 7.5 um. These sources do not supply a calibrated slitless Gaussian FWHM, a universal pixel-width convention, or a diffraction-only PSF formula. Speclib interprets lambda/R as Gaussian FWHM as a modeling choice.",
+      "equation": "R(x) = 24*x - 80; x=lambda/um",
+      "coefficients": {
+        "slope_per_um": 24.0,
+        "intercept": -80.0
+      },
+      "published_reference_values_um_r": [
+        [
+          5.0,
+          40.0
+        ],
+        [
+          7.5,
+          100.0
+        ],
+        [
+          10.0,
+          160.0
+        ]
+      ],
+      "ground_measurement": {
+        "wavelength_um": 7.5,
+        "resolving_power": 95.3,
+        "uncertainty": 0.6,
+        "interpretation": "CEA Saclay 2009-2010 monochromator scan, 7-8 um only; intrinsic monochromator linewidth removed, increasing PSF size not corrected. Not an in-flight SLITLESSPRISM calibration or an uncertainty on the adopted model."
+      },
+      "calibration_domain_um": [
+        5.0,
+        14.0
+      ],
+      "curve_samples": 901,
+      "rows": 901,
+      "domain_basis": "STScI numerical linear description is explicit over 5-10 um. The nominal linear design curve is plotted to 14 um in Kendrew Figure 3. Continuing the same slope to 14 um follows that published design approximation, not an empirical extension or digitized measurements; no physical accuracy bound is supplied. No use below 5 or above 14 um.",
+      "nominal_optical_coverage_um": [
+        5.0,
+        14.0
+      ],
+      "commonly_used_coverage_um": [
+        5.0,
+        12.0
+      ],
+      "coverage_definition": "Speclib adopts 5.5-12 um output for the conventional SLITLESSPRISM isolated point-source TSO configuration. This is a conservative resolution-matching interval, not a detector edge or a guaranteed useful extraction range. The red limit follows the commonly used 5-12 um range and declining long-wavelength throughput; some observations remain useful to 13-14 um.",
+      "boundary_assumption": "The 5.5 um blue cut is chosen by Speclib to retain contributing source kernels, their full four-sigma normalization support and bracketing samples above the 5 um model boundary. It is more conservative than the source-dependent foldover warning near 5.2 um. The model domain extends beyond both output edges; real input padding is required and overly coarse or insufficient bracketing coverage is rejected. No runtime extrapolation.",
+      "blue_contamination": "Prism dispersion turns over near 4-4.5 um. Unlike fixed slit, slitless has no short-wavelength blocking filter; foldover can superpose blue light and move the useful blue limit toward 5.2 um for some spectral shapes. Gaussian matching does not model or remove the contamination.",
+      "supported_subarray": "SLITLESSPRISM",
+      "unsupported_subarrays": [
+        "SLITLESSPRISM_IP",
+        "SLITLESSPRISM_IPS"
+      ],
+      "subarray_assumption": "Cycle 6 IP and IPS change detector placement and shape to mitigate 390 Hz readout EMI; IPS also sacrifices red wavelength coverage and cross-dispersion background. No evidence establishes identical position-dependent dispersion or LSF. Initially unsupported, without fallback to SLITLESSPRISM; the common P750L prism is insufficient to assert equality.",
+      "processing": "Evaluate the nominal linear equation at 901 uniformly spaced vacuum wavelengths, 5-14 um in 0.01 um steps, using float64; write 17 significant digits. Runtime interpolation is linear in R and reproduces the equation to roundoff. Intermediate rows are model evaluations, not measured data. Dense cells keep the existing conservative padding bound local at low R. Adopt lambda/R as Gaussian FWHM without changing convolution or correcting numerical bias.",
+      "physical_limitations": "Nominal isolated unresolved point source at conventional slitless target placement. Slit and slitless have different field-dependent dispersion and separate SPECWCS files. Source position, pointing, extraction, detector scattering and pixel/bin sampling can affect observed profiles; no visit-specific wavelength solution, non-Gaussian LSF, throughput, detector noise, foldover, morphology or background model. Vacuum coordinates adopted; negligible intrinsic source linewidth assumed; no deconvolution or finite-input-width correction.",
+      "calibration_file_review": "Inspected official SPECWCS FITS examples for SLITLESSPRISM and Cycle 6 IPS and the pipeline schema. WAVETABLE holds wavelength, detector centers and pixel-corner geometry, not spectral LSF widths or resolving power. A wavelength derivative without an independently justified spectral PSF width cannot supply R. No fixed-slit dispersion or MRS RESOL table is reused.",
+      "pipeline_reference_url": "https://jwst-pipeline.readthedocs.io/en/stable/jwst/references_general/specwcs_reffile.html",
+      "inspected_reference_files": [
+        {
+          "filename": "jwst_miri_specwcs_0006.fits",
+          "url": "https://jwst-crds.stsci.edu/unchecked_get/references/jwst/jwst_miri_specwcs_0006.fits",
+          "sha256": "43777258b3d4a788625fe6e97b8ea85287a3dbb70993112f27d74c7c093bd21c",
+          "role": "Audit only; not an input to the adopted resolving-power model or bundled data"
+        },
+        {
+          "filename": "jwst_miri_specwcs_0014.fits",
+          "url": "https://jwst-crds.stsci.edu/unchecked_get/references/jwst/jwst_miri_specwcs_0014.fits",
+          "sha256": "0222f70ffe6db526f0a213f70f0aa461e47bbf59820130e7328a7c206b7b21aa",
+          "role": "Audit only; not an input to the adopted resolving-power model or bundled data"
+        },
+        {
+          "filename": "jwst_miri_specwcs_0009.fits",
+          "url": "https://jwst-crds.stsci.edu/unchecked_get/references/jwst/jwst_miri_specwcs_0009.fits",
+          "sha256": "d96e2246c4234dcd85a0319a21fa00e4167dcb09b0286a8bddc352f426ea0f24",
+          "role": "Audit only; SLITLESSPRISM reference selected by jwst_1293.pmap -> jwst_miri_0415.imap -> jwst_miri_specwcs_0042.rmap; not an input to the adopted model"
+        }
+      ],
+      "output_file": "miri_lrs_slitless.csv",
+      "output_sha256": "4a3ad576a8b8fb70aeac1442ab6f445ccbecf3880753a33e29f06710e6badd2d",
+      "reproduction_script": "scripts/instruments/convert_miri.py",
+      "redistribution_url": "https://www.stsci.edu/copyright",
+      "redistribution_reviewed": "2026-10-22",
+      "redistribution_basis": "Original numerical evaluation of factual published approximate design values and the explicit linear trend. Acknowledge NASA/STScI, the MIRI team, Kendrew et al. and Bouwman et al. No publication text, figures, CRDS files or measured LSF data redistributed; publisher material is not relicensed under the Speclib code license. STScI content-use policy reviewed; no endorsement implied."
+    }
+  }
+}

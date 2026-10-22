@@ -35,6 +35,7 @@ def write_tables(directory):
     (output/'sources.rst').write_text('\n'.join(sources)+'\n')
     _write_phase2_tables(output)
     _write_nircam_tables(output)
+    _write_miri_tables(output)
 
 
 def _write_phase2_tables(output):
@@ -120,3 +121,30 @@ def _write_nircam_tables(output):
                         f'     - {lo:g}–{hi:g} µm (see boundary assumption below)']
     (output/'nircam_modes.rst').write_text('\n'.join(modes)+'\n')
     (output/'nircam_sources.rst').write_text('\n'.join(sources)+'\n')
+
+
+def _write_miri_tables(output):
+    modes = ['.. list-table:: MIRI LRS slitless time series (vacuum micrometers)',
+             '   :header-rows: 1', '', '   * - Canonical identifier (alias)',
+             '     - Supported setup', '     - Output interval', '     - Quality']
+    sources = ['.. list-table:: MIRI nominal design prescription',
+               '   :header-rows: 1', '', '   * - Bundled curve',
+               '     - Resolution authority', '     - Model support / coverage authority']
+    for mode in list_instrument_profiles():
+        if not mode.startswith('jwst/miri/'):
+            continue
+        p = get_profile(mode)
+        record = p.provenance
+        lo, hi = p.valid_intervals.value[0]
+        a, b = record['calibration_domain_um']
+        modes += [f'   * - ``{mode}`` (``jwst/miri/lrs/slitless``)',
+                  f'     - {p.configuration}', f'     - {lo:g}–{hi:g}',
+                  f'     - {p.quality}']
+        sources += [f'   * - ``{record["output_file"]}``',
+                    f'     - `STScI linear trend <{record["documentation_url"]}>`__; '
+                    f'`Kendrew et al., Figure 3 <{record["publication_url"]}>`__ '
+                    f'(`preprint <{record["preprint_url"]}>`__)',
+                    f'     - {a:g}–{b:g} µm nominal design; '
+                    f'`STScI useful-coverage caveats <{p.coverage_source_url}>`__']
+    (output/'miri_modes.rst').write_text('\n'.join(modes)+'\n')
+    (output/'miri_sources.rst').write_text('\n'.join(sources)+'\n')
