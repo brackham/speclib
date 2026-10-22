@@ -4,8 +4,8 @@ Instrument-profile provenance standard
 Every bundled profile must connect its numerical prescription to authoritative,
 clickable sources. Keep the record small and specific to the source type; do not
 invent a file, version, precision or measurement pedigree to fill a field.
-This checklist applies to bundled STIS, WFC3, NIRISS, NIRSpec and NIRCam profiles and
-future MIRI and other profiles.
+This checklist applies to bundled STIS, WFC3, NIRISS, NIRSpec, NIRCam and MIRI LRS
+profiles and future profiles.
 
 Minimum record
 --------------

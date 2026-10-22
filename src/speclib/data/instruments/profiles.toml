@@ -297,3 +297,27 @@ assumptions = [
   "No field/visit/subarray-specific LSF, throughput, exact pixel sampling, neighboring-source or second-order contamination model; faint second orders may occur with F277W/F322W2",
   "Vacuum wavelength coordinates adopted; sampled polynomial with linear R interpolation; negligible intrinsic model width; real source padding required; no deconvolution",
 ]
+
+# Phase 3B: conventional MIRI P750L slitless time series only.
+
+[[profiles]]
+mode = "jwst/miri/lrs/slitless/slitlessprism"
+aliases = ["jwst/miri/lrs/slitless"]
+curve = "miri_lrs_slitless.csv"
+provenance_ref = "miri_sources.json#miri_lrs_slitless"
+valid_intervals_um = [[5.5, 12.0]]
+quality = "nominal"
+configuration = "LRS slitless time series / P750L double prism / SLITLESSPRISM / nominal isolated point source"
+source = "STScI MIRI Filters and Dispersers, LRS; Kendrew et al. (2015), Section 2 / Figure 3; Bouwman et al. (2023), Section 1.3"
+source_url = "https://jwst-docs.stsci.edu/jwst-mid-infrared-instrument/miri-instrumentation/miri-filters-and-dispersers"
+coverage_source_url = "https://jwst-docs.stsci.edu/known-issues/miri-known-issues/miri-lrs-known-issues"
+calibration_version = "STScI JDox reviewed 2026-10-22; Kendrew et al. (2015) linear design approximation; not a CRDS calibration release"
+resolution_definition = "Nominal design R=lambda/delta_lambda; lambda/R adopted as Gaussian FWHM, not a measured slitless LSF"
+assumptions = [
+  "Conventional SLITLESSPRISM isolated point-source time series only; no IP, IPS, fixed slit, WFSS or MRS fallback",
+  "Nominal R = 24*(lambda/um)-80; STScI explicit linear trend over 5-10 um, continued to 14 um following Kendrew Figure 3 design curve; not in-flight LSF measurements",
+  "Model support 5-14 um; output 5.5-12 um is conservative useful coverage, with blue numerical padding cut and practical red throughput cut; not observation-specific useful limits",
+  "Slitless foldover has no blocking filter and may compromise the blue spectrum; no contamination removal or guarantee of useful data",
+  "No universal pixel FWHM or diffraction-only interpretation; Gaussian FWHM is a Speclib assumption; field, pointing, extraction and subarray LSF differences are not modeled",
+  "Vacuum coordinates adopted; linear R interpolation; real calibration-covered source padding and negligible intrinsic linewidth required; no deconvolution or numerical-bias compensation",
+]

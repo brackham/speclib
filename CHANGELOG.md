@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a nominal JWST/MIRI P750L/SLITLESSPRISM time-series profile, with
+  wavelength-dependent design resolving power, conservative 5.5–12 µm output,
+  offline provenance and deterministic reproduction.
+
 - Added four nominal JWST/NIRCam Module A Grism R time-series profiles
   (F277W, F322W2, F356W, F444W), with a shared wavelength-dependent
   resolving-power prescription, offline provenance and filter-specific coverage.

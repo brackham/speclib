@@ -174,6 +174,8 @@ def get_profile(mode):
     52X2; SOSS defaults to CLEAR/SUBSTRIP256, with each order a separate profile.
     NIRCam shorthand selects first-order Module A Grism R time series; canonical
     identifiers use ``jwst/nircam/tsgrism/modulea/grismr/<filter>``.
+    MIRI shorthand ``jwst/miri/lrs/slitless`` selects P750L/SLITLESSPRISM;
+    the canonical identifier appends ``/slitlessprism``. IP/IPS are unsupported.
     Unsupported configurations fail instead of falling back to these defaults.
     """
     if isinstance(mode, InstrumentProfile):

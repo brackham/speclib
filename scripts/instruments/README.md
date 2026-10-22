@@ -132,3 +132,30 @@ polynomial extrapolation or endpoint extension. The manifest retains all
 original filter edges and the separate approximate 5.03 um TSO detector cutoff.
 Real input padding and calibration-covered bracketing samples remain required.
 See the scientific reference for second-order/neighbor contamination caveats.
+
+
+## Reproducing Phase 3B: MIRI P750L/SLITLESSPRISM
+
+```sh
+poetry run python scripts/instruments/convert_miri.py --output-dir /tmp/miri-csv
+poetry run pytest tests/test_miri_instruments.py
+```
+
+`miri_sources.json` records STScI's approximate 5/7.5/10 um reference values
+and explicit linear trend, and Kendrew et al. (2015), Section 2 / Figure 3's
+linear design curve through 14 um. The adopted nominal equation is
+`R = 24*(lambda/um)-80` on 5-14 um. This is a design approximation, not an
+in-flight slitless Gaussian LSF calibration. The original numerical values and
+trend are the inputs; no source calibration file is invented. Inspected CRDS
+SPECWCS files are audit evidence only and are not required for reproduction.
+
+The converter writes 901 float64 wavelength/R samples in 0.01 um steps, using
+17 significant digits, and rejects changed output checksums without updating
+pins. The rows evaluate a nominal model; they are not measured calibration
+points. Linear R interpolation is exact to roundoff. Dense cells keep the
+existing conservative padding envelope local, especially near the blue end.
+No network is used. Model support is wider than the adopted 5.5-12 um output;
+real source padding and calibration-covered bracketing samples remain required.
+The manifest and scientific reference explain the blue numerical cut, foldover,
+red throughput limit, unsupported Cycle 6 IP/IPS placements, physical width
+interpretation, audit URLs/checksums and redistribution review.
