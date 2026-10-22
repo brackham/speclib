@@ -26,9 +26,9 @@ No points are dropped or invented. The files declare `GROUND`/`MODELING`, not
 measured in-flight LSFs; the headers do not explicitly flag air/vacuum wavelengths.
 Speclib treats them as vacuum and adopts the nominal element as Gaussian FWHM.
 
-`profiles.toml` transcribes the nine SUB2048 rows of
+`profiles.toml` transcribes all regular-subarray columns of
 [BOTS Table 1](https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-operations/nirspec-bots-operations/nirspec-bots-wavelength-ranges-and-gaps),
-including three detector gaps. Coverage is approximate and independent of the
+including disconnected intervals and physical detector gaps. Coverage is approximate and independent of the
 dispersion-table domain. Both configuration and source tables in Sphinx are
 generated from these records by `docs/_instrument_tables.py`.
 Review any future source changes, update the pins deliberately, reconvert, and
@@ -40,9 +40,14 @@ in the manifest before replacing assets. Confirm redistribution terms again for
 new sources; the present review and attribution are recorded in `NOTICE.md`.
 
 Explicit configuration identifiers include the observing mode, slit and
-subarray. Only SUB2048 is bundled in phase 1. Further subarrays can receive
-separate registry entries sharing a disperser's existing CSV, without changing
-the numerical code or falling back to an incorrect configuration.
+subarray. SUB1024A (except PRISM), SUB1024B, SUB512 and SUB512S have separate
+registry entries sharing each disperser's unchanged CSV. SUB512/SUB512S have
+identical tabulated intervals but different spatial heights. The original
+SUB2048 short identifiers and explicit aliases remain unchanged. Shared
+coverage provenance, geometry and physical detector gaps are recorded in
+`sources.json`, separately from the original resolution-data retrieval date.
+No reconversion is needed for the subarray extension. Include
+`tests/test_nirspec_subarrays.py` when checking its coverage contracts.
 
 ## Numerical support and assumptions
 

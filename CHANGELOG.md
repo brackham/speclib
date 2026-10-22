@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added 35 NIRSpec BOTS/S1600A1 profiles for SUB1024A (except PRISM),
+  SUB1024B, SUB512 and SUB512S, with STScI nominal coverage, disconnected
+  intervals and shared offline resolving-power calibrations. Existing short
+  NIRSpec identifiers continue to select SUB2048.
+
 - Added a nominal JWST/MIRI P750L/SLITLESSPRISM time-series profile, with
   wavelength-dependent design resolving power, conservative 5.5–12 µm output,
   offline provenance and deterministic reproduction.

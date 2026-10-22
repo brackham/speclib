@@ -16,7 +16,8 @@
       "fits_reftype": "DISPERSION",
       "output_file": "prism.csv",
       "output_sha256": "4aa48dde2f4aa90be4f6cca247d356467f6721bb64f5a7c764fcca09c6d01acb",
-      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list."
+      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list.",
+      "nominal_detector_gap_um": []
     },
     "g140m": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455646/1/1762452062329/jwst_nirspec_g140m_disp.fits",
@@ -33,7 +34,8 @@
       "fits_reftype": "DISPERSION",
       "output_file": "g140m.csv",
       "output_sha256": "a1f9cdf85ceea96176d816ee708674c64d267fefd38dc40e788121414696d4e9",
-      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list."
+      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list.",
+      "nominal_detector_gap_um": []
     },
     "g140h": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455647/1/1762452062493/jwst_nirspec_g140h_disp.fits",
@@ -50,7 +52,13 @@
       "fits_reftype": "DISPERSION",
       "output_file": "g140h.csv",
       "output_sha256": "a1541fe22a2fd0096bf4b4f2fd47b51fd596963c7485efa2fda95ea352c948f2",
-      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list."
+      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list.",
+      "nominal_detector_gap_um": [
+        [
+          1.31,
+          1.35
+        ]
+      ]
     },
     "g235m": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455645/1/1762452062162/jwst_nirspec_g235m_disp.fits",
@@ -67,7 +75,8 @@
       "fits_reftype": "DISPERSION",
       "output_file": "g235m.csv",
       "output_sha256": "3b12e7e83f878b4d5ac0568c1ae0674bb9b0dc0f7079fb3f7fae1eb5bb2438e4",
-      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list."
+      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list.",
+      "nominal_detector_gap_um": []
     },
     "g235h": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455635/1/1762452060354/jwst_nirspec_g235h_disp.fits",
@@ -85,7 +94,13 @@
       "output_file": "g235h.csv",
       "output_sha256": "ab4b054fb8cca593cbae548295dfb3b0fb524ae03f4eba1b3948ee1d65c7cce3",
       "documented_update": "2024-06-24 (JDox update notice); FITS HISTORY records interpolation on 2024-05-16",
-      "source_note": "FITS LITREF names ESA-JWST-SCI-NRS-TN-2016-024; no public copy or persistent URL for that technical note was located. The directly linked official FITS is the reproducible numerical source."
+      "source_note": "FITS LITREF names ESA-JWST-SCI-NRS-TN-2016-024; no public copy or persistent URL for that technical note was located. The directly linked official FITS is the reproducible numerical source.",
+      "nominal_detector_gap_um": [
+        [
+          2.2,
+          2.27
+        ]
+      ]
     },
     "g395m": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455644/1/1762452061971/jwst_nirspec_g395m_disp.fits",
@@ -102,7 +117,8 @@
       "fits_reftype": "DISPERSION",
       "output_file": "g395m.csv",
       "output_sha256": "1791d911f4c49928cb5216e09d55ae7bcafd09c082d9790f4305bd012783a303",
-      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list."
+      "source_note": "FITS LITREF is an internal as-built spectralResolution source path; no public URL for that intermediate file was located. AUTHOR names a generation script, not a complete author list.",
+      "nominal_detector_gap_um": []
     },
     "g395h": {
       "url": "https://jwst-docs.stsci.edu/files/216455634/216455636/1/1762452060535/jwst_nirspec_g395h_disp.fits",
@@ -120,7 +136,13 @@
       "output_file": "g395h.csv",
       "output_sha256": "450a42e0457a7a4175387ceaedd8697b17922196dade6b515fb183fa057f00e3",
       "documented_update": "2024-06-24 (JDox update notice); FITS HISTORY records interpolation on 2024-05-16",
-      "source_note": "FITS LITREF names ESA-JWST-SCI-NRS-TN-2016-024; no public copy or persistent URL for that technical note was located. The directly linked official FITS is the reproducible numerical source."
+      "source_note": "FITS LITREF names ESA-JWST-SCI-NRS-TN-2016-024; no public copy or persistent URL for that technical note was located. The directly linked official FITS is the reproducible numerical source.",
+      "nominal_detector_gap_um": [
+        [
+          3.72,
+          3.82
+        ]
+      ]
     }
   },
   "schema_version": 1,
@@ -137,6 +159,39 @@
     "redistribution_url": "https://www.stsci.edu/copyright",
     "redistribution_reviewed": "2026-10-19",
     "redistribution_basis": "STScI site policy permits public-domain-like use unless otherwise stated and requests NASA/STScI acknowledgement. No contrary restriction was found on the source page or in the seven FITS headers; this is not a separate dataset-specific license grant.",
-    "publication_preprint_url": "https://arxiv.org/abs/2202.03305"
+    "publication_preprint_url": "https://arxiv.org/abs/2202.03305",
+    "coverage_source_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-operations/nirspec-bots-operations/nirspec-bots-wavelength-ranges-and-gaps",
+    "coverage_table": "Table 1; approximate S1600A1 regular-subarray limits; intervals transcribed separately in profiles.toml",
+    "coverage_retrieved": "2026-10-22",
+    "subarray_source_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-instrumentation/nirspec-detectors/nirspec-detector-subarray-mode",
+    "subarrays": {
+      "SUB2048": {
+        "height_pixels": 32,
+        "width_pixels": 2048,
+        "selection": "Full nominal band except detector gap"
+      },
+      "SUB1024A": {
+        "height_pixels": 32,
+        "width_pixels": 1024,
+        "selection": "Blue on NRS1, red on NRS2; PRISM/CLEAR unavailable"
+      },
+      "SUB1024B": {
+        "height_pixels": 32,
+        "width_pixels": 1024,
+        "selection": "Red on NRS1, blue on NRS2"
+      },
+      "SUB512": {
+        "height_pixels": 32,
+        "width_pixels": 512,
+        "selection": "Same Table 1 wavelength intervals as SUB512S; PRISM recommended, gratings partially covered"
+      },
+      "SUB512S": {
+        "height_pixels": 16,
+        "width_pixels": 512,
+        "selection": "Same Table 1 wavelength intervals as SUB512; no unilluminated spatial pixels in trace"
+      }
+    },
+    "subarray_resolution_assumption": "Reuse the same nominal 2.2-pixel disperser prescription for every subarray; no geometry-based R correction or spatial extraction model",
+    "coverage_limitation": "Nominal intervals, not observation-specific detector/extraction limits; consult ETC. Unread subarray regions can exceed the physical detector gap. Medium gratings and PRISM fall on NRS1; high gratings can span NRS1/NRS2."
   }
 }

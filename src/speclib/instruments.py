@@ -169,7 +169,9 @@ def get_profile(mode):
     """Resolve a case-insensitive identifier, or return an InstrumentProfile.
 
     NIRSpec shorthand identifiers default to BOTS/S1600A1/SUB2048. Explicit
-    identifiers use ``jwst/nirspec/bots/s1600a1/sub2048/<disperser>/<filter>``.
+    identifiers use ``jwst/nirspec/bots/s1600a1/<subarray>/<disperser>/<filter>``.
+    Regular SUB1024A, SUB1024B, SUB512 and SUB512S configurations are separate
+    profiles sharing the same disperser R curve; PRISM/SUB1024A is unavailable.
     STIS defaults to the prime CCD setting with a centered point source through
     52X2; SOSS defaults to CLEAR/SUBSTRIP256, with each order a separate profile.
     NIRCam shorthand selects first-order Module A Grism R time series; canonical
