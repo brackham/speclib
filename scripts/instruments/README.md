@@ -103,3 +103,32 @@ range. Orders are not stitched or decontaminated. STIS assumes the prime CCD
 settings, unbinned pixels and centered point sources through 52X2. Unsupported
 apertures/subarrays do not fall back to the defaults. See the generated tables
 and source discussion in `docs/user_guide/instrument_provenance.rst`.
+
+
+## Reproducing Phase 3A: NIRCam Module A Grism R time series
+
+```sh
+poetry run python scripts/instruments/convert_nircam.py --output-dir /tmp/nircam-csv
+poetry run pytest tests/test_nircam_instruments.py
+```
+
+`nircam_sources.json` records the original Greene et al. (2017), Section 3.2
+coefficients in ascending order, wavelength units, physical interpretation,
+source URLs and output checksum. Reproduction is entirely offline; the
+published equation is the input, with no invented calibration FITS file.
+The converter samples 2601 wavelengths from 2.4 to 5.0 um at 0.001 um spacing,
+writes float64 values with 17 significant digits, and rejects changed output
+bytes before writing. It never updates pins. Runtime linearly interpolates R;
+the maximum fractional interpolation error against direct polynomial evaluation
+is below 4e-8. That is separate from the original few-percent optical-model fit
+and numerical Gaussian convolution accuracy.
+
+All four profiles share `nircam_grismr.csv`. Only first-order Module A Grism R
+time-series configurations are supported. `profiles.toml` records adopted
+output intervals: the original 5% filter limits for F322W2/F356W, conservative
+inward cuts to 2.410 um for F277W and 4.985 um for F444W. These cuts preserve
+convolution support within the published 2.4-5.0 um model domain, without
+polynomial extrapolation or endpoint extension. The manifest retains all
+original filter edges and the separate approximate 5.03 um TSO detector cutoff.
+Real input padding and calibration-covered bracketing samples remain required.
+See the scientific reference for second-order/neighbor contamination caveats.

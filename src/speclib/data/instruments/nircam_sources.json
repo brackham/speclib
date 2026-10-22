@@ -1,0 +1,69 @@
+{
+  "retrieved": "2026-10-21",
+  "defaults": {
+    "redistribution_url": "https://www.stsci.edu/copyright",
+    "redistribution_reviewed": "2026-10-21",
+    "redistribution_basis": "Original numerical evaluation of the factual coefficients in the cited Greene et al. prescription, also reproduced by NASA/STScI. Acknowledge Greene et al., NASA/STScI and the NIRCam team. No publication text, figures, PSFs or calibration FITS files redistributed; no claim that publisher material is public domain or relicensed under Speclib code licensing. STScI content-use policy reviewed; see NOTICE.md. No endorsement implied."
+  },
+  "sources": {
+    "nircam_grismr": {
+      "institution": "Greene et al.; NASA/STScI and NIRCam instrument team",
+      "source_kind": "Published polynomial fit to nominal optical-model point-source FWHM resolving power",
+      "documentation_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms",
+      "publication_url": "https://doi.org/10.1117/1.JATIS.3.3.035001",
+      "original_publication_url": "https://www.stsci.edu/files/live/sites/www/files/home/jwst/documentation/technical-documents/_documents/JATIS_3_3_035001.pdf",
+      "publication_section": "Greene et al. (2017), JATIS 3(3), 035001, Section 3.2 and Figure 2",
+      "coverage_source_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms",
+      "tso_source_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series",
+      "strategies_source_url": "https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-strategies/nircam-time-series-observation-recommended-strategies",
+      "calibration_identifier": "Greene et al. (2017) Section 3.2 polynomial; STScI JDox reviewed 2026-10-21; not a calibration release",
+      "source_definition": "Point-source R=lambda/(monochromatic PSF FWHM in LW pixels * nominal 10 Angstrom/pixel dispersion). Simulated high-resolution PSF scaled by 1.1 along dispersion to approximate the pupil beam factor before pixel sampling. Polynomial fits the predicted FWHM resolving power to within a few percent; not an empirical in-flight LSF.",
+      "equation": "R(x) = 3.35*x**4 - 41.9*x**3 + 95.5*x**2 + 536*x - 240; x=lambda/um",
+      "coefficients_ascending": [
+        -240.0,
+        536.0,
+        95.5,
+        -41.9,
+        3.35
+      ],
+      "coefficient_convention": "Ascending powers of dimensionless x=lambda/(1 micrometer); R dimensionless; vacuum wavelength coordinates adopted without conversion",
+      "published_model_domain_um": [
+        2.4,
+        5.0
+      ],
+      "calibration_domain_um": [
+        2.4,
+        5.0
+      ],
+      "curve_samples": 2601,
+      "rows": 2601,
+      "filter_5_percent_limits_um": {
+        "f277w": [
+          2.395,
+          3.179
+        ],
+        "f322w2": [
+          2.413,
+          4.083
+        ],
+        "f356w": [
+          3.1,
+          4.041
+        ],
+        "f444w": [
+          3.835,
+          5.084
+        ]
+      },
+      "tso_f444w_detector_red_limit_um": 5.03,
+      "coverage_definition": "Registry intervals are nominal first-order TSO output coverage. F322W2/F356W retain STScI Table 4 5% filter-transmission limits. F277W blue and F444W red limits are conservatively trimmed by Speclib to retain complete convolution support within the published model domain. F444W filter transmission extends to 5.084 um, but the standard TSO placement loses wavelengths above about 5.03 um on the detector. Neither is a visit-specific usable-coverage guarantee.",
+      "boundary_assumption": "No polynomial evaluation or endpoint extension beyond 2.4-5.0 um. Speclib chooses rounded inward output limits 2.410 um (F277W blue) and 4.985 um (F444W red), leaving room for contributing source kernels, their full normalization support, and bracketing input samples. These are Speclib numerical safety cuts, not STScI filter edges or measured instrumental cutoffs. Source sampling must still supply calibration-covered padding; insufficient coverage is rejected.",
+      "processing": "Evaluate the published coefficients by Horner polynomial evaluation on 2601 uniformly spaced wavelengths from 2.4 through 5.0 um (0.001 um spacing). Write float64 coordinates and dimensionless R with 17 significant digits; runtime linearly interpolates R and never extrapolates. All four filters share the same curve. Adopt lambda/R as Gaussian FWHM using the existing convolution engine, with no empirical correction or numerical-residual compensation.",
+      "physical_limitations": "Nominal isolated point source in first spectral order with Module A Grism R in time-series mode. Short-wavelength PSF pixel sampling and long-wavelength diffraction/pupil effects determine resolution. Current STScI Table 3 R/C dispersions are 1.004/1.006 nm/pixel with field variation up to 2%; the paper reports all four grisms within 1% of the nominal design dispersion. No separate R/C or module polynomial is given, and identical observation-specific LSFs are not established. Grism C, Module B and WFSS are unsupported. No field/visit/subarray-specific PSF correction, non-Gaussian wings, throughput, detector pixels, saturation, finite-model-resolution correction or deconvolution.",
+      "order_contamination": "Current STScI grisms Figure 3 warns of faint second-order spectra for F277W and F322W2. Detection/overlap depends on source position and geometry; this is not a universal first-order self-contamination claim. Greene Section 3.1 discusses F322W2 only. Neighboring-source spectra may overlap target or sky depending on orientation. No order-contamination model or removal is provided.",
+      "output_file": "nircam_grismr.csv",
+      "reproduction_script": "scripts/instruments/convert_nircam.py",
+      "output_sha256": "e871008b6709ad86b40ad5b0c48eede02754504e31c43bd9c14b6bdbed48dac9"
+    }
+  }
+}

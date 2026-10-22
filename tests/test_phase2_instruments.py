@@ -38,7 +38,7 @@ def test_phase2_profiles_offline_and_provenance(monkeypatch):
         pytest.fail('Bundled profile attempted network access')
     monkeypatch.setattr(socket, 'socket', no_network)
     assert tuple(m for m in list_instrument_profiles()
-                 if not m.startswith('jwst/nirspec/')) == tuple(sorted(MODES))
+                 if m.startswith(('hst/', 'jwst/niriss/'))) == tuple(sorted(MODES))
     for mode, (coverage, quality, configuration) in MODES.items():
         p = get_profile(mode.upper())
         assert p.mode == mode and p.quality == quality

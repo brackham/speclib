@@ -28,6 +28,10 @@ Public profile attributes include:
 See :doc:`../user_guide/instrument_provenance` for the source-record specification
 and :doc:`../development/instrument_profiles` for contributor requirements.
 
+NIRCam shorthand ``jwst/nircam/grismr/<filter>`` selects the canonical
+``jwst/nircam/tsgrism/modulea/grismr/<filter>`` setup. Grism C, Module B and
+wide-field slitless configurations are unsupported.
+
 Instrument matching returns ordinary spectra/grids with explicit
 ``valid_intervals`` metadata. See :attr:`speclib.Spectrum.valid_intervals` and
 :attr:`speclib.SpectralGrid.valid_intervals`.

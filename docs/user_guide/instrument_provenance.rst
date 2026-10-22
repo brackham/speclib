@@ -232,3 +232,85 @@ evaluations of cited numerical prescriptions; publication text and figures are
 not bundled. NASA/STScI and the SOSS instrument team are acknowledged in
 :download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`. No NASA,
 STScI or author endorsement is implied.
+
+
+NIRCam: Module A Grism R time-series prediction
+-----------------------------------------------
+
+.. include:: ../_build/instrument_tables/nircam_sources.rst
+
+`Greene et al. (2017), Section 3.2 / Figure 2
+<https://doi.org/10.1117/1.JATIS.3.3.035001>`_ give the polynomial reproduced in
+:doc:`instrument_profiles`. It fits predicted point-source FWHM resolving power
+to within a few percent. The model uses a simulated monochromatic PSF, scaled
+by 1.1 along dispersion for the pupil beam factor, then sampled in LW pixels
+with nominal dispersion 10 Å/pixel. Pixel sampling limits the short-wavelength
+resolution; diffraction matters increasingly at longer wavelengths. This is
+not a measured in-flight LSF or a constant R=1600 prescription.
+
+The `STScI grisms reference
+<https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-grisms>`_,
+Figure 1, repeats the coefficients. Table 3 gives R/C dispersions of
+1.004/1.006 nm/pixel with field variations up to 2%. The paper reports all four
+grism dispersions within 1% of their nominal design. Neither source gives
+separate R/C or module polynomials; identical visit-specific LSFs are not
+established. Speclib supports only the actual LW time-series configuration:
+**Module A Grism R, first order**, for an isolated point source. Its four filters
+share one nominal curve; there is no field-, visit- or subarray-specific PSF
+correction. The different standard placements for LW+SW imaging and LW+SW
+spectroscopy do not have separately calibrated profiles here.
+
+Coverage and conservative edge cuts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Table 4 supplies the four filters' 5% transmission limits, recorded separately
+in the :download:`NIRCam manifest <../../src/speclib/data/instruments/nircam_sources.json>`.
+The `grism TSO page
+<https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-modes/nircam-time-series-observations/nircam-grism-time-series>`_
+specifies Module A Grism R and full detector columns in the TSO subarrays.
+F444W's standard placement loses wavelengths above approximately 5.03 µm,
+before the filter's 5.084 µm transmission edge. Observation-specific usable
+coverage also depends on extraction, signal, contamination and saturation.
+
+The published resolution curve spans 2.4–5.0 µm. Speclib **does not extend it**
+to the wider filter limits or for padding. Instead, output starts at 2.410 µm
+for F277W and ends at 4.985 µm for F444W. These rounded inward cuts retain
+support for the contributing source kernels and their normalization, plus
+bracketing input samples. F322W2/F356W require no cuts. The registry's adopted
+intervals are therefore narrower than the original filter limits for two modes.
+Real source padding inside the calibration domain is still required; supplying
+only the output interval, or too coarse a bracketing grid, fails safely.
+
+Processing, accuracy and attribution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :download:`converter <../../scripts/instruments/convert_nircam.py>` evaluates
+the documented coefficients at 2601 points from 2.4 to 5.0 µm in 0.001 µm steps.
+CSV serialization uses 17 significant digits. Runtime linearly interpolates R
+without extrapolation. A dense comparison with direct polynomial evaluation
+has maximum fractional interpolation error below :math:`4\times10^{-8}`.
+This represents the polynomial accurately; it does not improve its physical
+accuracy. The model's few-percent fit, interpolation error, numerical Gaussian
+convolution error and apparent broadening from output-bin integration are
+separate quantities. No coefficient is adjusted to compensate for convolution.
+
+The manifest records the coefficients, units, source interpretation, original
+publication URL, support, boundary policy, reproduction command/script and
+output SHA-256. It is an analytic prescription, so there is no source calibration
+FITS file or empirical LSF dataset. All records and the shared CSV load offline.
+See the :download:`reproduction procedure <../../scripts/instruments/README.md>`.
+
+Current STScI Figure 3 notes faint second-order spectra with F277W/F322W2;
+Greene Section 3.1 discusses F322W2 only. Visibility and overlap depend on source
+placement and geometry. The `TSO strategies
+<https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-observing-strategies/nircam-time-series-observation-recommended-strategies>`_
+also describe neighboring-source spectral overlap and orientation constraints.
+Gaussian FWHM matching supplies no contamination removal, throughput, exact
+pixel sampling, non-Gaussian LSF or finite-input-resolution correction.
+
+The bundled CSV is Speclib's numerical evaluation of the cited factual
+coefficients. Acknowledgement of Greene et al., NASA/STScI and the NIRCam team,
+and the reviewed `STScI content-use policy <https://www.stsci.edu/copyright>`_
+are recorded in :download:`NOTICE.md <../../src/speclib/data/instruments/NOTICE.md>`.
+No publication text, figure or simulated PSF is redistributed, and no publisher
+material is claimed to be public domain or relicensed under Speclib's license.
