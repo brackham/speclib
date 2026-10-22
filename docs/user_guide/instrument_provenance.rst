@@ -70,12 +70,37 @@ Coverage and Gaussian approximation
 -----------------------------------
 
 The interval limits and gaps come separately from `BOTS wavelength ranges and
-gaps, Table 1, SUB2048
+gaps, Table 1
 <https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-operations/nirspec-bots-operations/nirspec-bots-wavelength-ranges-and-gaps>`_.
 Speclib transcribes these approximate S1600A1 limits in ``profiles.toml``.
 They are not derived from the R tables, and they vary with the observation's
-wavelength solution and grating-wheel position. Other subarrays and multistripe
-configurations on that page are not implemented.
+wavelength solution and grating-wheel position. The regular SUB2048, SUB1024A,
+SUB1024B, SUB512 and SUB512S columns were checked on 2026-10-22; the complete
+registry-generated matrix is in :doc:`instrument_profiles`. PRISM/CLEAR is
+unavailable for SUB1024A. Multistripe configurations are not implemented.
+
+The `detector subarray reference, Tables 1–2
+<https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-instrumentation/nirspec-detectors/nirspec-detector-subarray-mode>`_
+distinguishes SUB1024A (blue NRS1/red NRS2) from SUB1024B (red NRS1/blue NRS2).
+SUB512 and SUB512S have the same 512-pixel spectral extent and Table 1 coverage,
+but spatial heights of 32 and 16 pixels. SUB512S has no unilluminated spatial
+pixels in the trace. PRISM is recommended for these smaller subarrays; the
+coverage table and BOTS template also permit partial grating coverage.
+
+Physical detector gaps are 1.31–1.35 µm for G140H (outside the F070LP output),
+2.20–2.27 µm for G235H and 3.72–3.82 µm for G395H. The omitted regions between
+subarray intervals can be much larger; they must not be interpreted as a wider
+physical detector gap. All omitted wavelengths remain absent from the output.
+Source light from these regions can still contribute wings before cropping.
+
+The seven unchanged R tables and original/output checksums are shared across
+subarrays. Selecting fewer detector columns or spatial rows does not establish
+a different instrumental R prescription. Speclib retains the nominal 2.2-pixel
+definition, including its existing wide-slit/point-source limitation, without
+inventing a geometry correction. All new interval edges support the existing
+conservative convolution envelope within the original calibration domain.
+Real input padding and calibration-covered bracketing samples are still
+required; unsupported boundaries raise errors rather than extrapolate R.
 
 Speclib adopts the tabulated :math:`\lambda/R` as **Gaussian FWHM** using the
 existing source-centered log-wavelength convolution. This is a Speclib modeling
@@ -98,6 +123,8 @@ Programmatic records and redistribution
    print(record["url"], record["filename"], record["sha256"])
    print(record["fits_date"], record["history"], record["processing"])
    print(profile.coverage_source_url, profile.resolution_definition)
+   print(record["coverage_retrieved"], record["subarray_source_url"])
+   print(record["subarrays"]["SUB512S"], record["nominal_detector_gap_um"])
 
 The :download:`packaged manifest <../../src/speclib/data/instruments/sources.json>`
 is authoritative for original/output filenames and checksums, source headers,

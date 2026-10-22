@@ -120,19 +120,42 @@ observational bin widths. Calibration curves are never adjusted for sampling.
 Supported NIRSpec modes
 -----------------------
 
-Identifiers are case-insensitive. The following shorthand modes all use the
-exoplanet-oriented **BOTS/S1600A1/SUB2048** configuration. Explicit aliases have
-the form ``jwst/nirspec/bots/s1600a1/sub2048/g395h/f290lp``. Other subarrays are
-not bundled in phase 1 and fail clearly; future registry entries can share the
-same disperser curve with different coverage.
+Identifiers are case-insensitive. The nine short identifiers, such as
+``jwst/nirspec/g395h/f290lp``, continue to select **BOTS/S1600A1/SUB2048**.
+Their explicit SUB2048 aliases remain available. The 35 additional canonical
+identifiers use ``jwst/nirspec/bots/s1600a1/<subarray>/<disperser>/<filter>``:
+
+.. code-block:: python
+
+   observed = spectrum.observed_by(
+       "jwst/nirspec/bots/s1600a1/sub1024a/g395h/f290lp"
+   )
+
+Use ``sub1024a``, ``sub1024b``, ``sub512`` or ``sub512s`` with a supported pair
+below. PRISM/CLEAR with SUB1024A is unavailable and raises ``ValueError``.
+Multistripe subarrays are not bundled.
 
 .. include:: ../_build/instrument_tables/modes.rst
 
-Semicolons separate valid intervals; the intervening wavelengths are detector
-gaps. G140M and G140H filter pairs share their disperser's curve but have different
-coverage. Original-data and coverage links have different roles; the table is
-generated from the registry and manifest, rather than maintained separately.
-See :doc:`instrument_provenance` for original filenames, definitions and conversion.
+The table is generated from the registry using approximate
+`STScI BOTS Table 1
+<https://jwst-docs.stsci.edu/jwst-near-infrared-spectrograph/nirspec-operations/nirspec-bots-operations/nirspec-bots-wavelength-ranges-and-gaps>`_
+coverage. Semicolons separate disconnected intervals; missing regions include
+unread subarray pixels as well as physical detector gaps. SUB1024A samples the
+blue part on NRS1 and red part on NRS2; SUB1024B samples their inner parts.
+For medium gratings and PRISM the spectrum falls on NRS1.
+
+SUB512 and SUB512S are distinct setups with identical nominal wavelength
+intervals: their spatial heights are 32 and 16 pixels, respectively. These
+smaller subarrays are intended especially for PRISM; STScI also describes
+partial grating spectra of very bright sources. Tabulated coverage does not
+imply that every configuration is recommended or optimal. All
+subarrays reuse the same disperser's nominal R curve, without a spatial
+extraction or slit-illumination correction. Native sampling remains the default;
+convolution uses the continuous padded source before selecting valid intervals.
+Useful detector/extraction bounds vary by observation; consult the ETC for
+precise limits. See :doc:`instrument_provenance` for physical gaps, geometry
+sources and the resolving-power assumptions.
 
 Supported STIS, WFC3 and NIRISS modes
 -------------------------------------

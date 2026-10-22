@@ -11,7 +11,8 @@ configuration = "BOTS/S1600A1/SUB2048"
 resolution_definition = "Published R=lambda/delta_lambda for a 2.2-pixel spectral element, treated as Gaussian FWHM"
 assumptions = [
   "Nominal disperser model, not a measured BOTS point-source LSF; no slit-illumination correction",
-  "Approximate SUB2048 coverage from BOTS Table 1; boundaries/gaps depend on the observation",
+  "Approximate selected-subarray coverage from BOTS Table 1 (checked 2026-10-22); boundaries/gaps depend on the observation",
+  "Subarrays select coverage, not a different nominal disperser R; spatial extraction, slit illumination and detector sampling are not modeled",
   "Negligible intrinsic source width; no finite-resolution correction or deconvolution",
   "Coordinates treated as vacuum wavelengths; FITS labels MICRONS without an air/vacuum flag; linear interpolation of published R; no extrapolation",
 ]
@@ -78,6 +79,251 @@ curve = "g395h.csv"
 provenance_ref = "sources.json#g395h"
 valid_intervals_um = [[2.87, 3.72], [3.82, 5.18]]
 aliases = ["jwst/nirspec/bots/s1600a1/sub2048/g395h/f290lp"]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g140m/f070lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[0.7, 1.22]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g140h/f070lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[0.82, 1.07]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g140m/f100lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[0.97, 1.22]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g140h/f100lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[0.97, 1.07], [1.59, 1.83]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g235m/f170lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g235m.csv"
+provenance_ref = "sources.json#g235m"
+valid_intervals_um = [[1.66, 2.03]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g235h/f170lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g235h.csv"
+provenance_ref = "sources.json#g235h"
+valid_intervals_um = [[1.66, 1.79], [2.67, 3.07]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g395m/f290lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g395m.csv"
+provenance_ref = "sources.json#g395m"
+valid_intervals_um = [[2.87, 3.35]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024a/g395h/f290lp"
+configuration = "BOTS/S1600A1/SUB1024A"
+curve = "g395h.csv"
+provenance_ref = "sources.json#g395h"
+valid_intervals_um = [[2.87, 3.03], [4.51, 5.18]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g140m/f070lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g140h/f070lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g140m/f100lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.87]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g140h/f100lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.31], [1.35, 1.59]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g235m/f170lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g235m.csv"
+provenance_ref = "sources.json#g235m"
+valid_intervals_um = [[2.03, 3.12]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g235h/f170lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g235h.csv"
+provenance_ref = "sources.json#g235h"
+valid_intervals_um = [[1.79, 2.2], [2.27, 2.67]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g395m/f290lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g395m.csv"
+provenance_ref = "sources.json#g395m"
+valid_intervals_um = [[3.35, 5.18]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/g395h/f290lp"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "g395h.csv"
+provenance_ref = "sources.json#g395h"
+valid_intervals_um = [[3.03, 3.72], [3.82, 4.51]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub1024b/prism/clear"
+configuration = "BOTS/S1600A1/SUB1024B"
+curve = "prism.csv"
+provenance_ref = "sources.json#prism"
+valid_intervals_um = [[0.6, 5.3]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g140m/f070lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g140h/f070lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.19]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g140m/f100lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.55]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g140h/f100lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.19], [1.47, 1.59]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g235m/f170lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g235m.csv"
+provenance_ref = "sources.json#g235m"
+valid_intervals_um = [[2.03, 2.58]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g235h/f170lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g235h.csv"
+provenance_ref = "sources.json#g235h"
+valid_intervals_um = [[1.79, 2.0], [2.47, 2.67]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g395m/f290lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g395m.csv"
+provenance_ref = "sources.json#g395m"
+valid_intervals_um = [[3.35, 4.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/g395h/f290lp"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "g395h.csv"
+provenance_ref = "sources.json#g395h"
+valid_intervals_um = [[3.03, 3.38], [4.17, 4.51]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512/prism/clear"
+configuration = "BOTS/S1600A1/SUB512"
+curve = "prism.csv"
+provenance_ref = "sources.json#prism"
+valid_intervals_um = [[0.6, 5.3]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g140m/f070lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g140h/f070lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.19]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g140m/f100lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g140m.csv"
+provenance_ref = "sources.json#g140m"
+valid_intervals_um = [[1.22, 1.55]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g140h/f100lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g140h.csv"
+provenance_ref = "sources.json#g140h"
+valid_intervals_um = [[1.07, 1.19], [1.47, 1.59]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g235m/f170lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g235m.csv"
+provenance_ref = "sources.json#g235m"
+valid_intervals_um = [[2.03, 2.58]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g235h/f170lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g235h.csv"
+provenance_ref = "sources.json#g235h"
+valid_intervals_um = [[1.79, 2.0], [2.47, 2.67]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g395m/f290lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g395m.csv"
+provenance_ref = "sources.json#g395m"
+valid_intervals_um = [[3.35, 4.27]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/g395h/f290lp"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "g395h.csv"
+provenance_ref = "sources.json#g395h"
+valid_intervals_um = [[3.03, 3.38], [4.17, 4.51]]
+
+[[profiles]]
+mode = "jwst/nirspec/bots/s1600a1/sub512s/prism/clear"
+configuration = "BOTS/S1600A1/SUB512S"
+curve = "prism.csv"
+provenance_ref = "sources.json#prism"
+valid_intervals_um = [[0.6, 5.3]]
 
 [[profiles]]
 mode = "hst/stis/g430l"

@@ -28,6 +28,14 @@ Public profile attributes include:
 See :doc:`../user_guide/instrument_provenance` for the source-record specification
 and :doc:`../development/instrument_profiles` for contributor requirements.
 
+NIRSpec short identifiers retain BOTS/S1600A1/SUB2048 as their default.
+Additional canonical identifiers use
+``jwst/nirspec/bots/s1600a1/<subarray>/<disperser>/<filter>`` for SUB1024A,
+SUB1024B, SUB512 and SUB512S. The last two are distinct configurations sharing
+nominal intervals and R data. PRISM/CLEAR with SUB1024A is unavailable.
+``provenance`` records shared subarray geometry, coverage retrieval date and
+physical detector gaps separately from the selected ``valid_intervals``.
+
 NIRCam shorthand ``jwst/nircam/grismr/<filter>`` selects the canonical
 ``jwst/nircam/tsgrism/modulea/grismr/<filter>`` setup. Grism C, Module B and
 wide-field slitless configurations are unsupported.

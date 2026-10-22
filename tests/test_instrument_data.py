@@ -43,7 +43,7 @@ def test_bundled_nirspec_registry_and_calibration_offline(monkeypatch):
     monkeypatch.setattr(socket, 'socket', no_network)
     expected = tuple(sorted('jwst/nirspec/'+name for name in COVERAGE))
     assert tuple(mode for mode in list_instrument_profiles()
-                 if mode.startswith('jwst/nirspec/')) == expected
+                 if mode.startswith('jwst/nirspec/') and '/bots/' not in mode) == expected
     for mode in expected:
         p = get_profile(mode.upper())
         assert get_profile(p) is p
@@ -79,7 +79,7 @@ def test_bundled_nirspec_registry_and_calibration_offline(monkeypatch):
             data = np.loadtxt(stream, delimiter=',')
         np.testing.assert_array_equal(data[len(data)//2], reference, err_msg=name)
     with pytest.raises(ValueError, match='Unknown instrument profile'):
-        get_profile('jwst/nirspec/bots/s1600a1/sub512/prism/clear')
+        get_profile('jwst/nirspec/bots/s1600a1/sub1024a/prism/clear')
     with pytest.raises(TypeError):
         get_profile(123)
 
