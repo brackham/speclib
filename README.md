@@ -16,7 +16,6 @@ With Poetry (recommended):
 ```bash
 git clone https://github.com/brackham/speclib.git
 cd speclib
-poetry env use python3.12
 poetry install
 ```
 

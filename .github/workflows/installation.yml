@@ -29,17 +29,21 @@ jobs:
         run: |
           "$RUNNER_TEMP/speclib-install/bin/python" -I - <<'PY'
           from importlib.metadata import requires
+          import tomllib
 
           from packaging.requirements import Requirement
-          from packaging.specifiers import SpecifierSet
 
-          dependencies = [Requirement(value) for value in requires("speclib")]
-          specutils = [dep for dep in dependencies if dep.name == "specutils"]
-          assert len(specutils) == 1, specutils
-          assert specutils[0].specifier == SpecifierSet(">=2,<3"), specutils[0]
+          with open("pyproject.toml", "rb") as source:
+              project = tomllib.load(source)["project"]
+          expected = {Requirement(value) for value in project["dependencies"]}
+          installed = {Requirement(value) for value in requires(project["name"])}
+          assert installed == expected, {
+              "missing": expected - installed,
+              "unexpected": installed - expected,
+          }
 
           import speclib
           from speclib import Spectrum
 
-          print(f"Installed {speclib.__version__}: {specutils[0]}; {Spectrum}")
+          print(f"Installed {speclib.__version__}: {len(installed)} runtime requirements match pyproject.toml; {Spectrum}")
           PY

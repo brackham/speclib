@@ -16,8 +16,10 @@ For development, clone the repository and let Poetry create the environment:
 
    git clone https://github.com/brackham/speclib.git
    cd speclib
-   poetry env use python3.12
    poetry install
+
+Use any supported Python version. To select an interpreter explicitly, run
+``poetry env use python3.12`` (for example) before ``poetry install``.
 
 Alternatively, install a local checkout into your active environment with
 ``python -m pip install .`` from the repository root. Use
