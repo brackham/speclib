@@ -19,6 +19,11 @@ poetry env use python3.12
 poetry install
 ```
 
+After pulling dependency changes, rerun `poetry install` to refresh both
+dependencies and the installed package metadata. See the
+[installation guide](https://speclib.readthedocs.io/en/latest/installation.html#updating-an-existing-installation)
+for pip installations and diagnostics.
+
 For a fork, add the source repository as `upstream` once, then create a focused branch from its current `main`:
 
 ```bash
@@ -75,6 +80,15 @@ reproducible conversion or analytic prescription before adding a profile.
 - For scientific, model-grid, or data changes, cite authoritative publications, DOIs, archives, or model inventories. Explain changes to quantities, units, parameter axes, interpolation, or scientific assumptions so they can be reviewed against those sources.
 
 Use the PR template as a short review aid; mark sections or checklist items as not applicable when appropriate.
+
+## Prerelease versioning
+
+Development commits do not require version increments. Each newly published
+release must use a unique version; its wheel and source distribution share
+that version. Never replace published artifacts with changed builds under
+the same version. Dependency and API changes must be reflected in the code
+and package metadata of the next published release. Increment the prerelease
+identifier when preparing that release.
 
 ## Contribution credit and citation metadata
 
