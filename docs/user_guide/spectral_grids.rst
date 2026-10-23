@@ -1,14 +1,7 @@
 Spectral grids
 ==============
 
-A :class:`~speclib.SpectralGrid` preloads model spectra over selected
-:math:`T_\mathrm{eff}`, :math:`\log g`, and metallicity axes. This costs memory
-up front but makes repeated retrieval inexpensive. Every stored spectrum is
-put onto one wavelength axis; passing ``wavelength=`` resamples each model as
-it is loaded.
-
-Constructing and inspecting a grid
-----------------------------------
+Load a parameter range once for repeated interpolation:
 
 .. code-block:: python
 
@@ -21,69 +14,57 @@ Constructing and inspecting a grid
        model_grid="sphinx",
        co_ratio=0.5,
    )
+   spectrum = grid.get_spectrum(3100, 4.5, metallicity=0.0)
+   flux = grid.get_flux(3100, 4.5, metallicity=0.0)
 
-``grid.grid_teffs``, ``grid.grid_loggs``, and ``grid.grid_metallicities`` describe the
-declared/available axes for that library selection. ``grid.teffs``,
-``grid.loggs``, and ``grid.metallicities`` are the values loaded within the aligned
-bounds. ``grid.points`` lists combinations actually loaded, which is the more
-informative property for an incomplete grid. ``grid.wavelength`` and
-``grid.unit`` describe the common spectral data; ``grid.data`` has shape
-``(number_of_loaded_models, number_of_wavelength_samples)``.
+Download SPHINX first with :func:`~speclib.download_sphinx_grid`.
+A grid holds all selected models in memory on one wavelength axis.
+Passing ``wavelength=`` resamples each model during loading.
 
-``grid.metallicity_type`` and ``grid.meta["metallicity_type"]`` identify the
-native definition (``"feh"`` or ``"mh"``); ``grid.meta["metallicities"]``
-records numeric axis values. No abundance conversion is performed.
-Use ``metallicity_bds`` for bounds and ``metallicities``/``grid_metallicities``
-for the loaded/available coordinate arrays. See :doc:`model_libraries` for
-scientifically native aliases.
+Retrieving spectra
+------------------
 
-Bounds are aligned outward to grid points. Values outside a library's
-declared minimum or maximum are clipped and emit ``UserWarning``. Reversed
-bounds or bounds that do not contain exactly two elements raise ``ValueError``.
-This constructor clipping does not authorize extrapolation:
-:meth:`~speclib.SpectralGrid.get_flux` raises
-``ValueError`` for a request outside the loaded bounds.
+``get_spectrum()`` returns an independent :class:`~speclib.Spectrum` with
+wavelength, flux, and metadata, including any instrument provenance and
+coverage. ``get_flux()`` returns only a one-dimensional Astropy quantity
+aligned with ``grid.wavelength``.
 
-Retrieval
----------
+Both interpolate by default. Use ``interpolate=False`` for the nearest
+loaded model. Missing corners and boundary behavior depend on the library;
+see :doc:`interpolation`.
 
-.. code-block:: python
+Inspecting a grid
+-----------------
 
-   flux = grid.get_flux(3100, 4.5, metallicity=0.0, interpolate=True)
-   spectrum = grid.get_spectrum(3100, 4.5, metallicity=0.0, interpolate=True)
+``grid.teffs``, ``grid.loggs``, and ``grid.metallicities`` contain the loaded
+axis values; the corresponding ``grid_*`` attributes describe the library's
+available axes. ``grid.points`` lists combinations actually loaded, which
+matters for incomplete grids. ``grid.data`` has shape
+``(number_of_models, number_of_wavelength_samples)``; ``grid.unit`` gives its
+flux unit. ``grid.metallicity_type`` identifies native [Fe/H] or [M/H].
 
-``get_flux()`` returns a one-dimensional Astropy ``Quantity`` aligned with
-``grid.wavelength``. ``get_spectrum()`` uses the same interpolation and returns
-an ordinary Speclib ``Spectrum`` with independent wavelength, flux and metadata.
-Both accept the same parameter-selection arguments; ``interpolate=False``
-selects the nearest loaded model.
+Constructor bounds expand outward to bracket grid points. Bounds beyond the
+library range are clipped with a warning; reversed or malformed bounds raise
+``ValueError``. Retrieval outside the loaded bounds also raises ``ValueError``;
+retrieval stays within those bounds.
 
-Instrument provenance and detector coverage survive extraction:
+Broadening grids
+----------------
 
-.. code-block:: python
-
-   # Start with a high-resolution grid covering the mode and its padding.
-   observed_grid = high_resolution_grid.observed_by("jwst/nirspec/g395h/f290lp")
-   spectrum = observed_grid.get_spectrum(5750, 4.5, 0.0)
-   print(spectrum.valid_intervals)
-
-The extracted spectrum's :meth:`~speclib.Spectrum.resample` and
-:meth:`~speclib.Spectrum.bin` respect those intervals. See
-:doc:`instrument_profiles` for source-resolution requirements and gap handling.
-
-Resolution methods operate on every stored spectrum, return independent grid
-objects, and reuse one convolution plan. Constructor keywords
-``spectral_resolution`` and ``spectral_resolving_power`` provide the constant
-width and constant-R operations respectively; specify at most one. Variable
-resolving power is available as a method after construction.
+The :doc:`resolution` methods return new grids without reloading models.
+Constructor options ``spectral_resolution`` and ``spectral_resolving_power``
+apply constant width or constant R; choose at most one. Variable R is
+available as a method after construction. Use :doc:`instrument_profiles`
+for instrument-specific matching.
 
 Binned grids
 ------------
 
-:class:`~speclib.BinnedSpectralGrid` loads and bins each model into supplied
-``center`` and ``width`` arrays. Its retrieval method is still named
-``get_spectrum`` and returns a flux quantity. This class shares much of the
-interpolation behavior across three axes but does not use the newer clipping
-helper; requests outside its declared parameter axes can therefore fail during
-construction rather than being clipped. Prefer ``SpectralGrid`` unless
-precomputed bins materially reduce repeated work.
+:class:`~speclib.BinnedSpectralGrid` precomputes explicit bins for each model.
+Its ``get_spectrum()`` returns a flux quantity; centers and widths belong to
+the grid. Constructor bounds must lie within the library's parameter range;
+out-of-range bounds can fail during loading. Prefer ``SpectralGrid`` unless
+precomputed bins save substantial repeated work.
+
+The :doc:`spectral-grids notebook <../tutorials/spectral_grids>` compares
+exact, nearest, and interpolated spectra using a small synthetic grid.

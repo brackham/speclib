@@ -1,71 +1,51 @@
-speclib documentation
-=====================
+speclib
+========
 
-``speclib`` provides tools for loading, interpolating, resampling,
-binning, broadening, and synthesizing photometry from stellar model spectra.
-It currently supports PHOENIX ACES (`Husser et al. 2013
-<https://doi.org/10.1051/0004-6361/201219058>`_), MPS-ATLAS (`Kostogryz et
-al. 2023 <https://doi.org/10.3847/2515-5172/acc180>`_), SPHINX (`Iyer et al.
-2023 <https://doi.org/10.3847/1538-4357/acabc2>`_), PHOENIX/1D NewEra spectra
-(`Hauschildt et al. 2025
-<https://doi.org/10.1051/0004-6361/202554171>`_), and the discrete 3D-MHD
-stellar surface-component spectra of `Smitha et al. (2025)
-<https://doi.org/10.3847/2041-8213/ad9aaa>`_, and center-to-limb specific
-intensities from `Kostogryz et al. (2026)
-<https://arxiv.org/abs/2606.21912>`_.
+``speclib`` loads and interpolates stellar model spectra, matches spectral
+resolution, resamples and bins spectra, and calculates synthetic photometry.
+Wavelengths, fluxes, and specific intensities carry Astropy units.
 
-The package provides :class:`~speclib.Spectrum` and
-:class:`~speclib.SpectralGrid` for flux spectra, plus
-:class:`~speclib.SpecificIntensitySpectrum` and
-:class:`~speclib.SpecificIntensityGrid` for angle-dependent intensities. Units
-remain explicit throughout.
+Start with :doc:`installation` and the :doc:`quickstart`. Explore the
+:doc:`downloadable tutorials <tutorials/index>`, find a task in the
+:doc:`user guide <user_guide/index>`, or look up a method in the
+:doc:`API reference <api/index>`.
 
-Install the current development release with:
+The :doc:`model-library reference <models/index>` and
+:doc:`instrument reference <user_guide/instrument_provenance>` describe
+available data, configurations, sources, and scientific limitations.
 
-.. code-block:: console
+.. toctree::
+   :hidden:
+   :caption: Getting started
 
-   python -m pip install git+https://github.com/brackham/speclib.git
-
-A minimal spectrum that requires no download is only a few lines:
-
-.. code-block:: python
-
-   import astropy.units as u
-   import numpy as np
-   from speclib import Spectrum
-
-   wavelength = np.linspace(5000, 5100, 1001) * u.AA
-   flux = np.ones(wavelength.size) * u.erg / (u.s * u.cm**2 * u.AA)
-   spectrum = Spectrum(spectral_axis=wavelength, flux=flux)
-   sampled = spectrum.resample(np.linspace(5010, 5090, 81) * u.AA)
-
-Start with the :doc:`quickstart`, work through the downloadable
-:doc:`tutorials/index`, or go directly to the :doc:`api/index`. Before
-downloading a model grid, read :doc:`models/index` for coverage, archive size,
-cache behavior, citations, and limitations.
-
-New users
-   :doc:`installation` · :doc:`quickstart` · :doc:`tutorials/index`
-
-Scientific reference
-   :doc:`user_guide/index` · :doc:`models/index` · :doc:`api/index`
-
-Project links
--------------
-
-`GitHub <https://github.com/brackham/speclib>`_ · :doc:`citation` ·
-:doc:`changelog` · :doc:`contributing`
+   installation
+   quickstart
 
 .. toctree::
    :hidden:
    :maxdepth: 2
 
-   installation
-   quickstart
-   user_guide/index
    tutorials/index
+   user_guide/index
+
+.. toctree::
+   :hidden:
+   :caption: Scientific reference
+   :maxdepth: 2
+
    models/index
+   user_guide/instrument_provenance
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+
    api/index
+
+.. toctree::
+   :hidden:
+   :caption: Project
+
    citation
-   changelog
    contributing
+   changelog

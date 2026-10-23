@@ -1,16 +1,14 @@
 Resampling, binning, and spectral resolution
 ============================================
 
-Sampling and resolution are separate. :meth:`speclib.Spectrum.resample`
-changes the coordinate samples but does not apply a calibrated line-spread
-function. :meth:`speclib.Spectrum.bin` reports mean flux density in explicit
+Use :meth:`speclib.Spectrum.resample` to change wavelength samples and
+:meth:`speclib.Spectrum.bin` to measure mean flux density in explicit
 intervals. The resolution methods below apply Gaussian broadening but retain
 the exact input samples; resample afterward when detector sampling is also
 required.
 
 Spectral resolution and resolving power describe different broadening laws.
-All three broadening operations return new objects. Returned spectra and grids
-contain independent copies of mutable axis and grid state.
+All three broadening operations return independent objects.
 
 Constant wavelength resolution
 ------------------------------
@@ -60,8 +58,7 @@ returned interval.
 
 The stationary Gaussian is applied to flux per logarithmic wavelength
 interval. When expressed as :math:`F_\lambda`, an isolated feature therefore
-has a log-normal-like profile rather than a profile exactly symmetric in
-linear wavelength. This convention is intended primarily for ordinary
+has a log-normal-like profile with slight asymmetry in linear wavelength. This convention is intended primarily for ordinary
 astronomical resolving powers, where the distinction is small.
 
 Variable resolving power
@@ -80,11 +77,9 @@ wavelength and resolving-power arrays and linearly interpolates
        curve_resolving_power,
    )
 
-The sampled curve must cover the full wavelength range of the input spectrum;
-the method does not extrapolate. :math:`R(\lambda)` is intended to vary
-smoothly relative to a local resolution element. A resolving-power curve by
-itself is not sufficient to describe an instrument whose line-spread function
-changes substantially across one local FWHM; such cases require a calibrated
+The sampled curve must cover the full input wavelength range.
+:math:`R(\lambda)` should vary smoothly across a local resolution element.
+Rapid changes in the line-spread function require a calibrated
 wavelength-dependent LSF.
 
 Each input wavelength contributes a source-centered Gaussian with its local
@@ -103,26 +98,20 @@ constant resolving power, this criterion is evaluated in log wavelength and
 is locally equivalent to two samples across :math:`\lambda/R`.
 Undersampled requests raise ``ValueError``.
 
-Constant-width operations use an internal uniform grid with at least ten
-samples per Gaussian FWHM and no coarser spacing than the finest input
-interval. Variable resolving power instead uses an adaptive grid whose local
-spacing follows the requested FWHM. Before allocating either representation,
-``speclib`` estimates work and memory requirements and rejects impractical
-operations.
+Very fine input sampling or broad wavelength ranges can require large temporary
+grids. Requests exceeding the work or memory limits raise ``ValueError``.
 
 Edges, flux, and ancillary state
 --------------------------------
 
 Constant-width convolution extends the endpoint value beyond each boundary.
 Variable-width kernels are truncated and renormalized at the returned
-wavelength limits. No missing spectrum is reconstructed outside the observed
-range, and edge line-spread functions should not be interpreted as complete
-instrument profiles. Guarantees for interior resolution, centroid, and flux
-conservation do not apply near a boundary.
+wavelength limits. These boundary treatments alter the line-spread function
+near the endpoints, where line widths, centroids, and integrated flux can
+differ from their interior behavior.
 
-Masks and uncertainties require scientifically explicit propagation rules.
-Because those rules are not implemented, spectra containing either are
-rejected instead of silently dropping or copying unsupported state.
+Resolution methods reject spectra with masks or uncertainties because their
+propagation is not implemented.
 
 All resolution operations assume that the intrinsic input line width is
 negligible relative to the requested broadening. They do not deconvolve a

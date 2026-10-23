@@ -21,14 +21,14 @@ regular backbone of **2300--7000 K by 100 K, then 7200--12000 K by 200 K**;
 Log g spacing is 0.5 dex and metallicity spacing is 0.5 dex. For
 -2.0 <= [M/H] <= 0.0, a subset has [alpha/Fe] from -0.2 to +1.2 in 0.2 dex
 steps. The scientific grid is explicitly incomplete because some static
-atmospheres are physically unavailable. Independent axis membership does not
-establish that a model tuple exists.
+atmospheres are physically unavailable. Check the released inventory for
+available parameter combinations.
 
 Sparse native models at 3350, 5770, 6050, and 6060 K are available in the main
 reduced products; HSR also includes the named 9602 K Vega model. Exact
 ``Spectrum.from_grid`` requests consult the selected product's inventory or
-headers, including these special models. They are not added as global
-interpolation planes.
+headers, including these special models. Interpolation uses the regular
+temperature sequence above.
 
 Reduced flavors
 ---------------
@@ -36,8 +36,8 @@ Reduced flavors
 All three selectors read the upstream Gaia-style text format: a header and
 one flux row per model, with linear wavelength samples in nm and flux in
 ``W / (m2 nm)``. The following values come from the V3 files' own headers;
-the step is a sampling interval, not a verified Gaussian FWHM or resolving
-power.
+the step gives the spacing between wavelength samples. The headers provide
+no verified Gaussian FWHM or resolving power.
 
 .. list-table:: Which NewEra flavor should I use?
    :header-rows: 1
@@ -63,12 +63,12 @@ power.
      - 250--2500 nm, 0.01 nm step (225001 samples)
      - 18.2 GB
      - General reduced optical/near-IR spectra
-     - You need denser linear sampling and UV-to-K-band coverage, but not the
-       JWST product's long-wavelength reach.
+     - You need UV-to-K-band coverage with denser linear sampling.
 
-The names describe upstream products; ``speclib`` does not apply an
-instrument line-spread function when loading them. Do not equate the tabulated
-step directly with physical resolution.
+The names identify the upstream products. To match an instrument
+line-spread function after loading, use :doc:`../user_guide/resolution`.
+Choose a target resolution compatible with the model's intrinsic resolution
+and wavelength sampling.
 
 Cache and extraction
 --------------------
@@ -90,7 +90,7 @@ The loader extracts the requested metallicity/alpha text member on demand.
 For every NewEra selector, ``metallicity`` is native [M/H] and ``mh`` is a
 native alias. No [Fe/H]-to-[M/H] conversion is performed. Returned spectra
 record ``meta["metallicity"]`` and ``meta["metallicity_type"] = "mh"``.
-The upstream ``Z`` filename label is not a metal mass fraction.
+The upstream ``Z`` filename label denotes [M/H].
 
 The HSR filter helper uses ``metallicity_range``:
 
@@ -120,16 +120,15 @@ replaces the additional-model text list removed in release 3.5; there is no
 fallback to an older repository release. Main V3 spectra take precedence
 where the two inventories overlap.
 
-The public ``download_newera_hsr_subset`` utility
-is not exported at package root and its unconstrained collection is
-approximately 4.5 TB. Prefer one of the reduced flavors unless a scientific
+Call ``download_newera_hsr_subset`` through ``speclib.utils``.
+The full HSR collection is approximately 4.5 TB. Prefer one of the reduced flavors unless a scientific
 requirement specifically demands HSR data. This downloader filters actual
 native tuples by inclusive parameter ranges, including special models.
 
 HSR and reduced availability are distinct. The main Gaia/JWST/LowRes archives
 share an alpha-zero model set; their archive loaders do not automatically
 include the separate ``add001`` reduced files in record 18108. These supplemental
-products add [M/H] = +0.5 combinations, not new temperature planes. The Gaia
+products add [M/H] = +0.5 combinations at existing temperatures. The Gaia
 archive filename retains the upstream ``v3.4`` suffix in release 3.5.
 ``SPECLIB_NEWERA_RECORD_ID`` still overrides the main release record; a custom
 record uses its own inventory without merging the canonical supplemental
@@ -139,18 +138,16 @@ Interpolation and caveats
 -------------------------
 
 For reduced grids, interpolation fixes ``alpha`` and is trilinear in
-Teff, log g, and metallicity when all corners exist. Valid off-grid
-``Spectrum.from_grid`` requests do not probe a nonexistent metallicity filename
-for the requested coordinates. Interpolation uses only the required native
-models on the regular backbone and raises ``ValueError`` if a corner is missing.
-Exact native models, including special temperatures, retain their existing
-retrieval behavior. In a ``SpectralGrid``, a missing corner falls back to
+Teff, log g, and metallicity when all corners exist. ``Spectrum.from_grid``
+loads the required native models on the regular backbone
+and raises ``ValueError`` if a corner is missing. Special temperatures remain
+available by exact lookup. In a ``SpectralGrid``, a missing corner falls back to
 nearest-neighbor evaluation.
 
 Exact native retrieval retains the one-decimal metallicity filename lookup
 (including ``Z-0.0`` for solar metallicity). When ``interpolate=False``, the
-existing requested-plane lookup and independent-axis nearest selection remain
-unchanged; an unavailable rounded metallicity file can still raise
+loader uses requested-plane lookup and independent-axis nearest selection;
+an unavailable rounded metallicity file can raise
 ``FileNotFoundError``.
 
 Metallicities outside the supported interpolation range raise
@@ -159,8 +156,8 @@ model. In that case, metadata records the selected native metallicity.
 
 Reduced grid loaders warn for nonzero alpha because alpha-enhanced reduced
 products are not yet reliably supported. The upstream alpha coverage is only
-a subset even within its stated metallicity range. Do not interpret a request
-that merely lies on a declared axis as proof that a file exists.
+a subset even within its stated metallicity range. Check the inventory for
+available combinations.
 
 For publication, cite Hauschildt et al. (2025) and the FDR data release, in
 addition to :doc:`../citation` for ``speclib``.

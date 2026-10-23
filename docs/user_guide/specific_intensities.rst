@@ -28,7 +28,7 @@ Loading and selecting a disk position
    spec = grid.at_mu(0.5)
 
 ``grid.mu`` lists the available disk positions. ``at_mu`` requires an exact
-native value and does not interpolate.
+native value.
 
 Working with a spectrum
 -----------------------
@@ -47,4 +47,4 @@ preserve the specific-intensity class, metadata, and ``sr^-1`` unit.
 The :doc:`../models/kostogryz2026` page lists the stellar models, metallicities,
 and magnetic states. The spectra are available only at their native
 :math:`\mu` values and use nonuniform, low-resolution ODF sampling. They are
-specific intensities, not disk-integrated flux spectra.
+angle-dependent specific intensities.

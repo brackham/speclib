@@ -1,9 +1,9 @@
 Model libraries
 ===============
 
-Model spectra are external scientific data products, not bundled package
-examples. Each family has its own physical assumptions, coordinate coverage,
-sampling, completeness, citation, and storage cost. Read the matching page
+Model spectra are downloaded from external archives. Each library has its own
+physical assumptions, parameter coverage, sampling, completeness, citation,
+and storage cost. Read the matching page
 before selecting a product or ``model_grid`` value.
 
 .. toctree::

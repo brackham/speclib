@@ -17,6 +17,11 @@ class Filter(object):
 
     Loads filter metadata and response curve from local ECSV and text files.
 
+    Parameters
+    ----------
+    name : str
+        Packaged filter name, for example ``"2MASS J"`` or ``"Bessell V"``.
+
     Attributes
     ----------
     name : str
@@ -66,13 +71,37 @@ class Filter(object):
 
     @u.quantity_input(wavelength=u.AA)
     def resample(self, wavelength, taper=True):
-        """Resample the filter response curve onto a new wavelength grid."""
+        """Resample the response in place.
+
+        Parameters
+        ----------
+        wavelength : `~astropy.units.Quantity`
+            New wavelength centers, with units.
+        taper : bool, optional
+            Allow zero throughput beyond the original response endpoints.
+
+        Returns
+        -------
+        None
+            The updated response is stored in ``self.response``.
+        """
         self.response = self.response.resample(wavelength, taper=taper)
 
 
 class SED(object):
     """
     A spectral energy distribution derived from a spectrum and a set of filters.
+
+    Parameters
+    ----------
+    spec : `~speclib.Spectrum`
+        Flux-density spectrum covering the filter bands.
+    filters : sequence of `~speclib.Filter`
+        Filters to apply, in output order. Their responses may be resampled
+        in place by :func:`apply_filter`.
+    model_grid : str, optional
+        Fallback library label for the supplied spectrum when it has no
+        ``model_grid`` attribute.
 
     Attributes
     ----------

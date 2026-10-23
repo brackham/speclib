@@ -29,6 +29,7 @@ version = release
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "_notebook_downloads",
     "myst_nb",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -40,8 +41,11 @@ myst_enable_extensions = [
 ]
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+templates_path = ["_templates"]
 autosummary_generate = True
 autodoc_typehints = "description"
+# Grid constructors document their parameters in __init__.
+autoclass_content = "both"
 
 # Every tutorial is deliberately lightweight and offline.  Executing notebooks
 # here keeps rendered output synchronized with the source checkout without
@@ -57,6 +61,7 @@ nb_execution_raise_on_error = True
 html_theme = "furo"
 html_title = f"speclib {release}"
 html_theme_options = {
+    "top_of_page_buttons": ["view"],
     "source_repository": "https://github.com/brackham/speclib/",
     "source_branch": "main",
     "source_directory": "docs/",

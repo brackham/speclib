@@ -25,28 +25,7 @@ Public profile attributes include:
 
 .. autofunction:: speclib.list_instrument_profiles
 
-See :doc:`../user_guide/instrument_provenance` for the source-record specification
-and :doc:`../development/instrument_profiles` for contributor requirements.
-
-NIRSpec short identifiers retain BOTS/S1600A1/SUB2048 as their default.
-Additional canonical identifiers use
-``jwst/nirspec/bots/s1600a1/<subarray>/<disperser>/<filter>`` for SUB1024A,
-SUB1024B, SUB512 and SUB512S. The last two are distinct configurations sharing
-nominal intervals and R data. PRISM/CLEAR with SUB1024A is unavailable.
-``provenance`` records shared subarray geometry, coverage retrieval date and
-physical detector gaps separately from the selected ``valid_intervals``.
-
-NIRCam shorthand ``jwst/nircam/grismr/<filter>`` selects the canonical
-``jwst/nircam/tsgrism/modulea/grismr/<filter>`` setup. Grism C, Module B and
-wide-field slitless configurations are unsupported.
-
-Instrument matching returns ordinary spectra/grids with explicit
-``valid_intervals`` metadata. See :attr:`speclib.Spectrum.valid_intervals` and
+See :doc:`../user_guide/instrument_provenance` for supported configurations,
+source records, and scientific assumptions. Instrument matching retains
+:attr:`speclib.Spectrum.valid_intervals` and
 :attr:`speclib.SpectralGrid.valid_intervals`.
-
-MIRI shorthand ``jwst/miri/lrs/slitless`` selects the canonical
-``jwst/miri/lrs/slitless/slitlessprism`` profile: P750L, conventional
-SLITLESSPRISM time series only. IP/IPS, fixed slit, WFSS and MRS are unsupported.
-
-WFC3/UVIS G280 has no bundled profile or default alias. Lookup rejects it;
-see :ref:`g280-calibration-status` for the conditional calibration decision.

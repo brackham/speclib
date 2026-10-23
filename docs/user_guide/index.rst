@@ -1,9 +1,9 @@
 User guide
 ==========
 
-These pages explain the public objects and the scientific meaning of their
-operations. The :doc:`../tutorials/index` provides executable workflows; the
-:doc:`../api/index` gives signatures and docstrings.
+Short guides to common tasks. For worked examples, see the
+:doc:`../tutorials/index`; for signatures and parameters, see the
+:doc:`../api/index`.
 
 .. toctree::
    :maxdepth: 1
@@ -15,5 +15,4 @@ operations. The :doc:`../tutorials/index` provides executable workflows; the
    interpolation
    resolution
    instrument_profiles
-   instrument_provenance
    photometry

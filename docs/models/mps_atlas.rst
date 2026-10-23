@@ -23,9 +23,9 @@ center-to-limb intensities are not loaded.
 Two discrete sets
 -----------------
 
-Set 1 and Set 2 are different scientific flavors. A spectrum or
-:class:`~speclib.SpectralGrid` always fixes one set before exact lookup,
-nearest selection, or interpolation; the sets are never blended.
+Set 1 and Set 2 use different abundance mixtures and mixing-length treatments.
+Each spectrum or :class:`~speclib.SpectralGrid` uses one set for lookup,
+nearest selection, and interpolation.
 
 .. list-table:: MPS-ATLAS selectors
    :header-rows: 1
@@ -48,11 +48,9 @@ nearest selection, or interpolation; the sets are never blended.
      - Set 1
      - alias of ``mps-atlas-set1``
 
-The generic alias preserves the meaning of the former single-set
-compatibility path and provides a convenient default. It does not imply that
-Set 1 is scientifically preferable for every application. Loaded objects
-record the canonical selector (``mps-atlas-set1`` or ``mps-atlas-set2``) and
-the corresponding ``model_set`` value.
+``mps-atlas`` defaults to Set 1. Choose a set based on its abundance mixture
+and mixing-length treatment. Metadata records the canonical selector and
+``model_set``.
 
 Parameter and wavelength grids
 ------------------------------
@@ -68,27 +66,21 @@ Both released sets declare 34,160 nominal combinations on these axes:
 The ``metallicity`` argument to :meth:`speclib.Spectrum.from_grid` selects
 the upstream **[M/H]** coordinate for this family; ``mh`` is a native alias.
 No abundance conversion is performed. Returned metadata records
-``metallicity`` and ``metallicity_type="mh"``. Each archive is indexed
-independently from its actual member names, so a nominal axis value is not
-treated as proof that a particular combination exists.
+``metallicity`` and ``metallicity_type="mh"``. Each archive is indexed from
+its filenames to identify the available parameter combinations.
 
 Every spectrum contains 1221 nonuniform Kurucz ODF intervals from about
 9.09 nm to 160,000 nm (160 micrometers). Across much of the optical and
 infrared the local interval spacing is roughly
 :math:`\lambda/\Delta\lambda \sim 250`, and it is lower in parts of the UV.
-That ratio characterizes tabulation, not a measured or Gaussian resolving
-power. The terminal infrared intervals are very coarse, and the enormous
-nominal wavelength span should not be interpreted as uniform information
-content or sensitivity. Use PHOENIX or an appropriate NewEra product when
+This ratio describes wavelength spacing. The ODF intervals are broad, with
+very coarse sampling at the infrared end. Their widths do not define a
+calibrated Gaussian line-spread function. Use PHOENIX or an appropriate NewEra product when
 line-resolved or substantially higher-sampling spectra are required.
 
-The v3 flux files share a mostly ascending ODF coordinate sequence with one
-local reversal near 91 nm. During loading, ``speclib`` stably sorts wavelength
-and flux together into ascending order before interpolation or construction of
-a :class:`~speclib.Spectrum`. Exact repeated coordinates, if encountered, are
-collapsed only when their paired flux values agree to tight numerical
-precision; conflicting duplicates raise ``ValueError``. Merely close
-wavelengths remain distinct.
+A local wavelength reversal near 91 nm is sorted together with the flux during
+loading. Conflicting duplicate wavelengths raise ``ValueError``; near but
+distinct wavelengths are retained.
 
 Units and physical conversion
 -----------------------------
@@ -104,7 +96,7 @@ density in ``erg / (s cm2 Å)``, matching the package convention.
 Download and cache behavior
 ---------------------------
 
-Edmond distributes whole-set archives rather than individual stellar models.
+Edmond distributes one archive per set.
 The first request for a set therefore downloads about 9.5 GB. Check available
 space and choose the library root before loading:
 
@@ -116,22 +108,12 @@ space and choose the library root before loading:
    set_library_root("/data/stellar-models")
    download_mps_atlas_grid("set2")
 
-The helper resolves the archive through the DOI-backed Edmond dataset API,
-checks release metadata against the v3 size and published MD5, and lets pooch
-verify the download. The cache layout is:
-
-.. code-block:: text
-
-   <library root>/mps-atlas/set1/set1.zip
-   <library root>/mps-atlas/set2/set2.zip
-
-The selected ZIP is retained and indexed separately. Requested flux members
-are read directly from it; atmosphere and intensity members are not extracted.
-Repeated requests reuse the archive and in-process index. Passing
-``overwrite=True`` clears and refreshes only the selected set. A corrupt
-cached archive is removed with an actionable error. Old manually arranged
-files directly under ``mps-atlas`` are not silently interpreted as Set 1;
-move to the new set-specific cache through the downloader.
+Archives are checked against v3 sizes and published MD5 hashes, and cached as
+``<library root>/mps-atlas/set1/set1.zip`` or ``set2/set2.zip``. Requested
+flux members are read directly from the ZIP; atmosphere and intensity members
+are not extracted. ``overwrite=True`` refreshes only the selected set.
+Corrupt caches raise an error and are removed. Old files directly under
+``mps-atlas`` need replacing through the set-specific downloader.
 
 Retrieval examples
 ------------------
@@ -165,18 +147,14 @@ with distances scaled by the typical step of each axis. With
 ``interpolate=True``, interpolation is trilinear in Teff, log g, and [M/H]
 only. All required corners must exist in that same set and share an identical
 wavelength axis; otherwise loading raises ``ValueError``. Requests beyond the
-selected archive's parameter range also raise ``ValueError`` rather than
-extrapolating.
+selected archive's parameter range also raise ``ValueError``.
 
 Center-to-limb data
 -------------------
 
-The v3 archives also contain ``mpsa_intensity_spectra.dat`` at 24 positions
-from :math:`\mu=1.0` to 0.01. These specific intensities are valuable for
-limb-darkening and stellar-disk calculations, but :math:`\mu` does not fit the
-current three-parameter :class:`~speclib.SpectralGrid` model. They remain out
-of scope pending a dedicated public API; loading disk-integrated spectra does
-not extract or integrate them.
+The archives also contain ``mpsa_intensity_spectra.dat`` at 24 disk positions
+from :math:`\mu=1.0` to 0.01. These intensities are not loaded or integrated
+by the current API.
 
 For publication, cite Kostogryz et al. (2023), the Edmond data release,
 Witzke et al. (2021), and Kostogryz et al. (2022), in addition to
