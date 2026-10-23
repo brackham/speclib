@@ -9,113 +9,180 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0b13] - 2026-10-23
+
 ### Added
 
-- Added 35 NIRSpec BOTS/S1600A1 profiles for SUB1024A (except PRISM),
-  SUB1024B, SUB512 and SUB512S, with STScI nominal coverage, disconnected
-  intervals and shared offline resolving-power calibrations. Existing short
-  NIRSpec identifiers continue to select SUB2048.
-
-- Added a nominal JWST/MIRI P750L/SLITLESSPRISM time-series profile, with
+- Added an offline `InstrumentProfile` registry with `get_profile()`,
+  `list_instrument_profiles()`, and 55 HST/JWST profiles. Bundled resolving-power
+  curves, coverage definitions, source manifests, and reproducible conversion
+  scripts expose scientific provenance through `InstrumentProfile.provenance`.
+- Added 44 JWST/NIRSpec BOTS/S1600A1 profiles: nine SUB2048 configurations and
+  35 configurations for SUB1024A (except PRISM), SUB1024B, SUB512, and SUB512S.
+  They share official STScI wavelength-dependent resolving-power curves and use
+  subarray-specific nominal coverage, including disconnected intervals.
+  Short NIRSpec identifiers select SUB2048.
+- Added HST/STIS G430L and G750L profiles for centered point sources through
+  52X2, HST/WFC3 IR G102 and G141 profiles for unresolved sources at field
+  center, and separate JWST/NIRISS SOSS CLEAR/SUBSTRIP256 orders 1 and 2.
+  SOSS order 2 uses conservative 0.6–1.0 µm coverage; orders are not stitched.
+- Added four JWST/NIRCam Module A Grism R first-order time-series profiles
+  (F277W, F322W2, F356W, F444W), with a shared wavelength-dependent nominal
+  resolving-power prescription and filter-specific coverage. F277W's blue and
+  F444W's red output limits preserve model support for convolution padding.
+- Added a JWST/MIRI P750L/SLITLESSPRISM time-series profile with nominal
   wavelength-dependent design resolving power, conservative 5.5–12 µm output,
-  offline provenance and deterministic reproduction.
-
-- Added four nominal JWST/NIRCam Module A Grism R time-series profiles
-  (F277W, F322W2, F356W, F444W), with a shared wavelength-dependent
-  resolving-power prescription, offline provenance and filter-specific coverage.
-
-- Added six instrument profiles for HST/STIS G430L and G750L, HST/WFC3 G102
-  and G141, and separate JWST/NIRISS SOSS orders 1 and 2, with bundled
-  resolution prescriptions, offline provenance and documented coverage.
-- Bundled nine NIRSpec BOTS/S1600A1/SUB2048 instrument profiles with official
-  STScI wavelength-dependent resolving-power curves, offline lookup and
-  programmatic scientific provenance through `InstrumentProfile.provenance`.
+  and 5–14 µm model support. These output limits are modeling choices rather
+  than empirical instrument cutoffs.
 - Added `Spectrum.observed_by()` and `SpectralGrid.observed_by()` for nominal
-  Gaussian instrument-resolution matching and automatic wavelength coverage,
-  preserving native sampling or accepting explicit/resolution-matched sampling.
-- Added explicit `valid_intervals` detector coverage and gap-aware resampling,
-  binning and wavelength selection, with rejection of unsafe gap-crossing work.
-
+  Gaussian resolution matching and wavelength coverage. They retain native
+  samples by default or accept explicit wavelengths or
+  `samples_per_resolution_element`. Continuous source spectra are convolved
+  with padding before detector gaps and unread subarray regions are excluded.
+  Profiles describe nominal resolution and coverage, not exposure-specific
+  LSFs; input widths must be negligible, and throughput, noise, slit losses,
+  non-Gaussian LSFs, and deconvolution are not modeled. Source and calibration
+  coverage must include convolution padding; neither is extrapolated.
+- Added explicit `valid_intervals` coverage and gap-aware `resample()`, `bin()`,
+  and inclusive `select_wavelength()` with copied metadata. Resampling and
+  binning reject bins crossing gaps or sampled coverage boundaries; broadening,
+  regularization, and repeated instrument matching reject discontinuous inputs.
+  Inherited specutils slicing, arithmetic, and serialization do not enforce
+  these coverage safeguards.
 - Added Smitha et al. (2025) G2V, K0V, and M0V quiet, spot, penumbral, and
-  umbral spectra from the Edmond data release, with direct `Spectrum` access,
-  checksum-validated caching, and no interpolation.
-- Added `download_smitha2025_spectra()` for prefetching one or all of the
-  Smitha et al. spectrum tables into the shared model-library cache.
-- Added first-class MPS-ATLAS Set 1 and Set 2 support, with `mps-atlas`
-  aliasing Set 1, plus automatic archive downloads and caching.
-- Added exact, nearest, and interpolated MPS-ATLAS retrieval through the
-  standard `Spectrum` and `SpectralGrid` APIs.
-- Added MPS-ATLAS wavelength-axis normalization that preserves wavelength-flux
-  pairing while ensuring strictly increasing spectral coordinates.
-- Added wavelength-dependent Gaussian resolving-power support for `Spectrum`
-  and `SpectralGrid` with `set_variable_resolving_power()`.
-- Added support for loading the SPHINX V4 stellar atmosphere grid from Zenodo
-  through `Spectrum.from_grid()` and `SpectralGrid`.
-
-### Documentation
-
-- Documented the conditional deferral of WFC3/UVIS G280 after reviewing
-  wavelength, sensitivity and image-core calibrations; no unsupported spectral
-  FWHM prescription is bundled. The instrument registry remains at 55 profiles.
-  Future G280 calibration and profile work is tracked in
-  [#99](https://github.com/brackham/speclib/issues/99).
-
-- Added the instrument-profiles tutorial, configuration/source tables, scientific
-  assumptions, reproducible calibration conversion and a permanent contributor
-  provenance checklist.
-
-- Added Smitha et al. (2025) model-library documentation covering the discrete
-  surface components, native sampling and flux convention, cache behavior,
-  metadata, scientific limitations, and citations.
-- Added MPS-ATLAS model-library documentation covering Set 1 and Set 2,
-  caching, interpolation behavior, citations, and scientific limitations.
-- Expanded the Read the Docs site with task-based navigation, installation and
-  Quickstart guides, model-library references, a generated API reference, and
-  integrated citation, changelog, and contributing information.
-- Added four rendered and downloadable notebook tutorials with MyST-NB,
-  including a comparison of the NewEra Gaia, JWST, and Low-Res products.
+  umbral spectra through `Spectrum.from_smitha2025()`, with checksum-validated
+  Edmond caching and `download_smitha2025_spectra()` for prefetching one or all
+  tables. Products are discrete, without interpolation. Fluxes are interpreted
+  as emergent surface flux; the release does not specify an air/vacuum
+  convention, so the native wavelength coordinate is retained. Nonuniform
+  native sampling can limit resolution-degradation requests.
+- Added the Kostogryz et al. (2026) angle-dependent specific-intensity library
+  (`kostogryz2026`) from Edmond, with checksum-validated caching and
+  `download_kostogryz2026_spectra()`. Exact selection supports the published
+  F3, G2, K0, K4, M0, M2, and M4 models and their native metallicities, five
+  magnetic states (`hydro`, `ssd`, `B100G`, `B200G`, `B300G`), and ten native
+  disk positions (`mu=0.1` through `1.0`). No interpolation, disk integration,
+  or limb-darkening fitting is provided; spectra use nonuniform, low-resolution
+  ODF sampling ([#80](https://github.com/brackham/speclib/pull/80)).
+- Added `SpecificIntensitySpectrum`, `SpecificIntensityGrid`, and
+  `BinnedSpecificIntensitySpectrum`. `from_library()` loads one native angle
+  or all angles for a model and magnetic state; `SpecificIntensityGrid.at_mu()`
+  selects an exact native angle. Individual spectra support wavelength
+  selection, slicing, resampling, regularization, Gaussian broadening at constant
+  wavelength FWHM, constant R, or wavelength-dependent R, and binning while
+  preserving per-steradian units, metadata, and source provenance.
+- Added first-class disk-integrated MPS-ATLAS Set 1 and Set 2 support, with
+  `mps-atlas` aliasing Set 1. `download_mps_atlas_grid()` and automatic loading
+  acquire checksum-validated Edmond v3 archives and read spectra directly from
+  set-specific ZIP caches. Exact, nearest-available, and trilinear retrieval
+  work through `Spectrum`, `SpectralGrid`, and `BinnedSpectralGrid`; sets are
+  never mixed, and missing corners or incompatible wavelength axes raise errors.
+  Upstream irradiance at 1 AU is converted to surface flux; the archives'
+  center-to-limb intensity products are not exposed.
+- Added SPHINX I V4 loading through `Spectrum.from_grid()`, `SpectralGrid`, and
+  `BinnedSpectralGrid`, with `download_sphinx_grid()` and checksum-validated
+  Zenodo downloads. An explicit `co_ratio` selects a fixed native C/O slice;
+  exact, nearest-available, and trilinear retrieval use actual model inventory,
+  with errors for missing interpolation corners. C/O is not interpolated.
+- Added `set_variable_resolving_power()` to `Spectrum` and `SpectralGrid` for
+  wavelength-dependent Gaussian broadening with unchanged output sampling.
+  Sampled R values are interpolated linearly and must cover the full input
+  axis without extrapolation. The prescription assumes smoothly varying R and
+  negligible intrinsic widths, with sampling, work, and memory safeguards.
+- Added a Python 3.12 installation smoke-test workflow that builds wheel and
+  source distributions, installs the wheel and dependencies in a clean
+  environment, runs `pip check`, compares installed runtime requirements with
+  `pyproject.toml`, and verifies imports using isolated Python.
 
 ### Changed
 
-- `SpectralGrid.get_spectrum()` intentionally returns an independent Speclib
-  `Spectrum` with wavelength, flux and copied metadata, including detector
-  coverage. `get_flux()` retains its interpolated Astropy `Quantity` result.
-  This replaces the prerelease deprecated-alias behavior; no warning is emitted.
-
-- Standardized native metallicity selection on `metallicity`, `metallicity_bds`,
-  and `metallicity_range` across spectra, grids, photometry, and model helpers.
-  Existing positional order and numeric model selection are preserved; no
-  [Fe/H]-to-[M/H] abundance conversion is performed.
+- **Spectrum base class and dependency migration:** `speclib.Spectrum` now
+  subclasses `specutils.Spectrum` instead of `specutils.Spectrum1D`, requiring
+  `specutils>=2,<3` instead of `>=1.9.1,<2`. Update dependency constraints and
+  code relying on the old base class or `Spectrum1D` type checks. Speclib's
+  convenience API and last-spectral-axis defaults remain compatible; upstream
+  arithmetic may return plain `specutils.Spectrum` objects without Speclib's
+  convenience methods.
+- **Breaking metallicity API changes:** standardized native selection on
+  `metallicity`, `metallicity_bds`, and `metallicity_range` across spectra,
+  grids, photometry, and model helpers. Replace generic `feh=` on NewEra,
+  SPHINX, and MPS-ATLAS with `metallicity=` or native `mh=`; `feh=` now raises
+  `ValueError` for these [M/H] grids. PHOENIX-ACES retains warning-free `feh=`.
+  Replace removed `feh_bds`, `feh_range`, `fehs`, and `grid_fehs` names with
+  `metallicity_bds`, `metallicity_range`, `metallicities`, and
+  `grid_metallicities`. Existing positional order and numeric selection are
+  preserved; no [Fe/H]-to-[M/H] conversion is performed. DRIFT-PHOENIX and
+  NextGen retain legacy coordinate behavior apart from shared mechanical renames.
+- Metallicities, bounds, and ranges reject explicit `None`; omit optional
+  arguments to retain defaults. Multiple coordinate forms raise `ValueError`
+  even when equal, and spectral-grid constructors reject scalar metallicity
+  overrides in favor of `metallicity_bds`. Native `mh_bds`/`mh_range` aliases
+  are available for [M/H] grids where applicable. NewEra helpers' `z` and
+  `zscale` keywords remain accepted with deprecation warnings; use `metallicity`.
+- **Breaking `SpectralGrid.get_spectrum()` return change:** in beta 12 this
+  deprecated alias of `get_flux()` returned an Astropy flux `Quantity` and
+  emitted `DeprecationWarning`. It now returns an independent Speclib `Spectrum`
+  with copied wavelength, flux, and metadata, including instrument provenance
+  and detector coverage, without a warning. Call `get_flux()` to retain the old
+  quantity-returning behavior, or access `.flux` on the returned spectrum.
+  `BinnedSpectralGrid.get_spectrum()` still returns a flux `Quantity`.
 - Added `metallicity_type` metadata (`"feh"` for PHOENIX-ACES, `"mh"` for
   NewEra, SPHINX, MPS-ATLAS, and Kostogryz et al. 2026), plus numeric coordinate
-  metadata for spectra and grid axes. Smitha et al. 2025 has no metallicity axis.
-- Kept native `feh=` only for PHOENIX-ACES and added `mh=` for [M/H] grids.
-  Using `feh=` on [M/H] grids raises `ValueError`; multiple coordinate forms
-  also raise `ValueError`, even when equal. Removed the generic prerelease
-  `feh_bds`, `feh_range`, `fehs`, and `grid_fehs` names; use `metallicity_bds`,
-  `metallicity_range`, `metallicities`, and `grid_metallicities`.
-
-- NewEra V3 now targets FDR release 3.5 (record 18108), with explicit
-  supplemental HSR availability from record 17936 and inventory-provided
-  download URLs.
-- Corrected the regular NewEra temperature backbone to 2300--7000 K by 100 K
-  and 7200--12000 K by 200 K. Sparse native special/benchmark models remain
+  metadata for spectra, SEDs, and grid axes. Smitha et al. 2025 has no metallicity
+  axis or metallicity metadata fields.
+- NewEra V3 now targets FDR release 3.5 (record 18108) instead of release 3.4
+  (record 17935), with explicit supplemental HSR availability from record 17936
+  and inventory-provided download URLs. There is no silent fallback to 3.4.
+- The regular NewEra temperature backbone is now 2300–7000 K by 100 K and
+  7200–12000 K by 200 K. Sparse native special/benchmark models remain
   available for exact retrieval without becoming interpolation planes.
 - NewEra grid construction skips missing native tuples, and HSR subset
   downloads filter the actual inventory rather than Cartesian axis products.
-- Migrated `speclib.Spectrum` to `specutils.Spectrum` with `specutils>=2,<3`,
-  preserving the public convenience API and last-spectral-axis defaults.
+- MPS-ATLAS loading replaces the legacy manually populated, undifferentiated
+  cache with set-specific archives. Replace old files directly under
+  `mps-atlas` using `download_mps_atlas_grid()`.
 - `Spectrum.resample()` now preserves an independent copy of input metadata,
   including Smitha et al. source provenance.
 
 ### Fixed
 
 - Fixed reduced NewEra off-grid interpolation failing on nonexistent rounded
-  metallicity filenames. Interpolation loads only required native models and
-  reports missing corners clearly (#88).
+  metallicity filenames. `Spectrum.from_grid()` loads only required native
+  models and reports missing corners clearly; `SpectralGrid` retains its
+  nearest-neighbor fallback for missing corners
+  ([#88](https://github.com/brackham/speclib/issues/88)).
 - `find_bounds()` now selects true interpolation brackets on nonuniform grids,
   preventing spectrum interpolation from using two points on the same side
   of a requested coordinate.
+- MPS-ATLAS wavelength-axis normalization now sorts wavelengths and flux
+  together, preserving their pairing and returning strictly increasing
+  coordinates. Only exact duplicates with consistent fluxes are collapsed;
+  conflicting duplicates raise an error.
+
+### Documentation
+
+- Reorganized Read the Docs around installation, Quickstart, task-based user
+  guides, scientific references, and a generated API reference, with integrated
+  citation, changelog, and contributing information.
+- Added five executable, rendered, and downloadable MyST-NB tutorials:
+  Quickstart, spectral grids, spectral resolution, synthetic photometry, and
+  instrument profiles.
+- Added Smitha et al. (2025), Kostogryz et al. (2026), MPS-ATLAS, and SPHINX
+  library references covering native sampling, units, parameter selection,
+  caching, scientific limitations, metadata, and citations; updated NewEra
+  Gaia/JWST/Low-Res product comparisons and interpolation guidance.
+- Added generated instrument configuration/source tables, scientific assumptions
+  and limitations, and offline provenance references. Reproducible calibration
+  conversion instructions, detailed investigations, and the contributor
+  provenance checklist are retained in `scripts/instruments/README.md`.
+  WFC3/UVIS G280 remains intentionally unsupported because reviewed wavelength,
+  sensitivity, and image-core calibrations do not sufficiently constrain
+  along-dispersion spectral FWHM; follow-up is tracked in
+  [#99](https://github.com/brackham/speclib/issues/99).
+- Improved installation and update instructions for GitHub, local checkouts,
+  and existing installations, including reinstalling after source updates to
+  refresh dependency metadata. Expanded contribution guidance and added bug,
+  feature, and model-library issue forms and a pull-request template.
 
 
 ## [0.1.0b12] - 2026-08-21
