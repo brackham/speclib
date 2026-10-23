@@ -4,8 +4,8 @@ Kostogryz et al. (2026) specific intensities
 The ``kostogryz2026`` library provides the angle-dependent specific
 intensities :math:`I_\lambda(\mu)` from `Kostogryz et al. (2026)
 <https://arxiv.org/abs/2606.21912>`_. They were synthesized with MPS-ATLAS
-from 3D radiative-MHD MURaM simulations. Unlike the ordinary 1D
-:doc:`mps_atlas` grids, these are not disk-integrated flux spectra.
+from 3D radiative-MHD MURaM simulations. These spectra retain the viewing
+direction; :doc:`mps_atlas` provides the 1D disk-integrated flux library.
 
 ``metallicity`` selects native [M/H]. Returned grids and spectra record
 ``meta["metallicity"]`` and ``meta["metallicity_type"] = "mh"``;
@@ -31,8 +31,7 @@ Load all native disk positions for one stellar model and magnetic state:
    spec = grid.at_mu(0.5)
 
 ``grid.mu`` contains the ten native values from 0.1 to 1.0 in steps of 0.1,
-where :math:`\mu=\cos\theta`. ``grid.at_mu`` accepts only these values. No
-interpolation is performed.
+where :math:`\mu=\cos\theta`. ``grid.at_mu`` selects an exact native value.
 
 Available models
 ----------------
@@ -68,15 +67,15 @@ Available models
 
 Each model has five magnetic states: ``hydro``, ``ssd``, ``B100G``,
 ``B200G``, and ``B300G``. ``hydro`` is non-magnetic and ``ssd`` is the
-small-scale-dynamo simulation. The last three labels give the imposed vertical
-field in the simulation setup; they are not local surface-field strengths.
+small-scale-dynamo simulation. The last three labels give the vertical field
+imposed in the simulation setup. Local surface-field strengths vary.
 
 Data properties
 ---------------
 
 The spectra cover 200.50003--9980.0014 nm at 978 nonuniform vacuum
 wavelengths. They use low-resolution ODF sampling, approximately
-:math:`R\sim400` in the visible, rather than a constant-resolution grid.
+:math:`R\sim400` in the visible, with resolution varying across the spectrum.
 Specific intensities are returned in
 ``erg / (s cm2 sr Angstrom)`` with wavelengths in Å.
 

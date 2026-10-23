@@ -39,11 +39,10 @@ On a loaded Speclib spectrum:
 observed = spectrum.observed_by("jwst/nirspec/g395h/f290lp")
 ```
 
-The corresponding `SpectralGrid` method matches every model. Nine bundled
-BOTS/S1600A1/SUB2048 profiles provide nominal wavelength-dependent resolution
-and detector coverage offline. Native wavelength sampling is preserved by
-default; detector gaps are explicit. This is Gaussian resolution matching, not
-an observation simulation. See the [instrument-profile guide](docs/user_guide/instrument_profiles.rst)
+The corresponding `SpectralGrid` method matches every model. Bundled profiles for STIS, WFC3/IR, NIRISS/SOSS, NIRSpec/BOTS, NIRCam,
+and MIRI/LRS provide nominal wavelength-dependent resolution and coverage offline. Native wavelength sampling is preserved by
+default; detector gaps are explicit. Profiles match nominal Gaussian resolution
+and wavelength coverage. See the [instrument-profile guide](docs/user_guide/instrument_profiles.rst)
 and [scientific provenance](docs/user_guide/instrument_provenance.rst) for examples,
 original calibration links and assumptions.
 

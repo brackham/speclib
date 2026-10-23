@@ -1,57 +1,54 @@
 Spectra
 =======
 
-A :class:`~speclib.Spectrum` represents one flux-density array aligned with a
-spectral coordinate. It subclasses :class:`specutils.Spectrum` (specutils 2.x),
-so standard spectrum attributes and slicing are available; ``speclib`` adds model
-loading, resampling, regularization, binning, and spectral broadening.
-
-Units and model loading
------------------------
-
-Constructors accept ``spectral_axis`` and ``flux`` as quantities with units. A
-spectrum returned by :meth:`speclib.Spectrum.from_grid` is sorted in ascending
-wavelength and converted to Å and
-``erg / (s cm2 Å)``, regardless of the source product's storage units.
-The conversion does not change a source product's air/vacuum convention.
-PHOENIX products are stellar surface flux densities tabulated at vacuum
-wavelengths; no stellar radius or distance scaling is applied.
-
-Use explicit keywords when constructing a spectrum:
+Create a spectrum from wavelength and flux-density quantities:
 
 .. code-block:: python
 
-   spectrum = Spectrum(flux=flux, spectral_axis=wavelength)
+   import astropy.units as u
+   import numpy as np
+   from speclib import Spectrum
 
-For multidimensional containers, an explicit spectral coordinate defaults to
-the last flux dimension, and FITS WCS inputs move the spectral dimension last.
-These defaults preserve the existing ``speclib`` convention and can be
-overridden with ``spectral_axis_index`` and ``move_spectral_axis``. The
+   wavelength = np.linspace(5000, 5100, 1001) * u.AA
+   flux = np.ones(wavelength.size) * u.erg / (u.s * u.cm**2 * u.AA)
+   spectrum = Spectrum(spectral_axis=wavelength, flux=flux)
+   sampled = spectrum.resample(np.linspace(5010, 5090, 81) * u.AA)
+
+:class:`~speclib.Spectrum` extends :class:`specutils.Spectrum`.
+``spectrum.wavelength`` and ``spectrum.flux`` retain their units.
 ``speclib`` processing methods operate on one-dimensional spectra.
+For multidimensional containers, the spectral dimension defaults to last;
+see the :class:`~speclib.Spectrum` constructor for overrides.
 
-``wl_min`` and ``wl_max`` crop during loading. Current implementation uses
-strict interior samples, so samples equal to either supplied endpoint are
-excluded. ``wavelength=`` then resamples the cropped spectrum.
+Loading models
+--------------
 
-Operations and object state
----------------------------
+:meth:`~speclib.Spectrum.from_grid` returns ascending wavelengths in Å and
+flux density in ``erg / (s cm2 Å)``. Unit conversion preserves the source's
+air/vacuum convention. Model surface fluxes are not scaled by stellar radius
+or distance. See :doc:`model_libraries` for loading examples and
+:doc:`../models/index` for each product's conventions.
 
-Resampling, regularization, wavelength selection, and broadening retain the
-``speclib.Spectrum`` class. Inherited operations follow specutils behavior;
-arithmetic operators can return an upstream ``specutils.Spectrum`` without
-the additional ``speclib`` convenience methods.
+``wl_min`` and ``wl_max`` crop during loading, excluding samples equal to the
+endpoints. ``wavelength=`` then resamples the cropped spectrum.
 
-The following methods return new objects and do not modify the input:
+Common operations
+-----------------
 
-* :meth:`~speclib.Spectrum.resample` uses synphot to evaluate flux density on
-  a wavelength axis with units supplied by the user. By default it does not
-  taper outside the source range; request ``taper=True`` only when zero
-  throughput beyond the endpoints is the intended boundary assumption.
-* :meth:`~speclib.Spectrum.regularize` creates a linearly spaced wavelength
-  axis, using the smallest input interval when ``delta_lambda`` is omitted,
-  and calls ``resample``.
-* :meth:`~speclib.Spectrum.bin` integrates each requested interval and returns
-  a :class:`~speclib.BinnedSpectrum` with ``center``, ``width``, ``lower``,
-  ``upper``, and mean flux-density arrays.
-* The three resolution methods return a new spectrum on a copied input axis;
-  see :doc:`resolution`.
+These methods return new objects:
+
+* :meth:`~speclib.Spectrum.resample` integrates flux into bins inferred from
+  new wavelength centers. ``taper=True`` permits zero throughput beyond the
+  source endpoints; the default does not taper.
+* :meth:`~speclib.Spectrum.regularize` resamples onto a linear wavelength
+  axis. Without ``delta_lambda``, it uses the smallest input interval.
+* :meth:`~speclib.Spectrum.bin` returns a :class:`~speclib.BinnedSpectrum`
+  with explicit centers, widths, limits, and mean flux densities.
+* :doc:`Resolution methods <resolution>` broaden spectra on the input axis.
+* :meth:`~speclib.Spectrum.select_wavelength` crops a spectrum and any
+  declared detector coverage.
+
+Resampling, cropping, and broadening preserve the ``speclib`` class.
+Inherited operations follow specutils behavior; arithmetic can return a
+``specutils.Spectrum`` without the additional convenience methods.
+For spectra with detector gaps, see :doc:`instrument_profiles`.

@@ -12,27 +12,24 @@ G2V, K0V, and M0V dwarfs with the 3D radiative-magnetohydrodynamics MURaM
 code and synthesized their spectra with MPS-ATLAS using ray-by-ray radiative
 transfer.
 
-These are 12 discrete source products: G2V, K0V, and M0V spectra for each of
-the ``quiet``, ``spot``, ``penumbra``, and ``umbra`` surface components. They
-are not another
-:math:`T_\mathrm{eff}`--:math:`\log g`--metallicity atmosphere grid. There is no
-metallicity coordinate, so neither ``metallicity`` nor ``metallicity_type``
-is present in returned metadata. Each
-stellar type represents a separate simulation, and each file provides the
-spatially averaged quiet region, combined spot, penumbra, and umbra. Neither
-stellar types nor surface components are interpolated, and this library is not
-available through :class:`~speclib.SpectralGrid`.
+The library contains 12 spectra: ``quiet``, ``spot``, ``penumbra``, and
+``umbra`` components for each of G2V, K0V, and M0V. Each stellar type comes
+from a separate simulation, with spatially averaged components stored in one
+file. Use :meth:`~speclib.Spectrum.from_smitha2025` to select an exact stellar
+type and component. Interpolation and :class:`~speclib.SpectralGrid` are
+unsupported. Metadata omit ``metallicity`` and ``metallicity_type`` because
+these products have no metallicity coordinate.
 
-The released ``spot`` column is loaded directly. ``speclib`` does not attempt
-to reconstruct it from the penumbra and umbra, because their spatial weights
-are not part of the released spectral tables.
+The ``spot`` spectrum comes directly from the released column. Combining
+penumbral and umbral spectra would require spatial weights, which the release
+does not provide.
 
 Available simulations and metadata
 ----------------------------------
 
 The paper reports the following simulation gravities and component effective
-temperatures. These temperatures are metadata describing the MHD products;
-they are not coordinates accepted by the loader.
+temperatures. These values describe the simulations and are stored as
+metadata. Select spectra by stellar type and component.
 
 .. list-table:: Published Smitha et al. simulation properties
    :header-rows: 1
@@ -73,9 +70,9 @@ spacing ranges from about 0.4 to 20 nm, and
 :math:`\lambda/\Delta\lambda` ranges from about 146 to 519. Smitha et al.
 describe the synthesized spectra at approximately :math:`R=500`, but the
 released tabulation is substantially more coarsely sampled than that over
-parts of the spectrum. The quoted resolution is therefore distinct from the
-sampling of the distributed files and should not be treated as a constant
-measured or Gaussian line-spread function.
+parts of the spectrum. The quoted resolution describes the spectral synthesis;
+the released files have coarser, variable sampling and lack a calibrated
+Gaussian line-spread function.
 
 Use the actual wavelength array when resampling or degrading a spectrum.
 Because ``speclib`` validates the input sampling before convolution,
@@ -88,9 +85,8 @@ air/vacuum conversion and records this limitation in the spectrum metadata.
 
 The text-file header describes the data as disk-integrated flux in
 ``erg s-1 sr-1 cm-2 nm-1``. The retained ``sr-1`` is inconsistent with an
-angle-integrated flux. A live check of all three released files resolves the
-physical convention numerically: integrating every quiet, penumbral, and
-umbral spectrum over wavelength reproduces
+angle-integrated flux. Integrating every quiet, penumbral, and umbral spectrum
+in the three released files over wavelength reproduces
 :math:`\sigma T_\mathrm{eff}^4` for the published temperatures to within
 0.25%. ``speclib`` consequently interprets the columns as emergent surface
 :math:`F_\lambda` in ``erg / (s cm2 nm)`` after disk-angle integration. No
@@ -137,12 +133,11 @@ prefetch one or all source files, use:
    download_smitha2025_spectra()  # all three stellar types
 
 Edmond v1.0 supplies three small spectral text files, one per stellar type,
-rather than a large grid archive; each file contains all four components.
-Files are cached under ``<library root>/smitha2025``. The helper resolves
-current numeric file identifiers through the DOI-backed Edmond API, requires
-dataset version 1.0 and the pinned filename, size, and published MD5, validates
-cached files, and reuses them. ``overwrite=True`` refreshes the selected file
-or all three files when no stellar type is supplied.
+each containing all four components.
+Files are cached under ``<library root>/smitha2025``. Downloads and cached
+files are checked against the v1.0 filename, size, and
+published MD5. ``overwrite=True`` refreshes the selected file, or all three
+when no stellar type is supplied.
 
 Citation
 --------

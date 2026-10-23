@@ -28,10 +28,8 @@ The current selector declares:
 * :math:`\log g` = 0.0--6.0 in 0.5 dex steps (cgs);
 * [Fe/H] = -4.0, -3.0, -2.0, -1.5, -1.0, -0.5, 0.0, +0.5, +1.0.
 
-These axes are not a guarantee that every Cartesian combination exists. The
-upstream library omits some atmosphere structures (including some low-gravity
-models). The ``phoenix`` loader does not expose the upstream alpha-enhanced
-subgrids.
+Some parameter combinations are missing, including some low-gravity models.
+The ``phoenix`` loader does not expose the upstream alpha-enhanced subgrids.
 
 Access and cache behavior
 -------------------------
@@ -53,8 +51,8 @@ Interpolated requests may fetch as many as eight corner spectra.
 Returned spectra record ``meta["metallicity"]`` and
 ``meta["metallicity_type"] = "feh"``. No abundance conversion is performed.
 :func:`~speclib.download_phoenix_grid` loops over every combination declared
-above and skips upstream files that cannot be retrieved; this is a bulk action,
-not a prerequisite for normal use when files are downloaded as needed.
+above and skips files that cannot be retrieved. For individual models,
+``Spectrum.from_grid`` downloads files as needed.
 
 The filename convention is
 ``lteTTTTT-G.G±Z.Z.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits``; solar metallicity
@@ -66,9 +64,9 @@ Scientific cautions
 Interpolation in ``speclib`` is linear in flux across Teff, log g, and [Fe/H];
 it is distinct from any upstream spectra that the PHOENIX authors themselves
 interpolated during grid production. Missing corner files can prevent a
-``speclib`` interpolation. The source spectra have finite intrinsic line
-widths, whereas ``speclib`` resolution methods currently assume negligible
-intrinsic width and do not deconvolve it; choose output resolution accordingly.
+``speclib`` interpolation. Choose broadening much wider than the intrinsic
+source lines: the resolution methods assume negligible input widths and
+apply no deconvolution.
 
 For publication, cite Husser et al. (2013) as the underlying library in
 addition to :doc:`../citation`.

@@ -16,8 +16,8 @@ including wavelength, flux, instrument provenance and coverage metadata.
 BinnedSpectralGrid
 ------------------
 
-This separate class retains its flux-Quantity ``get_spectrum()`` interface;
-explicit bin centers and widths belong to the grid.
+``get_spectrum()`` returns a flux quantity; the grid stores the explicit
+bin centers and widths.
 
 .. autoclass:: BinnedSpectralGrid
    :members: get_spectrum

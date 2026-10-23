@@ -28,9 +28,8 @@ Repository metadata declares filename values spanning:
   (or native alias ``mh``); upstream filenames label this axis ``logZ``;
 * C/O = 0.3, 0.5, 0.7, or 0.9.
 
-The archive is sparse: these distinct values do not occur in every
-combination, and the actual axes for a selected C/O slice are derived from the
-extracted filenames rather than assumed from those nominal ranges.
+The archive contains a subset of these parameter combinations. For each C/O
+slice, ``speclib`` reads the available axes from the extracted filenames.
 Spectrum filenames follow
 ``Teff_<teff>_logg_<logg>_logZ_<logZ>_CtoO_<C/O>.txt``; their numeric
 formatting is significant when indexing an exact model.
@@ -38,8 +37,7 @@ formatting is significant when indexing an exact model.
 :class:`~speclib.SpectralGrid` fixes one C/O value and interpolates only Teff,
 log g, and native [M/H]. It raises ``ValueError`` if a requested trilinear
 interpolation lacks any required corner. Nearest retrieval chooses an actual
-available combination rather than an impossible tuple assembled independently
-along each axis.
+available parameter combination.
 
 Download and use
 ----------------

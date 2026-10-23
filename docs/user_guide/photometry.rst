@@ -1,6 +1,20 @@
 Synthetic photometry
 ====================
 
+For a spectrum covering the J and H bands:
+
+.. code-block:: python
+
+   from speclib import Filter, SED, apply_filter, mag_to_flux
+
+   j_flux = apply_filter(spectrum, Filter("2MASS J"))
+   sed = SED(spectrum, [Filter(name) for name in ("2MASS J", "2MASS H")])
+   mean, uncertainty = mag_to_flux(10.0, Filter("2MASS J"), mag_err=0.03)
+
+The
+:doc:`photometry notebook <../tutorials/synthetic_photometry>` supplies a
+spectrum covering both filters and plots the results.
+
 Filters and responses
 ---------------------
 
@@ -32,12 +46,9 @@ SEDs and magnitude conversion
 
 :class:`~speclib.SED` applies a sequence of filters to a supplied spectrum and
 stores effective wavelength, bandwidth, and flux arrays. ``SED.from_grid``
-first loads one model with :meth:`speclib.Spectrum.from_grid`. Use
-``metallicity=`` for the library's native coordinate, or its native alias
-(``feh`` for PHOENIX-ACES, ``mh`` for [M/H] grids). Additional loader keywords
-are forwarded, including required SPHINX ``co_ratio`` and NewEra ``alpha``.
-``SED.meta`` preserves the selected spectrum's coordinate and native type;
-Speclib does not convert between [Fe/H] and [M/H].
+first loads one model with :meth:`speclib.Spectrum.from_grid`. Loader keywords,
+including SPHINX ``co_ratio`` and NewEra ``alpha``, are
+forwarded; ``SED.meta`` retains the model coordinates. See :doc:`model_libraries`.
 
 :class:`~speclib.SEDGrid` precomputes and trilinearly interpolates SEDs. It
 currently accepts PHOENIX only and always interpolates; it cannot select the
@@ -51,5 +62,3 @@ magnitude and zeropoint uncertainty. ``mag_err`` is interpreted in magnitudes.
 The function currently uses NumPy's process-wide random generator and has no
 seed argument; set ``numpy.random.seed`` immediately before the call when an
 exactly reproducible draw is required.
-
-See :doc:`../tutorials/synthetic_photometry` for an offline workflow.

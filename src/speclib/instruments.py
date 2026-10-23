@@ -46,7 +46,8 @@ class InstrumentProfile:
     source, source_url, calibration_version, assumptions : str or tuple of str
         Calibration provenance and scientific assumptions.
     quality : {"tabulated", "derived", "nominal"}
-        Provenance classification, not a precision guarantee.
+        Source classification: tabulated, derived, or nominal. Scientific
+        uncertainties depend on the source.
     configuration, coverage_source_url, resolution_definition : str
         Aperture/subarray, coverage provenance, and definition of R.
     provenance_ref : str, optional
@@ -122,7 +123,24 @@ class InstrumentProfile:
             object.__setattr__(self, name, value)
 
     def resolving_power_at(self, wavelength):
-        """Linearly interpolate R inside the calibration domain; never extrapolate."""
+        """Linearly interpolate R within the calibration domain.
+
+        Parameters
+        ----------
+        wavelength : `~astropy.units.Quantity`
+            Positive wavelengths within the calibration range, with units.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Dimensionless resolving power at the requested wavelengths.
+
+        Raises
+        ------
+        ValueError
+            A wavelength lies outside the calibration range. No extrapolation
+            is applied.
+        """
         wave = _wavelength_values(wavelength)
         curve = self.wavelength.to_value(u.um)
         if np.any(wave < curve[0]) or np.any(wave > curve[-1]):
@@ -178,7 +196,7 @@ def get_profile(mode):
     identifiers use ``jwst/nircam/tsgrism/modulea/grismr/<filter>``.
     MIRI shorthand ``jwst/miri/lrs/slitless`` selects P750L/SLITLESSPRISM;
     the canonical identifier appends ``/slitlessprism``. IP/IPS are unsupported.
-    Unsupported configurations fail instead of falling back to these defaults.
+    Unsupported configurations raise ``ValueError``.
     """
     if isinstance(mode, InstrumentProfile):
         return mode

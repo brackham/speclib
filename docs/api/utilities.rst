@@ -23,8 +23,7 @@ Package-level download helpers
 Cache location
 --------------
 
-These two helpers are intentionally called through ``speclib.utils`` and are
-documented because they define where users store model libraries.
+Set or inspect the model-data cache through ``speclib.utils``.
 
 .. currentmodule:: speclib.utils
 

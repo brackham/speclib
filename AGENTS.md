@@ -31,3 +31,12 @@
 ## Repository Operations
 
 - Do not create commits, push branches, merge changes, open or modify issues, or open or modify pull requests unless explicitly requested.
+
+## Release preparation
+
+Development commits do not require version increments. Each newly published
+release must use a unique version; its wheel and source distribution share
+that version. Never replace published artifacts with changed builds under
+the same version. Dependency and API changes must be reflected in the code
+and package metadata of the next published release. Increment the prerelease
+identifier when preparing that release.

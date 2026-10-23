@@ -1259,9 +1259,8 @@ class Spectrum(SpecutilsSpectrum):
         Notes
         -----
         These spectra are discrete products of separate 3D MHD simulations.
-        Neither stellar type nor surface component is interpolated, and the
-        published component effective temperatures stored in ``meta`` are not
-        atmosphere-grid coordinates.
+        Select an exact stellar type and surface component. Published component
+        effective temperatures are stored in ``meta`` to describe the models.
         """
 
         wavelength, flux, metadata = utils.load_smitha2025_spectrum(
@@ -2099,8 +2098,8 @@ class Spectrum(SpecutilsSpectrum):
 
         The stationary Gaussian therefore applies to the density per
         logarithmic wavelength interval. Expressed per unit wavelength, an
-        isolated feature has a log-normal-like profile that is not exactly
-        symmetric in linear wavelength. This distinction is small at ordinary
+        isolated feature has a log-normal-like profile with slight asymmetry
+        in linear wavelength. This distinction is small at ordinary
         astronomical resolving powers. The input must provide at least two
         samples per requested log-wavelength FWHM across every interval.
 
@@ -2189,7 +2188,8 @@ class Spectrum(SpecutilsSpectrum):
             must lie in valid coverage. No detector gap is interpolated across.
         samples_per_resolution_element : float, optional
             Generate approximately this many centers per local FWHM. Mutually
-            exclusive with ``wavelength``; these are not detector pixel centers.
+            exclusive with ``wavelength``. To use detector pixel centers,
+            supply ``wavelength``.
 
         Returns
         -------
@@ -2206,7 +2206,8 @@ class Spectrum(SpecutilsSpectrum):
         and calibration coverage for all contributing source-centered kernels,
         including their normalization support, bounded locally in each
         calibration cell. Insufficient coverage or
-        sampling raises an error. Detector gaps are not gaps in source flux.
+        sampling raises an error. Source flux within output detector gaps
+        contributes to convolution before cropping.
         Masked spectra and uncertainties are unsupported, as in the generic
         convolution methods. Resampling uses :meth:`resample` (implicit bins);
         use :meth:`bin` separately for measured observational bin widths.
@@ -2295,8 +2296,11 @@ class BinnedSpectrum(object):
         width : `~astropy.units.Quantity`
             The widths of the wavelength bins.
 
-        flux : iterable
-            The binned flux array.
+        flux : `~astropy.units.Quantity` or array-like
+            Mean flux density in each bin. Include units when constructing
+            a spectrum directly.
+        meta : dict, optional
+            Metadata copied into the result.
         """
         self.center = center
         self.width = width
@@ -2317,6 +2321,16 @@ class BinnedSpecificIntensitySpectrum(object):
 
     Instances are returned by :meth:`SpecificIntensitySpectrum.bin`. The
     ``intensity`` values retain their per-steradian spectral-density unit.
+
+    Parameters
+    ----------
+    center, width : `~astropy.units.Quantity`
+        Wavelength-bin centers and full widths, with wavelength units.
+    intensity : `~astropy.units.Quantity`
+        Mean specific intensity in each bin, with per-wavelength,
+        per-steradian units, such as ``erg / (s cm2 sr Angstrom)``.
+    meta : dict, optional
+        Metadata copied into the result.
     """
 
     @u.quantity_input(center=u.AA, width=u.AA)
