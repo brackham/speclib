@@ -2,13 +2,13 @@ Installation
 ============
 
 ``speclib`` supports Python 3.11, 3.12, and 3.13. Install the current
-development release from GitHub into an isolated environment:
+development code from GitHub into an isolated environment:
 
 .. code-block:: console
 
    python -m venv .venv
    source .venv/bin/activate
-   python -m pip install git+https://github.com/brackham/speclib.git
+   python -m pip install git+https://github.com/brackham/speclib.git@main
 
 For development, clone the repository and let Poetry create the environment:
 
@@ -16,11 +16,45 @@ For development, clone the repository and let Poetry create the environment:
 
    git clone https://github.com/brackham/speclib.git
    cd speclib
+   poetry env use python3.12
    poetry install
+
+Alternatively, install a local checkout into your active environment with
+``python -m pip install .`` from the repository root. Use
+``python -m pip install -e .`` for an editable pip installation.
 
 The main runtime dependencies include Astropy, specutils, synphot, NumPy,
 h5py, and pooch. Matplotlib and Jupyter are development dependencies used by
 the tutorials.
+
+Updating an existing installation
+---------------------------------
+
+Pulling new code does not refresh installed dependency metadata, even for
+an editable installation. After pulling dependency changes, rerun
+``poetry install`` in a Poetry checkout, or ``python -m pip install .``
+(``python -m pip install -e .`` for editable installs) in a pip checkout.
+Updating ``specutils`` alone leaves ``speclib``'s recorded requirements unchanged.
+
+To refresh a GitHub installation, including when the version number has
+not changed, reinstall explicitly:
+
+.. code-block:: console
+
+   python -m pip install --force-reinstall git+https://github.com/brackham/speclib.git@main
+
+This also reinstalls dependencies. Run these checks with the same Python
+environment that runs your code (use ``poetry run python`` for Poetry):
+
+.. code-block:: console
+
+   python -m pip check
+   python -c "from importlib.metadata import requires, version; print(version('speclib')); print('\n'.join(requires('speclib')))"
+
+Current development code should declare ``specutils>=2,<3``. An older b12
+installation may declare ``specutils>=1.9.1,<2``; reinstall from current
+source to replace that metadata. Restart a running notebook kernel after
+reinstalling.
 
 Model data and the cache
 ------------------------

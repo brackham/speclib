@@ -16,14 +16,19 @@ With Poetry (recommended):
 ```bash
 git clone https://github.com/brackham/speclib.git
 cd speclib
+poetry env use python3.12
 poetry install
 ```
 
 Or with pip:
 
 ```bash
-pip install git+https://github.com/brackham/speclib.git
+python -m pip install git+https://github.com/brackham/speclib.git@main
 ```
+
+To install a local checkout with pip, run `python -m pip install .` from its
+root. When dependencies change, reinstall `speclib` itself to refresh its
+metadata; see [updating an existing installation](https://speclib.readthedocs.io/en/latest/installation.html#updating-an-existing-installation).
 
 ---
 
