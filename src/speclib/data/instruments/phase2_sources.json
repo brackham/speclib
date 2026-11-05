@@ -197,7 +197,7 @@
       "output_file": "niriss_soss_order1.csv",
       "reproduction_script": "scripts/instruments/convert_phase2.py",
       "output_sha256": "1aa59fbd264103c28d0a052d9a640b83189e7dcb88c3d938791c66f116437580",
-      "rows": 2,
+      "rows": 21,
       "extended_coverage_um": [
         0.85,
         2.82
