@@ -66,6 +66,12 @@ Use explicit wavelengths or bins to represent detector sampling. Explicit center
 least two per requested interval. Their implied bin edges must also lie
 within valid coverage.
 
+With explicit ``wavelength``, ``valid_intervals`` on the result describes the
+coverage actually returned (the outer implicit bin edges within each profile
+interval that contains requested centers), not the nominal profile.
+``meta["instrument_profile"]["valid_intervals_um"]`` retains the nominal
+bounds.
+
 Both options use :meth:`~speclib.Spectrum.resample`, which integrates flux
 into bins. Coarse bins and sparse samples can increase apparent line widths.
 Retain fine sampling or fit a bin-integrated model when measuring widths;
@@ -132,7 +138,16 @@ native resolution yourself.
 
 Each requested output interval needs real source and calibration coverage
 for its full convolution padding, including bracketing samples. Neither flux
-nor resolving power is extrapolated. For example, a well-sampled source
+nor resolving power is extrapolated. With the default sampling or
+``samples_per_resolution_element``, that is the whole profile interval.
+With explicit ``wavelength``, only the requested output region is produced, so
+the source needs just that region's outer implicit bin edges plus local
+convolution padding (about four Gaussian sigma of the local resolution
+element, plus the support of the kernels that contribute) and bracketing
+samples. A model covering 0.64–0.93 µm can therefore be observed through
+``jwst/niriss/soss/order2`` at 0.665–0.897 µm, although the full order
+cannot be observed from it. Intervals with no requested centers are not
+needed. For full-profile output, a well-sampled source
 extending to 5.5 µm provides the padding for full PRISM red coverage at
 5.3 µm. A well-sampled 5–14 µm source supports the MIRI 5.5–12 µm output.
 

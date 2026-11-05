@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `Spectrum.observed_by()` and `SpectralGrid.observed_by()` no longer require
+  the input model and resolution calibration to cover the whole instrument
+  profile when explicit `wavelength=` centers are supplied. Only the requested
+  output region (outer implicit bin edges) plus the usual convolution padding
+  and bracketing samples is needed; convolution still precedes resampling and
+  nothing is extrapolated. Default and `samples_per_resolution_element`
+  behavior is unchanged. (#107)
+
+### Changed
+
+- For explicit `wavelength=`, the returned `valid_intervals` now describes the
+  coverage actually returned (outer implicit bin edges within each interval
+  containing requested centers) instead of the full nominal profile intervals.
+  The nominal bounds remain in `meta["instrument_profile"]["valid_intervals_um"]`.
+
 ## [0.1.0b13] - 2026-10-23
 
 ### Added

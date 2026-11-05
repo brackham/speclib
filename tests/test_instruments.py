@@ -17,6 +17,22 @@ from speclib import core
 FLUX_UNIT = u.erg / u.s / u.cm**2 / u.AA
 
 
+def returned_coverage(profile, options):
+    """Coverage an observation should report: nominal bounds, or for explicit
+    centers the outer implicit bin edges within each profile interval."""
+    if 'wavelength' not in options:
+        return profile.valid_intervals
+    from synphot.binning import calculate_bin_edges
+    centers = options['wavelength'].to(u.um)
+    rows = []
+    for lower, upper in profile.valid_intervals.to_value(u.um):
+        chosen = np.sort(centers[(centers.value >= lower) & (centers.value <= upper)])
+        if len(chosen):
+            edges = calculate_bin_edges(chosen).to_value(u.um)
+            rows.append([edges[0], edges[-1]])
+    return np.array(rows) * u.um
+
+
 def coverage_pieces(spectrum):
     return tuple(spectrum.select_wavelength(a, b) for a, b in spectrum.valid_intervals)
 
@@ -242,7 +258,8 @@ def test_g395h_gaps_and_grid(nirspec_spectrum, monkeypatch):
     np.testing.assert_allclose(results.data[0], expected.flux.value)
     partial = nirspec_spectrum.observed_by(mode, wavelength=np.linspace(4., 5., 10) * u.um)
     assert type(partial) is Spectrum
-    np.testing.assert_array_equal(partial.valid_intervals, p.valid_intervals[1:])
+    np.testing.assert_allclose(partial.valid_intervals.to_value(u.um), [[4 - 1/18, 5 + 1/18]])
+    np.testing.assert_array_equal(partial.meta['instrument_profile']['valid_intervals_um'], p.valid_intervals.value)
     extracted = results.get_spectrum(3050., 4., feh=0.)
     assert type(extracted) is Spectrum
     np.testing.assert_array_equal(extracted.valid_intervals, results.valid_intervals)
@@ -260,7 +277,8 @@ def test_g395h_gaps_and_grid(nirspec_spectrum, monkeypatch):
     extracted.meta['valid_intervals'] = [[3., 3.6]]*u.um
     assert results.meta['nested']['values'] == [1, 2]
     assert results.meta['instrument_profile']['mode'] == mode
-    np.testing.assert_array_equal(results.valid_intervals, p.valid_intervals)
+    np.testing.assert_allclose(results.valid_intervals, returned_coverage(p, {'wavelength': target}), rtol=1e-14)
+    assert results.valid_intervals[0, 0] > p.valid_intervals[0, 0]
     extracted = results.get_spectrum(3000., 4., 0., interpolate=False)
     with pytest.raises(ValueError, match='detector gap'):
         extracted.resample([3.76, 3.77]*u.um)
@@ -662,7 +680,7 @@ def test_phase2_coverage_sampling_grid_and_ownership(mode, center, phase2_source
     for options in ({}, {'samples_per_resolution_element': 5}, {'wavelength': targets}):
         observed = phase2_source.observed_by(mode, **options)
         assert type(observed) is Spectrum
-        np.testing.assert_array_equal(observed.valid_intervals, profile.valid_intervals)
+        np.testing.assert_allclose(observed.valid_intervals, returned_coverage(profile, options), rtol=1e-14)
         assert observed.wavelength.min() >= lower*u.um
         assert observed.wavelength.max() <= upper*u.um
         # Full interval boundaries retain sufficient local model/calibration padding.
@@ -712,3 +730,138 @@ def test_soss_orders_stay_independent(phase2_source):
     assert second.meta['instrument_profile']['mode'].endswith('order2')
     with pytest.raises(ValueError, match='outside|coverage'):
         phase2_source.observed_by('jwst/niriss/soss/order2', wavelength=[1.1, 1.2]*u.um)
+
+
+# --- Partial wavelength requests (Issue #107) -------------------------------
+
+SOSS2 = 'jwst/niriss/soss/order2'
+G395H = 'jwst/nirspec/g395h/f290lp'
+
+
+def structured_source(lower, upper, spacing=5e-5):
+    """Line-bearing flux, so truncated convolution support would be visible."""
+    wave = np.arange(lower, upper, spacing)
+    flux = (2 + np.sin(40 * wave) + 50 * np.exp(-.5 * ((wave - .75) / .0004)**2)
+            + 30 * np.exp(-.5 * ((wave - 3.5) / .002)**2))
+    return Spectrum(spectral_axis=wave * u.um, flux=flux * FLUX_UNIT)
+
+
+def inset_centers(lower, step, n):
+    """Uniform centers whose first implicit bin edge is exactly ``lower``."""
+    return lower + step / 2 + step * np.arange(n)
+
+
+def required_support(profile, centers):
+    """Outer implicit bin edges and the source range their kernels need."""
+    edges = returned_coverage(profile, {'wavelength': centers}).to_value(u.um)
+    return edges, [core._instrument_convolution_bounds(profile, row) for row in edges]
+
+
+def local_slice(source, lower, upper):
+    """Smallest subset of ``source`` with bracketing samples around the bounds."""
+    x = source.wavelength.to_value(u.um)
+    start = np.searchsorted(x, lower, side='right') - 1
+    stop = np.searchsorted(x, upper, side='left') + 1
+    return Spectrum(spectral_axis=source.spectral_axis[start:stop],
+                    flux=source.flux[start:stop])
+
+
+@pytest.mark.parametrize('descending', [False, True])
+def test_partial_soss_request_needs_only_local_padding(descending):
+    """The reproduction from Issue #107, for Spectrum and SpectralGrid."""
+    requested = np.linspace(.665, .897, 61) * u.um
+    if descending:
+        requested = requested[::-1]
+    source = Spectrum(spectral_axis=np.linspace(.64, .93, 50_000) * u.um,
+                      flux=np.ones(50_000) * FLUX_UNIT)
+    # The unrestricted observation still needs the whole profile plus padding.
+    with pytest.raises(ValueError, match='padding'):
+        source.observed_by(SOSS2)
+
+    observed = source.observed_by(SOSS2, wavelength=requested)
+    grid = make_grid(source).observed_by(SOSS2, wavelength=requested)
+    for result in (observed, grid):
+        np.testing.assert_array_equal(result.wavelength, requested)
+        # Returned coverage is the requested bins, not the nominal profile...
+        np.testing.assert_allclose(result.valid_intervals.to_value(u.um),
+                                   [[.66306667, .89893333]], rtol=1e-7)
+        # ...while the nominal profile bounds stay available as provenance.
+        assert result.meta['instrument_profile']['valid_intervals_um'] == [[.6, 1.]]
+    np.testing.assert_allclose(observed.flux.value, 1., rtol=2e-3)
+    np.testing.assert_allclose(grid.data, [observed.flux.value, 2 * observed.flux.value], rtol=1e-12)
+
+
+@pytest.mark.parametrize('mode,centers', [
+    (SOSS2, np.linspace(.665, .897, 61)),
+    # Narrow requests whose outer bin edges coincide with each profile boundary.
+    (SOSS2, inset_centers(.6, .004, 8)),
+    (SOSS2, inset_centers(.984, .004, 4)),
+    # Two detector intervals: only the requested part of each is needed.
+    (G395H, np.r_[np.linspace(3.3, 3.6, 25), np.linspace(4., 4.3, 25)]),
+])
+@pytest.mark.parametrize('descending', [False, True])
+def test_partial_request_matches_full_source_and_requires_exact_padding(mode, centers, descending):
+    p = get_profile(mode)
+    target = (centers[::-1] if descending else centers) * u.um
+    edges, bounds = required_support(p, target)
+    lower, upper = min(b[0] for b in bounds), max(b[1] for b in bounds)
+    assert len(edges) == (2 if mode == G395H else 1)
+    wide = structured_source(.45, 5.2)
+    reference = wide.observed_by(p, wavelength=target)
+
+    # Only the needed support (with bracketing samples) reproduces the full
+    # calculation over the overlapping wavelengths; for two detector intervals
+    # the source spans both pieces and the gap between them.
+    local = local_slice(wide, lower, upper)
+    assert local.wavelength.size < wide.wavelength.size / 3
+    for source in (local, wide):
+        result = source.observed_by(p, wavelength=target)
+        np.testing.assert_allclose(result.flux.value, reference.flux.value, rtol=1e-9)
+        np.testing.assert_allclose(result.valid_intervals.to_value(u.um), edges, rtol=1e-14)
+        np.testing.assert_array_equal(result.wavelength, target)
+    grid = make_grid(local).observed_by(p, wavelength=target)
+    np.testing.assert_allclose(grid.data, [reference.flux.value, 2 * reference.flux.value], rtol=1e-9)
+    # Anything short of the required support, on either side, still fails.
+    for cropped in (local.select_wavelength(lower * u.um + 1e-3 * u.um, None),
+                    local.select_wavelength(None, upper * u.um - 1e-3 * u.um)):
+        for observer in (cropped.observed_by, make_grid(cropped).observed_by):
+            with pytest.raises(ValueError, match='padding'):
+                observer(p, wavelength=target)
+
+
+def test_partial_request_checks_bracketing_samples_and_calibration():
+    p = get_profile(SOSS2)
+    target = np.linspace(.665, .897, 61) * u.um
+    _, [(lower, upper)] = required_support(p, target)
+    # A source starting just outside the required range provides brackets...
+    exact = Spectrum(spectral_axis=np.linspace(lower * (1 - 1e-9), upper * (1 + 1e-9), 20_000) * u.um,
+                     flux=np.ones(20_000) * FLUX_UNIT)
+    exact.observed_by(p, wavelength=target)
+    # ...but ending inside it does not, however finely sampled.
+    for cropped in (exact.select_wavelength(lower * u.um * (1 + 1e-6), None),
+                    exact.select_wavelength(None, upper * u.um * (1 - 1e-6))):
+        with pytest.raises(ValueError, match='padding'):
+            cropped.observed_by(p, wavelength=target)
+    # Calibration is never extrapolated either, even with ample source.
+    short = replace(p, wavelength=np.array([.662, .8, .9]) * u.um,
+                    resolving_power=np.array([600., 700., 800.]),
+                    valid_intervals=np.array([[.662, .9]]) * u.um)
+    with pytest.raises(ValueError, match='extrapolation|calibration'):
+        structured_source(.45, 1.5).observed_by(short, wavelength=target)
+
+
+def test_partial_request_validation_is_unchanged():
+    source = structured_source(.45, 1.5)
+    with pytest.raises(ValueError, match='outside valid coverage'):
+        source.observed_by(SOSS2, wavelength=np.linspace(.55, .7, 10) * u.um)
+    with pytest.raises(ValueError, match='mutually exclusive'):
+        source.observed_by(SOSS2, wavelength=np.linspace(.7, .8, 10) * u.um,
+                           samples_per_resolution_element=3)
+    # Generated sampling and the default keep the full-profile requirement and
+    # report nominal coverage.
+    local = source.select_wavelength(.62 * u.um, .95 * u.um)
+    with pytest.raises(ValueError, match='padding'):
+        local.observed_by(SOSS2, samples_per_resolution_element=3)
+    np.testing.assert_array_equal(
+        source.observed_by(SOSS2, samples_per_resolution_element=3).valid_intervals.value,
+        [[.6, 1.]])
