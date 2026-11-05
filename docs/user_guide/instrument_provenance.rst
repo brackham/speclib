@@ -119,8 +119,29 @@ constant average dispersion, giving R proportional to wavelength.
 These nominal curves approximate each order with a single dispersion value;
 local in-flight wavelength solutions and LSFs require additional calibration.
 
-Order 1 follows the rounded `GR700XD coverage
-<https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-gr700xd-grism>`_.
+Order 1 distinguishes three ranges:
+
+* **Recommended (default):** 0.9–2.8 µm, the rounded `GR700XD coverage
+  <https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-gr700xd-grism>`_.
+  Default and ``samples_per_resolution_element`` output use this range.
+* **Extended (explicit** ``wavelength`` **only):** 0.85–2.82 µm. Albert et al.
+  (2023, Table 2) measure geometric coverage of 0.843–2.833 µm in CV3, and the
+  resolving-power curve spans exactly that range. The extended limits are
+  inset by the four-sigma kernel padding (twice, for normalization support),
+  so a request reaching them, such as observed wavelengths of
+  0.860–2.813 µm with bin edges at 0.856–2.817 µm, never needs extrapolated
+  resolution. The source model must still supply this padding and bracketing
+  samples.
+* **Geometric:** 0.843–2.833 µm, the calibration domain, not a science range.
+
+Extending the range matches the *resolution* only. The same paper reports
+order-2 overlap redward of about 2.2 µm, blaze efficiency falling to 40% of
+peak near 0.82 and 2.46 µm, and excess noise toward both ends. STScI quotes
+about 0.5 pixel wavelength accuracy, better below 1 µm. The adopted constant
+dispersion approximates the wavelength-dependent dispersion and is least
+reliable at the band edges; the two-pixel resolution element is itself a
+nominal convention (individual LED widths span 1.8–2.6 pixels). Speclib does not
+validate edge flux or wavelength calibration, or remove contamination.
 Order 2 is restricted to wavelengths below 1 µm following `STScI calibration
 advice <https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status>`_
 (June 2026): redder signal is low and photometric calibration uncertain.
