@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from speclib import Spectrum, SpectralGrid, get_profile, list_instrument_profiles
-from test_instruments import FLUX_UNIT, make_grid
+from test_instruments import FLUX_UNIT, make_grid, returned_coverage
 
 PREFIX = 'jwst/nircam/tsgrism/modulea/grismr/'
 FILTERS = {'f277w': (2.410, 3.179), 'f322w2': (2.413, 4.083),
@@ -150,8 +150,9 @@ def test_nircam_spectrum_grid_sampling_and_ownership(source):
         observed = grid.observed_by(p, **options)
         assert type(spectrum) is Spectrum and type(observed) is SpectralGrid
         np.testing.assert_allclose(observed.data[0], spectrum.flux.value, rtol=1e-12)
-        np.testing.assert_array_equal(spectrum.valid_intervals, p.valid_intervals)
-        np.testing.assert_array_equal(observed.valid_intervals, p.valid_intervals)
+        expected = returned_coverage(p, options)
+        np.testing.assert_allclose(spectrum.valid_intervals, expected, rtol=1e-14)
+        np.testing.assert_allclose(observed.valid_intervals, expected, rtol=1e-14)
         assert spectrum.meta['instrument_profile']['mode'] == p.mode
         if not options:
             lo, hi = p.valid_intervals[0].to_value(u.um)
@@ -169,7 +170,7 @@ def test_nircam_spectrum_grid_sampling_and_ownership(source):
             flux = observed.get_flux(3000., 4., 0., interpolate=interpolate)
             assert type(extracted) is Spectrum and isinstance(flux, u.Quantity)
             np.testing.assert_array_equal(extracted.flux, flux)
-            np.testing.assert_array_equal(extracted.valid_intervals, p.valid_intervals)
+            np.testing.assert_allclose(extracted.valid_intervals, expected, rtol=1e-14)
             saved = observed.data.copy()
             extracted.flux[0] = 999*FLUX_UNIT
             extracted.meta['nested']['values'].append(3)

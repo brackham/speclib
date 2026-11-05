@@ -928,6 +928,7 @@ def _prepare_instrument_observation(
 ):
     """Build shared convolution plans using real, calibration-covered padding."""
     from .instruments import get_profile, _wavelength_values
+    from synphot.binning import calculate_bin_edges
 
     profile = get_profile(mode)
     targets = _instrument_sampling(profile, wavelength, samples_per_resolution_element)
@@ -944,12 +945,18 @@ def _prepare_instrument_observation(
         if wavelength is not None and target is None:
             continue
         lower, upper = interval
-        padded_lower, padded_upper = _instrument_convolution_bounds(profile, interval)
+        # Explicit centers need only the kernels reaching their outermost
+        # implicit bin edges; otherwise the whole nominal interval is produced.
+        coverage = interval
+        if target is not None and wavelength is not None:
+            edges = calculate_bin_edges(np.sort(target)).to_value(u.um)
+            coverage = np.array([edges[0], edges[-1]])
+        padded_lower, padded_upper = _instrument_convolution_bounds(profile, coverage)
         start = np.searchsorted(ascending, padded_lower, side="right") - 1
         stop = np.searchsorted(ascending, padded_upper, side="left") + 1
         if start < 0 or stop > len(wave):
             raise ValueError(
-                "Input spectrum must cover the valid interval plus convolution padding "
+                "Input spectrum must cover the requested output coverage plus convolution padding "
                 f"({padded_lower:.8g}–{padded_upper:.8g} um, including bracketing samples)"
             )
         indices = order[start:stop]
@@ -972,7 +979,7 @@ def _prepare_instrument_observation(
             raise ValueError(
                 "Valid interval contains fewer than two input wavelength samples"
             )
-        operations.append((indices, plan, selected, target, interval))
+        operations.append((indices, plan, selected, target, interval, coverage))
     return profile, operations
 
 
@@ -1019,7 +1026,7 @@ def _check_instrument_source_resolution(metadata, profile, model_grid=None):
 
 
 def _apply_instrument_operation(spectrum, profile, operation):
-    indices, plan, selected, target, _ = operation
+    indices, plan, selected, target = operation[:4]
     if spectrum.flux.ndim != 1:
         raise ValueError("Instrument matching requires one-dimensional spectral flux")
     if not np.all(np.isfinite(spectrum.flux.value[indices])):
@@ -1094,12 +1101,16 @@ def _join_spectral_intervals(parts, metadata, descending=False):
     )
 
 
-def _finish_instrument_observation(parts, operations, descending):
+def _finish_instrument_observation(parts, operations, descending, profile):
     # Parts are private temporaries; the final Spectrum constructor copies
     # metadata with explicit coverage, so no intermediate deep copy is needed.
     metadata = parts[0].meta
+    # ``valid_intervals`` is the coverage actually returned (the outer implicit
+    # bin edges for explicit wavelengths); the profile keeps nominal bounds.
     metadata["valid_intervals"] = np.array([op[-1] for op in operations]) * u.um
-    metadata["instrument_profile"]["valid_intervals_um"] = metadata["valid_intervals"].value.tolist()
+    metadata["instrument_profile"]["valid_intervals_um"] = (
+        profile.valid_intervals.to_value(u.um).tolist()
+    )
     return _join_spectral_intervals(parts, metadata, descending)
 
 
@@ -2186,6 +2197,8 @@ class Spectrum(SpecutilsSpectrum):
         wavelength : astropy.units.Quantity, optional
             Explicit resampling centers. Centers and their implicit bin edges
             must lie in valid coverage. No detector gap is interpolated across.
+            The source and calibration need only cover the kernels reaching
+            these bin edges, not the full profile (see Notes).
         samples_per_resolution_element : float, optional
             Generate approximately this many centers per local FWHM. Mutually
             exclusive with ``wavelength``. To use detector pixel centers,
@@ -2198,6 +2211,11 @@ class Spectrum(SpecutilsSpectrum):
             with explicit ``valid_intervals`` coverage metadata. Without
             resampling, original wavelength samples are retained. Wavelength
             orientation follows the input or explicit requested coordinates.
+            For explicit ``wavelength``, ``valid_intervals`` is the coverage
+            actually returned: the outer implicit bin edges within each
+            requested profile interval. Otherwise it is the nominal profile
+            coverage. The nominal bounds always remain in
+            ``meta['instrument_profile']['valid_intervals_um']``.
 
         Notes
         -----
@@ -2205,7 +2223,12 @@ class Spectrum(SpecutilsSpectrum):
         cropping or resampling. Each requested interval requires real source
         and calibration coverage for all contributing source-centered kernels,
         including their normalization support, bounded locally in each
-        calibration cell. Insufficient coverage or
+        calibration cell. For the default and generated sampling this is the
+        whole profile interval; for explicit ``wavelength`` it is the output
+        region (outer implicit bin edges) of each interval containing
+        requested centers, so a partial-band request needs only local
+        padding. Intervals with no requested centers are not required.
+        Insufficient coverage or
         sampling raises an error. Source flux within output detector gaps
         contributes to convolution before cropping.
         Masked spectra and uncertainties are unsupported, as in the generic
@@ -2230,7 +2253,9 @@ class Spectrum(SpecutilsSpectrum):
             for operation in operations
         )
         axis = self.spectral_axis if wavelength is None else wavelength
-        return _finish_instrument_observation(results, operations, descending=axis[0] > axis[-1])
+        return _finish_instrument_observation(
+            results, operations, descending=axis[0] > axis[-1], profile=profile
+        )
 
     @u.quantity_input(center=u.AA, width=u.AA)
     def bin(self, center, width):
@@ -3220,7 +3245,9 @@ class SpectralGrid(MetallicityGridMetadata):
                 meta=metadata,
             )
             parts = [_apply_instrument_operation(spectrum, profile, op) for op in operations]
-            observed = _finish_instrument_observation(parts, operations, axis[0] > axis[-1])
+            observed = _finish_instrument_observation(
+                parts, operations, axis[0] > axis[-1], profile
+            )
             result.fluxes[teff][logg][metallicity] = observed.flux.copy()
             rows.append(observed.flux.value)
         result.wavelength = observed.spectral_axis.copy()

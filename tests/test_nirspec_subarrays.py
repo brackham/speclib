@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from speclib import Spectrum, get_profile, list_instrument_profiles
-from test_instruments import FLUX_UNIT, make_grid
+from test_instruments import FLUX_UNIT, make_grid, returned_coverage
 
 PREFIX = 'jwst/nirspec/bots/s1600a1/'
 # Independent transcription of STScI BOTS wavelength ranges and gaps, Table 1.
@@ -132,7 +132,7 @@ def test_sampling_grid_metadata_and_ownership(source):
         np.testing.assert_allclose(result.data[0], observed.flux.value, rtol=1e-12)
         np.testing.assert_allclose(result.wavelength.to_value(u.um),
                                    observed.wavelength.to_value(u.um), rtol=1e-14)
-        np.testing.assert_array_equal(observed.valid_intervals, p.valid_intervals)
+        np.testing.assert_allclose(observed.valid_intervals, returned_coverage(p, options), rtol=1e-14)
         assert observed.meta['instrument_profile']['mode'] == mode
         assert observed.meta['instrument_profile']['configuration'] == p.configuration
         assert observed.meta['instrument_profile']['valid_intervals_um'] == p.valid_intervals.value.tolist()

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from speclib import Spectrum, SpectralGrid, get_profile, list_instrument_profiles
-from test_instruments import FLUX_UNIT, make_grid
+from test_instruments import FLUX_UNIT, make_grid, returned_coverage
 
 MODE = 'jwst/miri/lrs/slitless/slitlessprism'
 ROOT = files('speclib.data').joinpath('instruments')
@@ -129,8 +129,9 @@ def test_sampling_grid_agreement_and_ownership(source):
         observed = grid.observed_by(p, **options)
         assert type(result) is Spectrum and type(observed) is SpectralGrid
         np.testing.assert_allclose(observed.data[0], result.flux.value, rtol=1e-12)
-        np.testing.assert_array_equal(result.valid_intervals, p.valid_intervals)
-        np.testing.assert_array_equal(observed.valid_intervals, p.valid_intervals)
+        expected = returned_coverage(p, options)
+        np.testing.assert_allclose(result.valid_intervals, expected, rtol=1e-14)
+        np.testing.assert_allclose(observed.valid_intervals, expected, rtol=1e-14)
         assert result.meta['instrument_profile']['mode'] == MODE
         if not options:
             wave = np.round(source.wavelength.to_value(u.um), 12)
@@ -146,7 +147,7 @@ def test_sampling_grid_agreement_and_ownership(source):
             flux = observed.get_flux(3000., 4., 0., interpolate=interpolate)
             assert type(extracted) is Spectrum and isinstance(flux, u.Quantity)
             np.testing.assert_array_equal(extracted.flux, flux)
-            np.testing.assert_array_equal(extracted.valid_intervals, p.valid_intervals)
+            np.testing.assert_allclose(extracted.valid_intervals, expected, rtol=1e-14)
             extracted.flux[0] = 999*FLUX_UNIT
             extracted.meta['nested']['values'].append(3)
             np.testing.assert_array_equal(observed.data, observed_saved)
