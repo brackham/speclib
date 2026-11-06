@@ -89,6 +89,57 @@ order-1 wavelengths of a NIRISS/SOSS time series can be passed directly:
 
 See :doc:`instrument_provenance` for the SOSS limits and caveats.
 
+Untrimmed observational wavelengths
+-----------------------------------
+
+Observed wavelength arrays often extend beyond an instrument's supported
+coverage. By default (``on_invalid="raise"``) any unsupported bin raises
+``ValueError``. With ``on_invalid="nan"``, supported bins are modeled and the
+rest are returned as ``NaN``, with one ``UserWarning`` per call naming the
+mode, the number of excluded bins and the reason:
+
+.. code-block:: python
+
+   observed = grid.observed_by(
+       "jwst/niriss/soss/order2", wavelength=observed_wavelength,
+       on_invalid="nan",
+   )
+   good = observed.valid_mask            # shared by every model in the grid
+   model = observed.get_spectrum(5750, 4.5, metallicity=0.0).flux[good]
+   data, error = flux[good], flux_error[good]    # same mask for observations
+
+The result has exactly the requested ``wavelength`` (length, order, and
+descending orientation). ``valid_mask`` marks bins with valid predictions; it
+is derived from ``valid_intervals``, not from the flux values. Select
+observations with the same mask before fitting, because ``NaN`` is not a
+physical flux of zero. ``valid_intervals`` covers only modeled bins, so it never
+spans unsupported regions or detector gaps, and
+``meta["instrument_profile"]["requested_bins"]`` and ``["valid_bins"]`` record
+the counts. If no bin is supported, ``ValueError`` is raised instead of an
+all-``NaN`` result. The default may change to ``"nan"`` before the first stable
+release.
+
+A bin is supported only if its complete implicit resampling bin lies in one
+profile interval (extended coverage included), not across a detector gap, and
+the resolving-power calibration covers its convolution padding. Bin edges are
+computed from the **entire** requested array before any bin is excluded, so a
+neighbor's width, and therefore its flux, is exactly what a strict
+calculation on that array would give. Do not trim the wavelength array
+yourself: recomputing edges from the retained centers changes the outermost
+supported bins. A center inside coverage can still be unsupported if its edge
+is not.
+
+This concerns the **instrument**. A source model that does not cover the
+supported bins plus convolution padding, or that is too coarsely sampled,
+is a different problem: it is never converted to ``NaN`` and still raises
+``ValueError``. Neither flux nor calibration is extrapolated.
+
+``NaN`` bins are not data. Convolution, ``regularize()`` and repeated
+instrument matching reject spectra containing them. ``resample()`` and
+``bin()`` use only supported samples and reject requested bins outside
+``valid_intervals``. Use ``select_wavelength()`` to crop to the supported
+range first when needed.
+
 Both options use :meth:`~speclib.Spectrum.resample`, which integrates flux
 into bins. Coarse bins and sparse samples can increase apparent line widths.
 Retain fine sampling or fit a bin-integrated model when measuring widths;
