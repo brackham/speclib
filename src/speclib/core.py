@@ -24,7 +24,7 @@ from ._metallicity import (
 from .instruments import InstrumentProfile
 from ._coverage import (
     intervals_from_meta, interval_membership, clipped_intervals,
-    require_continuous_coverage,
+    require_continuous_coverage, sample_coverage_mask,
 )
 
 __all__ = [
@@ -791,10 +791,30 @@ def _apply_gaussian_convolution_plan(flux, plan):
     return output
 
 
+def _has_user_mask(spectrum):
+    """True for a genuine mask; specutils' automatic mask of NaN flux is ignored.
+
+    Unsupported ``observed_by(..., on_invalid="nan")`` bins are NaN outside
+    ``valid_intervals``, so specutils masks exactly those samples
+    automatically. That mask only repeats the coverage metadata, which the
+    coverage-aware methods already use. Any other mask is a real mask.
+    """
+    mask = spectrum.mask
+    if mask is None:
+        return False
+    covered = sample_coverage_mask(spectrum)
+    mask = np.asarray(mask, dtype=bool)
+    unsupported = ~covered
+    return not (
+        np.any(unsupported) and mask.shape == unsupported.shape
+        and np.array_equal(mask, unsupported)
+    )
+
+
 def _validate_spectrum_convolution_state(spectrum):
     """Reject ancillary state that cannot be propagated scientifically."""
     require_continuous_coverage(spectrum)
-    if spectrum.mask is not None:
+    if _has_user_mask(spectrum):
         raise NotImplementedError(
             "Spectral convolution does not yet support masked spectra"
         )
@@ -897,7 +917,7 @@ def _instrument_sampling(profile, wavelength, samples_per_resolution_element):
     return targets
 
 
-def _instrument_convolution_bounds(profile, interval):
+def _convolution_padding(profile, interval):
     """Bound contributing source kernels and their full normalization support.
 
     R is linear in wavelength in each calibration cell, so its minimum is at
@@ -907,6 +927,8 @@ def _instrument_convolution_bounds(profile, interval):
     support, so domain-edge source normalization cannot distort the output.
     This is conservative without assuming monotonic kernel reach or using a
     global minimum R. No flux or calibration is extrapolated.
+
+    Returns ``None`` when the calibration does not cover the required padding.
     """
     coordinate = np.log(profile.wavelength.to_value(u.um))
     minimum_r = np.minimum(profile.resolving_power[:-1], profile.resolving_power[1:])
@@ -918,25 +940,189 @@ def _instrument_convolution_bounds(profile, interval):
     source_lower = np.maximum(coordinate[:-1], lower - radius)
     source_upper = np.minimum(coordinate[1:], upper + radius)
     contributes = source_lower <= source_upper
+    if not np.any(contributes):
+        return None
     padded_lower = np.min(source_lower[contributes] - radius[contributes])
     padded_upper = np.max(source_upper[contributes] + radius[contributes])
     if padded_lower < coordinate[0] or padded_upper > coordinate[-1]:
+        return None
+    return np.exp(padded_lower), np.exp(padded_upper)
+
+
+def _instrument_convolution_bounds(profile, interval):
+    """Return padded source bounds, or raise if the calibration cannot cover them."""
+    bounds = _convolution_padding(profile, interval)
+    if bounds is None:
         raise ValueError(
             "Calibration does not cover the required convolution padding; "
             "extrapolation is not supported"
         )
-    return np.exp(padded_lower), np.exp(padded_upper)
+    return bounds
+
+
+_ON_INVALID_OPTIONS = ("raise", "nan")
+
+
+def _validate_on_invalid(on_invalid):
+    if on_invalid not in _ON_INVALID_OPTIONS:
+        raise ValueError(
+            f"on_invalid must be one of {_ON_INVALID_OPTIONS}, got {on_invalid!r}"
+        )
+    return on_invalid
+
+
+class _BinSupport:
+    """Per-bin instrument support for explicit wavelengths (``on_invalid="nan"``)."""
+
+    def __init__(self, mode, wavelength, valid, n_center, n_edge, n_calibration,
+                 intervals, targets, bin_edges):
+        self.mode = mode
+        self.wavelength = wavelength
+        self.valid = valid
+        self.n_center = n_center
+        self.n_edge = n_edge
+        self.n_calibration = n_calibration
+        self.intervals = intervals
+        self.targets = targets
+        self.bin_edges = bin_edges
+
+    @property
+    def n_requested(self):
+        return int(self.valid.size)
+
+    @property
+    def n_valid(self):
+        return int(np.count_nonzero(self.valid))
+
+    def _description(self):
+        lower, upper = self.intervals.min(), self.intervals.max()
+        ranges = " and ".join(f"{a:.4g}\u2013{b:.4g}" for a, b in self.intervals)
+        reasons = []
+        if self.n_center:
+            reasons.append(
+                f"{self.n_center} with centers outside the supported intervals "
+                "or in a detector gap"
+            )
+        if self.n_edge:
+            reasons.append(
+                f"{self.n_edge} with supported centers whose implicit bin edges "
+                "extend beyond an interval or across a detector gap"
+            )
+        if self.n_calibration:
+            reasons.append(
+                f"{self.n_calibration} lacking resolving-power calibration for "
+                "the required convolution padding"
+            )
+        return ranges, "; ".join(reasons)
+
+    def warn(self):
+        n_invalid = self.n_requested - self.n_valid
+        if not n_invalid:
+            return
+        ranges, reasons = self._description()
+        warnings.warn(
+            f"{n_invalid} of {self.n_requested} requested wavelength bins are "
+            f"outside supported coverage for {self.mode!r} ({ranges} \u00b5m): "
+            f"{reasons}. Model fluxes at these bins have been set to NaN; use "
+            "the result's valid_mask to select supported bins.",
+            UserWarning, stacklevel=3,
+        )
+
+    def require_any(self):
+        if not self.n_valid:
+            ranges, reasons = self._description()
+            raise ValueError(
+                f"None of the {self.n_requested} requested wavelength bins are "
+                f"supported for {self.mode!r} ({ranges} \u00b5m): {reasons}"
+            )
+
+
+def _classify_requested_bins(profile, wavelength):
+    """Classify explicit centers using their complete original implicit bins.
+
+    Edges are computed from the whole requested array before any exclusion,
+    so excluding a bin never changes a neighbor's geometry. A bin is supported
+    only if both edges lie in one explicit interval (no detector gap) and the
+    calibration covers its convolution padding. Nothing is extrapolated.
+    """
+    from .instruments import _wavelength_values
+    from synphot.binning import calculate_bin_edges
+
+    values = _wavelength_values(wavelength)
+    if values.ndim != 1 or values.size < 2:
+        raise ValueError(
+            "wavelength must be a one-dimensional array with at least two samples"
+        )
+    if not (np.all(np.diff(values) > 0) or np.all(np.diff(values) < 0)):
+        raise ValueError("wavelength must be strictly monotonic")
+    descending = values[0] > values[-1]
+    order = np.argsort(values)
+    centers = values[order]
+    edges = calculate_bin_edges(centers * u.um).to_value(u.um)
+    lower, upper = edges[:-1], edges[1:]
+    intervals = profile.explicit_intervals
+    owner = interval_membership(intervals, lower * u.um, upper * u.um)
+    center_owner = interval_membership(intervals, centers * u.um)
+    calibrated = np.ones(centers.size, dtype=bool)
+    for k in np.flatnonzero(owner >= 0):
+        calibrated[k] = (
+            _convolution_padding(profile, np.array([lower[k], upper[k]])) is not None
+        )
+    supported = (owner >= 0) & calibrated
+
+    targets, bin_edges = [], []
+    for index in range(len(intervals)):
+        chosen = np.flatnonzero(supported & (owner == index))
+        if not chosen.size:
+            targets.append(None)
+            bin_edges.append(None)
+            continue
+        if np.any(np.diff(chosen) != 1):
+            raise ValueError(
+                "Supported bins within a profile interval are not contiguous; "
+                "the request cannot be processed without extrapolation"
+            )
+        target = wavelength[order[chosen]]
+        targets.append(target[::-1] if descending else target)
+        bin_edges.append(np.array([lower[chosen[0]], upper[chosen[-1]]]))
+
+    valid = np.empty(centers.size, dtype=bool)
+    valid[order] = supported
+    return _BinSupport(
+        profile.mode, wavelength, valid,
+        int(np.count_nonzero(center_owner < 0)),
+        int(np.count_nonzero((center_owner >= 0) & (owner < 0))),
+        int(np.count_nonzero((owner >= 0) & ~calibrated)),
+        intervals.to_value(u.um), targets, bin_edges,
+    )
 
 
 def _prepare_instrument_observation(
-    axis, mode, wavelength, samples_per_resolution_element
+    axis, mode, wavelength, samples_per_resolution_element, on_invalid="raise"
 ):
-    """Build shared convolution plans using real, calibration-covered padding."""
+    """Build shared convolution plans using real, calibration-covered padding.
+
+    Returns ``(profile, operations, support)``; ``support`` is ``None`` unless
+    ``on_invalid="nan"`` was requested with explicit wavelengths.
+    """
     from .instruments import get_profile, _wavelength_values
     from synphot.binning import calculate_bin_edges
 
+    _validate_on_invalid(on_invalid)
     profile = get_profile(mode)
-    targets = _instrument_sampling(profile, wavelength, samples_per_resolution_element)
+    support = None
+    if on_invalid == "nan" and wavelength is not None:
+        if samples_per_resolution_element is not None:
+            raise ValueError(
+                "wavelength and samples_per_resolution_element are mutually exclusive"
+            )
+        support = _classify_requested_bins(profile, wavelength)
+        support.require_any()
+        targets = support.targets
+    else:
+        targets = _instrument_sampling(
+            profile, wavelength, samples_per_resolution_element
+        )
     wave = _wavelength_values(axis)
     if wave.ndim != 1 or wave.size < 2:
         raise ValueError("Input wavelength must have at least two samples")
@@ -949,23 +1135,37 @@ def _prepare_instrument_observation(
     coverage_intervals = (
         profile.valid_intervals if wavelength is None else profile.explicit_intervals
     )
-    for interval, target in zip(coverage_intervals.to_value(u.um), targets):
+    for position, (interval, target) in enumerate(
+        zip(coverage_intervals.to_value(u.um), targets)
+    ):
         if wavelength is not None and target is None:
             continue
         lower, upper = interval
         # Explicit centers need only the kernels reaching their outermost
         # implicit bin edges; otherwise the whole nominal interval is produced.
         coverage = interval
+        bin_edges = None
         if target is not None and wavelength is not None:
-            edges = calculate_bin_edges(np.sort(target)).to_value(u.um)
-            coverage = np.array([edges[0], edges[-1]])
+            if support is not None:
+                # Edges of the complete requested array, not of the subset.
+                bin_edges = coverage = support.bin_edges[position]
+            else:
+                edges = calculate_bin_edges(np.sort(target)).to_value(u.um)
+                coverage = np.array([edges[0], edges[-1]])
         padded_lower, padded_upper = _instrument_convolution_bounds(profile, coverage)
         start = np.searchsorted(ascending, padded_lower, side="right") - 1
         stop = np.searchsorted(ascending, padded_upper, side="left") + 1
         if start < 0 or stop > len(wave):
+            hint = (
+                "; this is a source-model limitation, not an unsupported "
+                "instrument bin, so on_invalid='nan' does not mask it: supply "
+                "a source covering this range or request fewer edge bins"
+                if support is not None else ""
+            )
             raise ValueError(
                 "Input spectrum must cover the requested output coverage plus convolution padding "
                 f"({padded_lower:.8g}–{padded_upper:.8g} um, including bracketing samples)"
+                + hint
             )
         indices = order[start:stop]
         # Use the input's orientation when preserving its sampling.
@@ -987,8 +1187,10 @@ def _prepare_instrument_observation(
             raise ValueError(
                 "Valid interval contains fewer than two input wavelength samples"
             )
-        operations.append((indices, plan, selected, target, interval, coverage))
-    return profile, operations
+        operations.append(
+            (indices, plan, selected, target, interval, bin_edges, coverage)
+        )
+    return profile, operations, support
 
 
 def _check_instrument_source_resolution(metadata, profile, model_grid=None, explicit=False):
@@ -1034,8 +1236,42 @@ def _check_instrument_source_resolution(metadata, profile, model_grid=None, expl
             )
 
 
+def _resample_to_bin_edges(spectrum, centers, edges):
+    """Resample onto ``centers`` whose outer bin edges are exactly ``edges``.
+
+    synphot derives implicit edges from the supplied centers, so the outer
+    edges of a supported subset would otherwise be recomputed. Two virtual end
+    centers, placed so the outer implicit edges equal ``edges`` and then
+    discarded, preserve the geometry of the original requested array. Interior
+    edges are midpoints of adjacent requested centers, as in the full array.
+    """
+    values = centers.to_value(u.um)
+    padded = np.concatenate(
+        [[2 * edges[0] - values[0]], values, [2 * edges[1] - values[-1]]]
+    )
+    if padded[0] <= 0:
+        raise ValueError("Requested bin geometry cannot be represented")
+    intervals = spectrum.valid_intervals
+    if intervals is not None and np.any(
+        interval_membership(intervals, edges[:1] * u.um, edges[1:] * u.um) < 0
+    ):
+        raise ValueError(
+            "Bin edges exceed the source valid_intervals; extrapolation is not supported"
+        )
+    # Numerical spectrum without coverage metadata: virtual centers are not data.
+    plain = type(spectrum)(
+        spectral_axis=spectrum.spectral_axis, flux=spectrum.flux
+    )
+    resampled = plain.resample(padded * u.um)
+    return type(spectrum)(
+        spectral_axis=centers.copy(), flux=resampled.flux[1:-1].copy(),
+        meta=copy.deepcopy(spectrum.meta),
+    )
+
+
 def _apply_instrument_operation(spectrum, profile, operation):
     indices, plan, selected, target = operation[:4]
+    bin_edges = operation[5]
     if spectrum.flux.ndim != 1:
         raise ValueError("Instrument matching requires one-dimensional spectral flux")
     if not np.all(np.isfinite(spectrum.flux.value[indices])):
@@ -1059,7 +1295,10 @@ def _apply_instrument_operation(spectrum, profile, operation):
         # synphot integrates implicit bins. Keep all padded model samples until
         # after resampling, and normalize orientation explicitly.
         ascending_target = np.sort(target)
-        result = broadened.resample(ascending_target)
+        if bin_edges is None:
+            result = broadened.resample(ascending_target)
+        else:
+            result = _resample_to_bin_edges(broadened, ascending_target, bin_edges)
         if target[0] > target[-1]:
             result = type(spectrum)(
                 spectral_axis=target.copy(), flux=result.flux[::-1].copy(),
@@ -1110,7 +1349,9 @@ def _join_spectral_intervals(parts, metadata, descending=False):
     )
 
 
-def _finish_instrument_observation(parts, operations, descending, profile):
+def _finish_instrument_observation(
+    parts, operations, descending, profile, support=None
+):
     # Parts are private temporaries; the final Spectrum constructor copies
     # metadata with explicit coverage, so no intermediate deep copy is needed.
     metadata = parts[0].meta
@@ -1124,7 +1365,20 @@ def _finish_instrument_observation(parts, operations, descending, profile):
         metadata["instrument_profile"]["extended_intervals_um"] = (
             profile.extended_intervals.to_value(u.um).tolist()
         )
-    return _join_spectral_intervals(parts, metadata, descending)
+    if support is not None:
+        metadata["instrument_profile"]["requested_bins"] = support.n_requested
+        metadata["instrument_profile"]["valid_bins"] = support.n_valid
+    joined = _join_spectral_intervals(parts, metadata, descending)
+    if support is None:
+        return joined
+    # Restore the complete requested axis: supported samples are a subsequence
+    # of it in the same order; unsupported bins are NaN, never interpolated.
+    flux = np.full(support.n_requested, np.nan, dtype=float)
+    flux[support.valid] = joined.flux.value
+    return type(joined)(
+        spectral_axis=support.wavelength.copy(), flux=flux * joined.flux.unit,
+        meta=joined.meta,
+    )
 
 
 def _resample_with_coverage(spectrum, wavelength, taper):
@@ -1132,7 +1386,7 @@ def _resample_with_coverage(spectrum, wavelength, taper):
     from synphot.binning import calculate_bin_edges
 
     intervals = spectrum.valid_intervals
-    if spectrum.mask is not None or spectrum.uncertainty is not None:
+    if _has_user_mask(spectrum) or spectrum.uncertainty is not None:
         raise NotImplementedError("Coverage-aware resampling does not propagate masks or uncertainties")
     wave = np.asarray(wavelength.to_value(u.um))
     if (wave.ndim != 1 or wave.size < 2 or not np.all(np.isfinite(wave))
@@ -1177,7 +1431,7 @@ def _bin_with_coverage(spectrum, center, width):
     if intervals is not None:
         if spectrum.flux.ndim != 1:
             raise ValueError("Coverage-aware binning requires one-dimensional spectral flux")
-        if spectrum.mask is not None or spectrum.uncertainty is not None:
+        if _has_user_mask(spectrum) or spectrum.uncertainty is not None:
             raise NotImplementedError("Coverage-aware binning does not propagate masks or uncertainties")
         centers = np.asarray(center.to_value(u.um))
         widths = np.asarray(width.to_value(u.um))
@@ -1246,10 +1500,28 @@ class Spectrum(SpecutilsSpectrum):
         super().__init__(**kwargs)
         intervals = intervals_from_meta(self.meta)
         if intervals is not None:
-            if np.any(interval_membership(intervals, self.wavelength) < 0):
+            outside = interval_membership(intervals, self.wavelength) < 0
+            # Unsupported ``observed_by(..., on_invalid="nan")`` bins keep their
+            # requested wavelength but must carry NaN, never a physical flux.
+            if np.any(outside) and not np.all(
+                np.isnan(np.asarray(self.flux.value, dtype=float)[..., outside])
+            ):
                 raise ValueError("Spectrum samples lie outside explicit valid_intervals")
             self.meta = copy.deepcopy(self.meta)
             self.meta["valid_intervals"] = intervals
+
+    @property
+    def valid_mask(self):
+        """Boolean mask of samples with valid predictions.
+
+        ``True`` where the wavelength lies inside ``valid_intervals``; always
+        all ``True`` without explicit coverage. Bins left unsupported by
+        ``observed_by(..., on_invalid="nan")`` are ``False`` and hold NaN flux.
+        Use it to select the model and aligned observations together, for
+        example ``flux[valid_mask]``. The mask is derived from coverage, not
+        from the flux values.
+        """
+        return sample_coverage_mask(self)
 
     @property
     def valid_intervals(self):
@@ -2200,6 +2472,7 @@ class Spectrum(SpecutilsSpectrum):
     def observed_by(
         self, mode: str | InstrumentProfile, *, wavelength: u.Quantity | None = None,
         samples_per_resolution_element: float | None = None,
+        on_invalid: str = "raise",
     ) -> "Spectrum":
         """Match a nominal Gaussian instrument profile and valid coverage.
 
@@ -2216,11 +2489,19 @@ class Spectrum(SpecutilsSpectrum):
             Generate approximately this many centers per local FWHM. Mutually
             exclusive with ``wavelength``. To use detector pixel centers,
             supply ``wavelength``.
+        on_invalid : {"raise", "nan"}, optional
+            Handling of explicit ``wavelength`` bins outside instrument
+            support. ``"raise"`` (default) raises ``ValueError`` if any bin is
+            unsupported. ``"nan"`` models the supported bins, returns NaN for
+            the others, and issues one ``UserWarning``; it raises if no bin is
+            supported. Ignored without ``wavelength``. See Notes.
 
         Returns
         -------
         Spectrum
-            An independent ordinary spectrum containing only valid samples,
+            An independent ordinary spectrum containing only valid samples
+            (with ``on_invalid="nan"``, exactly the requested ``wavelength``
+            with NaN flux in unsupported bins; see :attr:`valid_mask`),
             with explicit ``valid_intervals`` coverage metadata. Without
             resampling, original wavelength samples are retained. Wavelength
             orientation follows the input or explicit requested coordinates.
@@ -2244,6 +2525,22 @@ class Spectrum(SpecutilsSpectrum):
         Insufficient coverage or
         sampling raises an error. Source flux within output detector gaps
         contributes to convolution before cropping.
+
+        With ``on_invalid="nan"`` each requested bin is classified using the
+        implicit edges of the *complete* requested array, so excluding a bin
+        never changes a neighbor's width. A bin is supported only if both its
+        edges lie in one explicit interval (not across a detector gap) and the
+        resolving-power calibration covers its convolution padding. Supported
+        bins agree with strict results using the same original bin edges and
+        convolution window to round-off; unsupported bins are NaN. Different
+        convolution windows can introduce discretization differences.
+        ``valid_intervals`` covers only supported bins and
+        ``meta['instrument_profile']`` records ``requested_bins`` and
+        ``valid_bins``. Inadequate *source-model* coverage or sampling is not
+        an unsupported instrument bin and still raises. No flux or calibration
+        is extrapolated. NaN bins are not data: convolution and
+        coverage-aware operations reject them, and ``resample()``/``bin()``
+        use only supported samples.
         Masked spectra and uncertainties are unsupported, as in the generic
         convolution methods. Resampling uses :meth:`resample` (implicit bins);
         use :meth:`bin` separately for measured observational bin widths.
@@ -2255,8 +2552,9 @@ class Spectrum(SpecutilsSpectrum):
         native-resolution metadata produces a warning.
         """
         _validate_spectrum_convolution_state(self)
-        profile, operations = _prepare_instrument_observation(
-            self.wavelength, mode, wavelength, samples_per_resolution_element
+        profile, operations, support = _prepare_instrument_observation(
+            self.wavelength, mode, wavelength, samples_per_resolution_element,
+            on_invalid,
         )
         _check_instrument_source_resolution(
             self.meta, profile, getattr(self, "model_grid", None),
@@ -2267,9 +2565,13 @@ class Spectrum(SpecutilsSpectrum):
             for operation in operations
         )
         axis = self.spectral_axis if wavelength is None else wavelength
-        return _finish_instrument_observation(
-            results, operations, descending=axis[0] > axis[-1], profile=profile
+        observed = _finish_instrument_observation(
+            results, operations, descending=axis[0] > axis[-1], profile=profile,
+            support=support,
         )
+        if support is not None:
+            support.warn()
+        return observed
 
     @u.quantity_input(center=u.AA, width=u.AA)
     def bin(self, center, width):
@@ -3078,6 +3380,14 @@ class SpectralGrid(MetallicityGridMetadata):
         intervals = intervals_from_meta(getattr(self, "meta", {}))
         return None if intervals is None else intervals.copy()
 
+    @property
+    def valid_mask(self):
+        """Boolean mask over ``wavelength`` of bins with valid predictions.
+
+        Shared by every model in the grid; see :attr:`Spectrum.valid_mask`.
+        """
+        return sample_coverage_mask(self)
+
     def _with_gaussian_convolution(self, plan):
         """Return an in-memory copy with a convolution plan applied."""
         if self.wavelength is None or not self.points.size:
@@ -3232,11 +3542,14 @@ class SpectralGrid(MetallicityGridMetadata):
     def observed_by(
         self, mode: str | InstrumentProfile, *, wavelength: u.Quantity | None = None,
         samples_per_resolution_element: float | None = None,
+        on_invalid: str = "raise",
     ) -> "SpectralGrid":
         """Return a grid matched to an instrument profile.
 
-        Parameters and scientific conventions match :meth:`Spectrum.observed_by`.
-        A convolution plan is built once per requested valid interval and reused
+        Parameters and scientific conventions match :meth:`Spectrum.observed_by`,
+        including ``on_invalid``. With ``on_invalid="nan"`` every model shares
+        the same validity mask and NaN columns (:attr:`valid_mask`), and one
+        warning is issued per call. A convolution plan is built once per requested valid interval and reused
         for every stored spectrum. Always returns an ordinary independent
         SpectralGrid containing valid samples and explicit ``valid_intervals``
         metadata. No model files are loaded again.
@@ -3244,8 +3557,9 @@ class SpectralGrid(MetallicityGridMetadata):
         require_continuous_coverage(self)
         if self.wavelength is None or not self.points.size:
             raise ValueError("SpectralGrid contains no spectra")
-        profile, operations = _prepare_instrument_observation(
-            self.wavelength, mode, wavelength, samples_per_resolution_element
+        profile, operations, support = _prepare_instrument_observation(
+            self.wavelength, mode, wavelength, samples_per_resolution_element,
+            on_invalid,
         )
         metadata = getattr(self, "meta", {})
         _check_instrument_source_resolution(
@@ -3262,7 +3576,7 @@ class SpectralGrid(MetallicityGridMetadata):
             )
             parts = [_apply_instrument_operation(spectrum, profile, op) for op in operations]
             observed = _finish_instrument_observation(
-                parts, operations, axis[0] > axis[-1], profile
+                parts, operations, axis[0] > axis[-1], profile, support
             )
             result.fluxes[teff][logg][metallicity] = observed.flux.copy()
             rows.append(observed.flux.value)
@@ -3270,6 +3584,8 @@ class SpectralGrid(MetallicityGridMetadata):
         result.meta = copy.deepcopy(observed.meta)
         result.data = np.vstack(rows)
         result.interpolator = NearestNDInterpolator(result.points, result.data)
+        if support is not None:
+            support.warn()
         return result
 
     def get_flux(

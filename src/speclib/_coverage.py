@@ -48,11 +48,36 @@ def clipped_intervals(intervals, lower, upper, wavelength):
     return values[keep] * u.um
 
 
+def sample_coverage_mask(obj):
+    """Boolean mask of samples inside explicit coverage (all True without it).
+
+    Returns ``None`` when ``obj`` has no wavelength axis.
+    """
+    wavelength = getattr(obj, "wavelength", None)
+    if wavelength is None:
+        return None
+    intervals = intervals_from_meta(getattr(obj, "meta", {}))
+    if intervals is None:
+        return np.ones(np.shape(wavelength), dtype=bool)
+    return interval_membership(intervals, wavelength) >= 0
+
+
 def require_continuous_coverage(obj):
-    """Reject processing that cannot account for absent source light."""
+    """Reject processing that cannot account for absent source light.
+
+    Also rejects NaN-filled samples outside ``valid_intervals`` (unsupported
+    ``observed_by(..., on_invalid="nan")`` bins): they are not data, and
+    convolution or smoothing would spread or fabricate flux across them.
+    """
     intervals = intervals_from_meta(getattr(obj, "meta", {}))
     if intervals is not None and len(intervals) > 1:
         raise ValueError(
             "This operation does not support discontinuous valid_intervals / detector gaps; "
             "use the continuous underlying model, or select one valid interval first"
+        )
+    mask = sample_coverage_mask(obj)
+    if mask is not None and not np.all(mask):
+        raise ValueError(
+            "This operation does not support unsupported (NaN-filled) samples outside "
+            "valid_intervals; select the supported samples first (see valid_mask)"
         )

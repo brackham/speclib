@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Spectrum.observed_by()` and `SpectralGrid.observed_by()` accept
+  `on_invalid="raise"` (default, unchanged strict behavior) or `"nan"`. With
+  explicit `wavelength=`, `"nan"` models every bin whose complete implicit
+  resampling bin lies in one supported interval (not across a detector gap)
+  and whose convolution padding is covered by the resolving-power calibration.
+  The remaining bins are `NaN` in the full requested wavelength array, with one
+  warning per call; if no bin is supported a `ValueError` is raised. Bin edges
+  come from the whole requested array, so supported fluxes match strict
+  calculations. Inadequate source-model coverage or sampling still raises, and
+  nothing is extrapolated. Instrument limits and calibrations are unchanged. (#112)
+- `Spectrum.valid_mask` and `SpectralGrid.valid_mask` identify bins with valid
+  predictions; `meta["instrument_profile"]` records `requested_bins` and
+  `valid_bins`, and `valid_intervals` excludes unsupported bins and gaps.
+
+### Changed
+
+- `Spectrum` accepts flux outside `valid_intervals` only if it is `NaN`.
+  Convolution, `regularize()`, and repeated instrument matching reject spectra
+  with such unsupported samples rather than spreading or inventing flux.
+
 ## [0.1.0b14] - 2026-11-05
 
 ### Added

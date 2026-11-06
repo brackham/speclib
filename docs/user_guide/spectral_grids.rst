@@ -33,6 +33,16 @@ Both interpolate by default. Use ``interpolate=False`` for the nearest
 loaded model. Missing corners and boundary behavior depend on the library;
 see :doc:`interpolation`.
 
+Partially supported instrument output
+-------------------------------------
+
+``observed_by(..., wavelength=..., on_invalid="nan")`` returns a grid on the
+complete requested wavelength axis in which unsupported bins are ``NaN`` for
+every model. ``grid.valid_mask`` identifies the modeled bins;
+``get_spectrum()`` and ``get_flux()`` interpolate each bin independently, so
+``NaN`` columns stay ``NaN`` and never contaminate valid bins. See
+:doc:`instrument_profiles`.
+
 Inspecting a grid
 -----------------
 
