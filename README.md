@@ -13,10 +13,10 @@
 
 `speclib` supports Python 3.11–3.13.
 
-Install a specific release (e.g., `0.1.0b13`):
+Install a specific release (e.g., `0.1.0b14`):
 
 ```bash
-python -m pip install git+https://github.com/brackham/speclib.git@v0.1.0b13
+python -m pip install git+https://github.com/brackham/speclib.git@v0.1.0b14
 ```
 
 Or install the latest development version from `main`:
