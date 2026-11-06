@@ -344,3 +344,116 @@ def test_nan_filled_spectrum_downstream_operations(source, irregular):
 def test_valid_mask_without_coverage_is_all_true(source):
     assert source.valid_mask.all() and source.valid_mask.shape == source.wavelength.shape
     assert make_grid(source).valid_mask.all()
+
+
+# --- source padding and numerical agreement ----------------------------------
+
+def test_source_padding_at_the_model_edge_is_a_hard_error():
+    """A source ending just inside the first supported bin's padding must raise.
+
+    SOSS order 2 supports 0.6 um, but the first supported bin of this request
+    (edges from 0.6018 um) needs source down to ~0.5986 um. That is a
+    source-model limitation (Issue #112), never converted to NaN; a source
+    reaching the padding works, and so does dropping only the edge bin.
+    """
+    mode = 'jwst/niriss/soss/order2'
+    centers = np.linspace(0.500, 1.409, 300) * u.um
+
+    def source(lower):
+        wave = np.geomspace(lower, 28.5, 200000) * u.um
+        return Spectrum(spectral_axis=wave, flux=np.ones(wave.size) * FLUX_UNIT)
+
+    with pytest.raises(ValueError, match=r'convolution padding \(0\.598.*source-model limitation'):
+        source(0.600).observed_by(mode, wavelength=centers, on_invalid='nan')
+    with pytest.warns(UserWarning):
+        result = source(0.598).observed_by(mode, wavelength=centers, on_invalid='nan')
+    assert result.valid_mask.sum() == 130
+    first = np.flatnonzero(result.valid_mask)[0]
+    # Strict calls on the supported bins hit the same source limit.
+    with pytest.raises(ValueError, match='convolution padding'):
+        source(0.600).observed_by(mode, wavelength=centers[result.valid_mask])
+    with pytest.warns(UserWarning):
+        trimmed = source(0.600).observed_by(
+            mode, wavelength=centers[first + 1:], on_invalid='nan')
+    assert trimmed.valid_mask.sum() == 129
+
+
+@pytest.mark.parametrize('name,flux', [
+    ('smooth', lambda w: 1 + 0.3 * np.sin(3 * w)),
+    ('structured', structured_flux),
+])
+def test_matching_window_and_edges_agree_with_strict_to_roundoff(name, flux):
+    """With identical bin edges and convolution window the NaN path is exact.
+
+    Centers are uniform, so trimming the array leaves every retained bin's edges
+    unchanged. The residual versus a wider strict call (below) is therefore not
+    from the virtual-center resampling.
+    """
+    wave = np.geomspace(.3, 1.6, 80000) * u.um
+    source = Spectrum(spectral_axis=wave, flux=flux(wave.value) * FLUX_UNIT)
+    centers = np.linspace(.52, 1.08, 150) * u.um
+    profile = synthetic([.6, 1.])
+    with pytest.warns(UserWarning):
+        result = source.observed_by(profile, wavelength=centers, on_invalid='nan')
+    strict = source.observed_by(profile, wavelength=centers[result.valid_mask])
+    np.testing.assert_allclose(result.flux.value[result.valid_mask], strict.flux.value, rtol=1e-12)
+
+
+def test_valid_fluxes_do_not_depend_on_excluded_bins(source):
+    """Adding unsupported bins on either side leaves every valid flux unchanged."""
+    profile = synthetic([.6, 1.])
+    step = .56 / 149
+    core_centers = np.linspace(.52, 1.08, 150)
+    padded = np.r_[core_centers[0] - step * np.arange(5, 0, -1), core_centers,
+                   core_centers[-1] + step * np.arange(1, 6)] * u.um
+    with pytest.warns(UserWarning):
+        base = source.observed_by(profile, wavelength=core_centers * u.um, on_invalid='nan')
+    with pytest.warns(UserWarning):
+        extra = source.observed_by(profile, wavelength=padded, on_invalid='nan')
+    np.testing.assert_array_equal(base.flux.value[base.valid_mask],
+                                  extra.flux.value[extra.valid_mask])
+    assert np.isnan(extra.flux.value[~extra.valid_mask]).all()
+
+
+def test_virtual_centers_preserve_irregular_bin_integrals(source, irregular):
+    """Isolate resampling from convolution: compare the same fixed spectrum."""
+    from speclib.core import _resample_to_bin_edges
+
+    valid = expected_valid(synthetic([.6, 1.]), irregular)
+    indices = np.flatnonzero(valid)
+    edges = calculate_bin_edges(irregular).to_value(u.um)
+    reference = source.resample(irregular)
+    result = _resample_to_bin_edges(
+        source, irregular[valid], edges[[indices[0], indices[-1] + 1]])
+    np.testing.assert_allclose(
+        result.flux.value, reference.flux.value[valid], rtol=1e-12, atol=0)
+
+
+@pytest.mark.parametrize('flux', [
+    lambda w: 1 + 0.3 * np.sin(3 * w),
+    structured_flux,
+], ids=['smooth', 'structured'])
+def test_residual_versus_wider_strict_call_is_convolution_discretization(flux):
+    """Window-dependent adaptive-grid discretization, not NaN-path error.
+
+    A strict call whose outer coverage is wider (so its adaptive convolution grid
+    is sized differently) differs slightly from the NaN path, for smooth
+    and structured spectra alike; two strict calls with different windows differ
+    by the same amount at each retained bin. Uniform centers preserve the
+    original edges when trimmed, isolating the effect of the convolution window.
+    """
+    wave = np.geomspace(.3, 1.6, 80000) * u.um
+    source = Spectrum(spectral_axis=wave, flux=flux(wave.value) * FLUX_UNIT)
+    centers = np.linspace(.52, 1.08, 150) * u.um
+    narrow, wide = synthetic([.6, 1.]), synthetic([.5, 1.1])
+    reference = source.observed_by(wide, wavelength=centers)
+    with pytest.warns(UserWarning):
+        result = source.observed_by(narrow, wavelength=centers, on_invalid='nan')
+    valid = result.valid_mask
+    strict = source.observed_by(narrow, wavelength=centers[valid])
+    nan_vs_wide = result.flux.value[valid] / reference.flux.value[valid] - 1
+    strict_vs_wide = strict.flux.value / reference.flux.value[valid] - 1
+    # The 1e-5 bound constrains these examples; the much tighter equality
+    # establishes that NaN handling adds no measurable error to that residual.
+    assert np.max(np.abs(nan_vs_wide)) < 1e-5
+    np.testing.assert_allclose(nan_vs_wide, strict_vs_wide, rtol=0, atol=1e-12)

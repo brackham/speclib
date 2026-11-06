@@ -122,17 +122,29 @@ release.
 A bin is supported only if its complete implicit resampling bin lies in one
 profile interval (extended coverage included), not across a detector gap, and
 the resolving-power calibration covers its convolution padding. Bin edges are
-computed from the **entire** requested array before any bin is excluded, so a
-neighbor's width, and therefore its flux, is exactly what a strict
-calculation on that array would give. Do not trim the wavelength array
-yourself: recomputing edges from the retained centers changes the outermost
-supported bins. A center inside coverage can still be unsupported if its edge
-is not.
+computed from the **entire** requested array before any bin is excluded, so each
+retained bin keeps the width it has in the original array. Do not trim the
+wavelength array yourself: recomputing edges from the retained centers changes
+the outermost supported bins. A center inside coverage can still be unsupported
+if its edge is not.
 
 This concerns the **instrument**. A source model that does not cover the
 supported bins plus convolution padding, or that is too coarsely sampled,
 is a different problem: it is never converted to ``NaN`` and still raises
-``ValueError``. Neither flux nor calibration is extrapolated.
+``ValueError``. Neither flux nor calibration is extrapolated. In particular,
+the outermost supported bins need source flux beyond the instrument limit; for
+example, for 300 uniformly spaced centers from 0.500 to 1.409 µm, SOSS order 2
+supports bins above 0.6 µm, but the first supported bin needs source coverage
+down to about 0.5986 µm, including a bracketing sample. Use a source
+that extends a little past the instrument limits, or drop the edge bin.
+
+In regression tests with smooth and structured spectra, supported bins agree
+with strict calculations using the same bin edges and convolution window to
+round-off. Changing the outer coverage changes the adaptive convolution grid
+and can produce differences of a few parts in :math:`10^6` in these examples,
+including between two strict calls. These differences arise from convolution
+discretization rather than ``NaN`` handling; they are not a general accuracy
+bound for arbitrary spectra or sampling.
 
 ``NaN`` bins are not data. Convolution, ``regularize()`` and repeated
 instrument matching reject spectra containing them. ``resample()`` and

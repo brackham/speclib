@@ -1156,9 +1156,16 @@ def _prepare_instrument_observation(
         start = np.searchsorted(ascending, padded_lower, side="right") - 1
         stop = np.searchsorted(ascending, padded_upper, side="left") + 1
         if start < 0 or stop > len(wave):
+            hint = (
+                "; this is a source-model limitation, not an unsupported "
+                "instrument bin, so on_invalid='nan' does not mask it: supply "
+                "a source covering this range or request fewer edge bins"
+                if support is not None else ""
+            )
             raise ValueError(
                 "Input spectrum must cover the requested output coverage plus convolution padding "
                 f"({padded_lower:.8g}–{padded_upper:.8g} um, including bracketing samples)"
+                + hint
             )
         indices = order[start:stop]
         # Use the input's orientation when preserving its sampling.
@@ -2524,7 +2531,9 @@ class Spectrum(SpecutilsSpectrum):
         never changes a neighbor's width. A bin is supported only if both its
         edges lie in one explicit interval (not across a detector gap) and the
         resolving-power calibration covers its convolution padding. Supported
-        bins equal the strict result for those bins; unsupported bins are NaN.
+        bins agree with strict results using the same original bin edges and
+        convolution window to round-off; unsupported bins are NaN. Different
+        convolution windows can introduce discretization differences.
         ``valid_intervals`` covers only supported bins and
         ``meta['instrument_profile']`` records ``requested_bins`` and
         ``valid_bins``. Inadequate *source-model* coverage or sampling is not
