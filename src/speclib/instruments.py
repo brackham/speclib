@@ -42,7 +42,8 @@ class InstrumentProfile:
     resolving_power : array-like
         Positive dimensionless R values; wavelength/R is adopted as Gaussian FWHM.
     valid_intervals : astropy.units.Quantity
-        Shape (n, 2), ordered, nonoverlapping wavelength intervals.
+        Shape (n, 2), ordered, nonoverlapping wavelength intervals. These are
+        the default/recommended output coverage.
     source, source_url, calibration_version, assumptions : str or tuple of str
         Calibration provenance and scientific assumptions.
     quality : {"tabulated", "derived", "nominal"}
@@ -54,6 +55,14 @@ class InstrumentProfile:
         Bundled manifest reference, ``filename.json#source_key``. Empty for
         profiles without a bundled record. See :attr:`provenance` for original
         data links, identifiers, processing and reproducibility information.
+    extended_intervals : astropy.units.Quantity, optional
+        Shape (n, 2). Row ``i`` contains row ``i`` of ``valid_intervals`` and
+        gives the wider coverage accepted only for explicit ``wavelength``
+        requests to ``observed_by()``; default and generated sampling use
+        ``valid_intervals``. If omitted, explicit requests use
+        ``valid_intervals`` (see :attr:`explicit_intervals`). The calibration
+        must cover ``extended_intervals`` and, per request, the convolution
+        padding, so nothing is extrapolated.
 
     Notes
     -----
@@ -74,6 +83,7 @@ class InstrumentProfile:
     coverage_source_url: str = ""
     resolution_definition: str = "R=lambda/delta_lambda; Gaussian FWHM"
     provenance_ref: str = ""
+    extended_intervals: u.Quantity | None = None
 
     def __post_init__(self):
         if not isinstance(self.mode, str) or not self.mode.strip():
@@ -101,6 +111,25 @@ class InstrumentProfile:
             raise ValueError(
                 "Calibration must cover valid_intervals; extrapolation is not supported"
             )
+        extended = None
+        if self.extended_intervals is not None:
+            extended = _wavelength_values(self.extended_intervals)
+            if extended.shape != intervals.shape:
+                raise ValueError("extended_intervals must match the shape of valid_intervals")
+            if np.any(extended[:, 0] >= extended[:, 1]) or np.any(
+                extended[1:, 0] <= extended[:-1, 1]
+            ):
+                raise ValueError(
+                    "extended_intervals must be ordered, disjoint, and have positive width"
+                )
+            if np.any(extended[:, 0] > intervals[:, 0]) or np.any(
+                extended[:, 1] < intervals[:, 1]
+            ):
+                raise ValueError("Each extended interval must contain its valid interval")
+            if extended.min() < wave[0] or extended.max() > wave[-1]:
+                raise ValueError(
+                    "Calibration must cover extended_intervals; extrapolation is not supported"
+                )
         if self.quality not in {"tabulated", "derived", "nominal"}:
             raise ValueError("quality must be tabulated, derived, or nominal")
         for name in ("source", "source_url", "calibration_version", "resolution_definition"):
@@ -121,6 +150,21 @@ class InstrumentProfile:
             array = np.frombuffer(values.tobytes(), dtype=float).reshape(values.shape)
             value = array if unit is None else u.Quantity(array, unit, copy=False)
             object.__setattr__(self, name, value)
+        if extended is not None:
+            array = np.frombuffer(extended.tobytes(), dtype=float).reshape(extended.shape)
+            object.__setattr__(
+                self, "extended_intervals", u.Quantity(array, u.um, copy=False)
+            )
+
+    @property
+    def explicit_intervals(self):
+        """Coverage accepted for explicit ``wavelength`` requests.
+
+        ``extended_intervals`` when defined, otherwise ``valid_intervals``.
+        """
+        if self.extended_intervals is None:
+            return self.valid_intervals
+        return self.extended_intervals
 
     def resolving_power_at(self, wavelength):
         """Linearly interpolate R within the calibration domain.
@@ -210,12 +254,19 @@ def get_profile(mode):
                 curve = np.loadtxt(stream, delimiter=",")
             metadata = registry["defaults"] | {
                 key: value for key, value in item.items()
-                if key not in {"mode", "curve", "aliases", "valid_intervals_um"}
+                if key not in {
+                    "mode", "curve", "aliases", "valid_intervals_um",
+                    "extended_intervals_um",
+                }
             }
             return InstrumentProfile(
                 mode=item["mode"], wavelength=curve[:, 0] * u.um,
                 resolving_power=curve[:, 1],
                 valid_intervals=np.array(item["valid_intervals_um"]) * u.um,
+                extended_intervals=(
+                    np.array(item["extended_intervals_um"]) * u.um
+                    if "extended_intervals_um" in item else None
+                ),
                 **metadata,
             )
     raise ValueError(f"Unknown instrument profile {mode!r}; use list_instrument_profiles()")

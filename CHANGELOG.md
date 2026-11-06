@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `InstrumentProfile` gains optional `extended_intervals` (and an
+  `explicit_intervals` property): wider coverage accepted only for explicit
+  `wavelength=` requests to `observed_by()`. Default and
+  `samples_per_resolution_element` output still use `valid_intervals`.
+  Profiles that define it report it in
+  `meta["instrument_profile"]["extended_intervals_um"]`.
+- `jwst/niriss/soss/order1` accepts explicit observed wavelengths over
+  0.85–2.82 µm (default output remains 0.9–2.8 µm), so a 0.860–2.813 µm
+  observation can be passed directly. The resolving-power curve now spans the
+  CV3 geometric coverage 0.843–2.833 µm (Albert et al. 2023, Table 2).
+  Convolution padding and source bracketing are still required and nothing is
+  extrapolated. This extends resolution matching only; edge flux and wavelength
+  calibration, order-2 overlap redward of ~2.2 µm, and the nominal
+  constant-dispersion approximation are not validated or corrected. (#108)
+
 ### Fixed
 
 - `Spectrum.observed_by()` and `SpectralGrid.observed_by()` no longer require

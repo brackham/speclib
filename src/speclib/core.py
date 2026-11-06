@@ -813,7 +813,12 @@ def _instrument_sampling(profile, wavelength, samples_per_resolution_element):
         raise ValueError(
             "wavelength and samples_per_resolution_element are mutually exclusive"
         )
-    intervals = profile.valid_intervals.to_value(u.um)
+    # Explicit centers may use the profile's extended coverage; default and
+    # generated sampling always use the recommended valid intervals.
+    coverage_intervals = (
+        profile.valid_intervals if wavelength is None else profile.explicit_intervals
+    )
+    intervals = coverage_intervals.to_value(u.um)
     if wavelength is not None:
         values = _wavelength_values(wavelength)
         if values.ndim != 1 or values.size < 2:
@@ -822,7 +827,7 @@ def _instrument_sampling(profile, wavelength, samples_per_resolution_element):
             )
         if not (np.all(np.diff(values) > 0) or np.all(np.diff(values) < 0)):
             raise ValueError("wavelength must be strictly monotonic")
-        if np.any(interval_membership(profile.valid_intervals, wavelength) < 0):
+        if np.any(interval_membership(coverage_intervals, wavelength) < 0):
             raise ValueError(
                 "Requested wavelength outside valid coverage or in a detector gap"
             )
@@ -941,7 +946,10 @@ def _prepare_instrument_observation(
     order = np.argsort(wave)
     ascending = wave[order]
     operations = []
-    for interval, target in zip(profile.valid_intervals.to_value(u.um), targets):
+    coverage_intervals = (
+        profile.valid_intervals if wavelength is None else profile.explicit_intervals
+    )
+    for interval, target in zip(coverage_intervals.to_value(u.um), targets):
         if wavelength is not None and target is None:
             continue
         lower, upper = interval
@@ -983,7 +991,7 @@ def _prepare_instrument_observation(
     return profile, operations
 
 
-def _check_instrument_source_resolution(metadata, profile, model_grid=None):
+def _check_instrument_source_resolution(metadata, profile, model_grid=None, explicit=False):
     """Use known metadata without inferring physical resolution from sampling."""
     if "instrument_profile" in metadata:
         warnings.warn(
@@ -1007,8 +1015,9 @@ def _check_instrument_source_resolution(metadata, profile, model_grid=None):
             )
         else:
             native_r = _validate_resolving_power(native_r)
-            maximum_r = np.max(profile.resolving_power_at(profile.valid_intervals))
-            for lower, upper in profile.valid_intervals:
+            intervals = profile.explicit_intervals if explicit else profile.valid_intervals
+            maximum_r = np.max(profile.resolving_power_at(intervals))
+            for lower, upper in intervals:
                 inside = (
                     (profile.wavelength >= lower) & (profile.wavelength <= upper)
                 )
@@ -1111,6 +1120,10 @@ def _finish_instrument_observation(parts, operations, descending, profile):
     metadata["instrument_profile"]["valid_intervals_um"] = (
         profile.valid_intervals.to_value(u.um).tolist()
     )
+    if profile.extended_intervals is not None:
+        metadata["instrument_profile"]["extended_intervals_um"] = (
+            profile.extended_intervals.to_value(u.um).tolist()
+        )
     return _join_spectral_intervals(parts, metadata, descending)
 
 
@@ -2246,7 +2259,8 @@ class Spectrum(SpecutilsSpectrum):
             self.wavelength, mode, wavelength, samples_per_resolution_element
         )
         _check_instrument_source_resolution(
-            self.meta, profile, getattr(self, "model_grid", None)
+            self.meta, profile, getattr(self, "model_grid", None),
+            explicit=wavelength is not None,
         )
         results = tuple(
             _apply_instrument_operation(self, profile, operation)
@@ -3234,7 +3248,9 @@ class SpectralGrid(MetallicityGridMetadata):
             self.wavelength, mode, wavelength, samples_per_resolution_element
         )
         metadata = getattr(self, "meta", {})
-        _check_instrument_source_resolution(metadata, profile, self.model_grid)
+        _check_instrument_source_resolution(
+            metadata, profile, self.model_grid, explicit=wavelength is not None
+        )
         result = copy.deepcopy(self)
         rows = []
         axis = self.wavelength if wavelength is None else wavelength

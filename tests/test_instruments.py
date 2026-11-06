@@ -865,3 +865,143 @@ def test_partial_request_validation_is_unchanged():
     np.testing.assert_array_equal(
         source.observed_by(SOSS2, samples_per_resolution_element=3).valid_intervals.value,
         [[.6, 1.]])
+
+
+SOSS1 = 'jwst/niriss/soss/order1'
+# Synthetic stand-in for the order-1 wavelengths reported in Issue #108: 238
+# evenly spaced centers spanning the collaborator's reported 0.860-2.813 um
+# range. This is not the collaborator's actual observational wavelength array.
+SOSS1_OBSERVED = np.linspace(.860, 2.813, 238) * u.um
+
+
+def soss1_source(lower=.8, upper=2.9, n=40_000):
+    return Spectrum(spectral_axis=np.linspace(lower, upper, n) * u.um,
+                    flux=np.ones(n) * FLUX_UNIT)
+
+
+def test_soss_order1_default_keeps_recommended_coverage():
+    p = get_profile(SOSS1)
+    np.testing.assert_array_equal(p.valid_intervals.to_value(u.um), [[.9, 2.8]])
+    # Extended coverage lies inside the CV3 geometric range and calibration.
+    lower, upper = p.explicit_intervals.to_value(u.um)[0]
+    assert lower < .9 and upper > 2.8
+    geometric = p.provenance['geometric_coverage_um']
+    assert geometric[0] <= p.wavelength[0].value < lower
+    assert upper < p.wavelength[-1].value <= geometric[1]
+    # The synthetic request spanning the reported range, with bin edges, fits.
+    from synphot.binning import calculate_bin_edges
+    edges = calculate_bin_edges(SOSS1_OBSERVED).to_value(u.um)
+    assert lower <= edges[0] and edges[-1] <= upper
+
+    # Default and generated sampling ignore the extension.
+    result = soss1_source(.85, 2.85, 120_000).observed_by(SOSS1, samples_per_resolution_element=2)
+    np.testing.assert_array_equal(result.valid_intervals.to_value(u.um), [[.9, 2.8]])
+    wave = result.wavelength.to_value(u.um)
+    assert .9 <= wave.min() and wave.max() <= 2.8
+    assert 'extended_intervals_um' in result.meta['instrument_profile']
+
+
+@pytest.mark.parametrize('descending', [False, True])
+def test_soss_order1_accepts_observed_wavelengths_beyond_recommended_range(descending):
+    requested = SOSS1_OBSERVED[::-1] if descending else SOSS1_OBSERVED
+    source = soss1_source()
+    observed = source.observed_by(SOSS1, wavelength=requested)
+    grid = make_grid(source).observed_by(SOSS1, wavelength=requested)
+    for result in (observed, grid):
+        np.testing.assert_array_equal(result.wavelength, requested)
+        # Returned coverage is the outer implicit bin edges of the request.
+        np.testing.assert_allclose(result.valid_intervals.to_value(u.um),
+                                   [[.85587975, 2.81712025]], rtol=1e-7)
+        meta = result.meta['instrument_profile']
+        assert meta['valid_intervals_um'] == [[.9, 2.8]]
+        assert meta['extended_intervals_um'] == get_profile(SOSS1).extended_intervals.value.tolist()
+    # Convolution preserves a flat spectrum, including at the band edges.
+    np.testing.assert_allclose(observed.flux.value, 1., rtol=2e-3)
+    np.testing.assert_allclose(grid.data, [observed.flux.value, 2 * observed.flux.value], rtol=1e-12)
+
+
+def test_soss_order1_extended_range_is_bounded():
+    source = soss1_source()
+    for edge in ([.84, 1.2], [2.5, 2.84]):
+        with pytest.raises(ValueError, match='outside valid coverage'):
+            source.observed_by(SOSS1, wavelength=np.linspace(*edge, 20) * u.um)
+        with pytest.raises(ValueError, match='outside valid coverage'):
+            make_grid(source).observed_by(SOSS1, wavelength=np.linspace(*edge, 20) * u.um)
+
+
+@pytest.mark.parametrize('lower,upper', [(.86, 2.9), (.8, 2.80)])
+def test_soss_order1_extended_request_needs_real_source_padding(lower, upper):
+    """Insufficient source coverage is an error, never a silent extrapolation."""
+    source = soss1_source(lower, upper)
+    with pytest.raises(ValueError, match='convolution padding'):
+        source.observed_by(SOSS1, wavelength=SOSS1_OBSERVED)
+    with pytest.raises(ValueError, match='convolution padding'):
+        make_grid(source).observed_by(SOSS1, wavelength=SOSS1_OBSERVED)
+
+
+def test_other_profiles_do_not_gain_extended_coverage():
+    for mode in ('jwst/niriss/soss/order2', 'jwst/nirspec/g395h/f290lp'):
+        p = get_profile(mode)
+        assert p.extended_intervals is None
+        np.testing.assert_array_equal(p.explicit_intervals, p.valid_intervals)
+
+
+def test_extended_intervals_validation(profile):
+    kwargs = dict(extended_intervals=np.array([[.85, 1.25]]) * u.um)
+    extended = replace(profile, **kwargs)
+    np.testing.assert_array_equal(extended.explicit_intervals.value, [[.85, 1.25]])
+    assert not extended.extended_intervals.value.flags.writeable
+    for bad in ([[.95, 1.25]], [[.85, 1.1]], [[.7, 1.25]], [[.85, 1.4]], [[.85, 1.25], [1.3, 1.4]]):
+        with pytest.raises(ValueError):
+            replace(profile, extended_intervals=np.array(bad) * u.um)
+
+
+@pytest.mark.parametrize('label,options,flux_kind,tolerance', [
+    # Default (native) sampling; smooth structure is insensitive to the knots.
+    ('native', {}, 'smooth', 2e-4),
+    # Generated sampling, with narrow lines spread across the whole order.
+    ('generated', {'samples_per_resolution_element': 2}, 'lines', 2e-4),
+    # Explicit centers inside the recommended range.
+    ('explicit', {'wavelength': np.linspace(.91, 2.79, 1500) * u.um}, 'lines', 2e-4),
+])
+def test_soss_order1_default_matches_previous_two_point_calibration(
+        label, options, flux_kind, tolerance):
+    """Within 0.9-2.8 um the denser 0.843-2.833 um curve must not change results.
+
+    The previous implementation tabulated the same linear R(lambda) =
+    1000 lambda / (2 * 0.96) at only its 0.87 and 2.83 um endpoints. It is
+    rebuilt here from the manifest coefficients. R is linear, so the curves are
+    identical in value; the only differences are the knot positions, which
+    change the adaptive convolution grid and padding window. Relative to that
+    previous result the measured differences are <=7e-5 (smooth source) and
+    <=4e-5 (resampled lines); the 2e-4 tolerance leaves margin for platform
+    roundoff. Narrow, barely resolved lines on unresampled native sampling can
+    differ by up to ~0.3% of local flux from this grid effect, so they are not
+    used here. For native and explicit sampling, a 1% change in R exceeds the
+    tolerance (checked below); generated sampling changes the sample count, so
+    that check does not apply there.
+    """
+    current = get_profile(SOSS1)
+    coefficients = current.provenance['coefficients']
+    def curve(scale=1.):
+        wave = np.array([.87, 2.83])
+        return replace(
+            current, wavelength=wave * u.um, extended_intervals=None,
+            resolving_power=scale * 1000 * wave / (
+                coefficients['resolution_pixels'] * coefficients['dispersion_nm_per_pixel']))
+
+    wave = np.linspace(.8, 2.9, 120_000) * u.um
+    x = wave.value
+    flux = {'smooth': 1 + .3 * np.sin(400 * x),
+            'lines': 1 + sum(50 * np.exp(-.5 * ((x - c) / 4e-4)**2)
+                             for c in (.95, 1.25, 1.5, 2.1, 2.7))}[flux_kind]
+    source = Spectrum(spectral_axis=wave, flux=flux * FLUX_UNIT)
+
+    result = source.observed_by(current, **options)
+    previous = source.observed_by(curve(), **options)
+    np.testing.assert_array_equal(result.wavelength, previous.wavelength)
+    np.testing.assert_array_equal(result.valid_intervals, previous.valid_intervals)
+    np.testing.assert_allclose(result.flux.value, previous.flux.value, rtol=tolerance, atol=0)
+    if options.get('samples_per_resolution_element') is None:
+        shifted = source.observed_by(curve(1.01), **options)
+        assert np.max(np.abs(shifted.flux.value / previous.flux.value - 1)) > tolerance

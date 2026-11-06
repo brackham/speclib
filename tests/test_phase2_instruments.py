@@ -55,6 +55,8 @@ def test_phase2_profiles_offline_and_provenance(monkeypatch):
         assert record['retrieved'] == '2026-10-20'
         assert record['output_sha256'] == hashlib.sha256(
             ROOT.joinpath(record['output_file']).read_bytes()).hexdigest()
+        assert record['rows'] == record['curve_samples'] == len(
+            np.loadtxt(ROOT.joinpath(record['output_file']), delimiter=','))
         if 'lsf_sources' in record:
             assert all(s['url'].endswith(s['filename']) for s in record['lsf_sources'])
             record['lsf_sources'][0]['sha256'] = 'changed'

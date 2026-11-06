@@ -415,6 +415,7 @@ mode = "jwst/niriss/soss/order1"
 curve = "niriss_soss_order1.csv"
 provenance_ref = "phase2_sources.json#niriss_soss_order1"
 valid_intervals_um = [[0.9, 2.8]]
+extended_intervals_um = [[0.85, 2.82]]
 aliases = ["jwst/niriss/soss/substrip256/order1"]
 quality = "nominal"
 configuration = "SOSS/GR700XD/CLEAR/SUBSTRIP256; order 1; point source"
@@ -427,7 +428,7 @@ assumptions = [
   "Point source; two-pixel Nyquist convention with order-specific CV3 average dispersion, not an in-flight measured Gaussian LSF",
   "Constant average dispersion approximates wavelength dependence; no visit-dependent wavelength solution or LSF corrections",
   "Orders are independent ordinary spectra; no overlap decontamination, weighting or stitching",
-  "Order 1 uses rounded 0.9-2.8 um JDox coverage; order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
+  "Order 1 defaults to rounded 0.9-2.8 um JDox coverage, with explicit wavelengths accepted over 0.85-2.82 um (CV3 geometric coverage 0.843-2.833 um minus convolution padding; edge flux/wavelength calibration unvalidated); order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
   "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
   "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
 ]
@@ -449,7 +450,7 @@ assumptions = [
   "Point source; two-pixel Nyquist convention with order-specific CV3 average dispersion, not an in-flight measured Gaussian LSF",
   "Constant average dispersion approximates wavelength dependence; no visit-dependent wavelength solution or LSF corrections",
   "Orders are independent ordinary spectra; no overlap decontamination, weighting or stitching",
-  "Order 1 uses rounded 0.9-2.8 um JDox coverage; order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
+  "Order 1 defaults to rounded 0.9-2.8 um JDox coverage, with explicit wavelengths accepted over 0.85-2.82 um (CV3 geometric coverage 0.843-2.833 um minus convolution padding; edge flux/wavelength calibration unvalidated); order 2 is limited to 0.6-1.0 um following current calibration guidance; SUBSTRIP96 is unsupported",
   "Coordinates treated as vacuum wavelengths without air/vacuum conversion; source labels do not explicitly specify the convention",
   "Negligible intrinsic model width; no finite-resolution correction or deconvolution; real model padding is required",
 ]

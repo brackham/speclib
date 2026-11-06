@@ -48,7 +48,8 @@ def write_tables(directory):
 def _write_phase2_tables(output):
     modes = ['.. list-table:: STIS, WFC3 and SOSS (vacuum micrometers)',
              '   :header-rows: 1', '', '   * - Profile identifier',
-             '     - Configuration', '     - Valid interval', '     - Quality',
+             '     - Configuration', '     - Valid interval', '     - Extended interval',
+             '     - Quality',
              '     - Coverage authority']
     sources = ['.. list-table:: Phase 2 resolution prescriptions',
                '   :header-rows: 1', '', '   * - Bundled curve',
@@ -63,8 +64,10 @@ def _write_phase2_tables(output):
             continue
         record = profile.provenance
         coverage = '; '.join(f'{a:g}–{b:g}' for a, b in profile.valid_intervals.value)
+        extended = ('; '.join(f'{a:g}–{b:g}' for a, b in profile.extended_intervals.value)
+                    if profile.extended_intervals is not None else '—')
         modes += [f'   * - ``{mode}``', f'     - {profile.configuration}',
-                  f'     - {coverage}', f'     - {profile.quality}',
+                  f'     - {coverage}', f'     - {extended}', f'     - {profile.quality}',
                   f'     - `Reference <{profile.coverage_source_url}>`__']
         if 'lsf_sources' in record:
             links = '; '.join(f'`{s["filename"]} <{s["url"]}>`__'

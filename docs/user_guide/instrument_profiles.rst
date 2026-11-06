@@ -72,6 +72,23 @@ interval that contains requested centers), not the nominal profile.
 ``meta["instrument_profile"]["valid_intervals_um"]`` retains the nominal
 bounds.
 
+Some profiles define wider **extended** coverage that is accepted only for
+explicit ``wavelength`` requests; the default and generated sampling always use
+the recommended ``valid_intervals``. The extended bounds are available as
+:attr:`~speclib.instruments.InstrumentProfile.extended_intervals` (``None`` when
+a profile has none) and in ``meta["instrument_profile"]["extended_intervals_um"]``.
+Extended coverage widens only the accepted output wavelengths: the source and
+calibration must still supply the full convolution padding. For example, the
+order-1 wavelengths of a NIRISS/SOSS time series can be passed directly:
+
+.. code-block:: python
+
+   observed = grid.observed_by(
+       "jwst/niriss/soss/order1", wavelength=observed_wavelength,  # 0.860-2.813 um
+   )
+
+See :doc:`instrument_provenance` for the SOSS limits and caveats.
+
 Both options use :meth:`~speclib.Spectrum.resample`, which integrates flux
 into bins. Coarse bins and sparse samples can increase apparent line widths.
 Retain fine sampling or fit a bin-integrated model when measuring widths;

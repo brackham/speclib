@@ -187,17 +187,21 @@
         2.833
       ],
       "coverage_review_url": "https://jwst-docs.stsci.edu/jwst-calibration-status/niriss-calibration-status/niriss-soss-calibration-status",
-      "coverage_note": "Order 1 uses rounded JDox useful coverage 0.9-2.8 um. Order 2 is restricted by Speclib to 0.6-1.0 um following the calibration-status page (updated 2026-06-22), which advises against using the low-signal region above 1 um. Wider geometric coverage is not claimed as useful output.",
+      "coverage_note": "Default/recommended output coverage is the rounded JDox useful range 0.9-2.8 um. Explicit observed wavelengths (centers and implicit bin edges) may extend to 0.85-2.82 um: the CV3-measured geometric coverage 0.843-2.833 um (Albert et al. 2023, Table 2), inset by the four-sigma convolution padding (applied twice for kernel normalization support) at R~440-1470 and rounded inward. The resolving-power curve covers 0.843-2.833 um, so padding never needs extrapolation, and the source model must still supply real bracketing samples. This extends resolution matching only. Albert et al. report order-2 overlap at >=2.2 um (overlap-free region ~0.84-2.2 um for a 30-pixel box), 40%-of-peak blaze cutoffs near 0.82 and 2.46 um, and excess noise toward both ends; STScI quotes ~0.5 pixel wavelength accuracy, better below 1 um. Edge flux and wavelength calibration are not validated by Speclib. Order 2 is restricted by Speclib to 0.6-1.0 um following the calibration-status page (updated 2026-06-22).",
       "calibration_domain_um": [
-        0.87,
-        2.83
+        0.843,
+        2.833
       ],
-      "curve_samples": 2,
-      "processing": "Use the measured Table 2 dispersion for this order (not the parenthesized optical-model value) and two pixels per resolution element. Hold the average dispersion constant, yielding wavelength-dependent R. This approximates the optical-model/derivative curve; do not digitize Figure 7 or claim to reproduce a visit-specific wavelength solution. Adopt the resolution element as Gaussian FWHM; sample the linear equation at the two padding-domain endpoints.",
+      "curve_samples": 21,
+      "processing": "Use the measured Table 2 dispersion for this order (not the parenthesized optical-model value) and two pixels per resolution element. Hold the average dispersion constant, yielding wavelength-dependent R. This approximates the optical-model/derivative curve; do not digitize Figure 7 or claim to reproduce a visit-specific wavelength solution. Adopt the resolution element as Gaussian FWHM; sample the linear equation at 21 evenly spaced wavelengths across the calibration domain (exact for a linear curve; the denser sampling keeps Speclib's per-cell minimum-R padding bound from over-reaching at the domain edges).",
       "output_file": "niriss_soss_order1.csv",
       "reproduction_script": "scripts/instruments/convert_phase2.py",
-      "output_sha256": "e6fee4f719797e576167cc4aa75087d5bc45fbfb1714264109a1c64179dff9e0",
-      "rows": 2
+      "output_sha256": "1aa59fbd264103c28d0a052d9a640b83189e7dcb88c3d938791c66f116437580",
+      "rows": 21,
+      "extended_coverage_um": [
+        0.85,
+        2.82
+      ]
     },
     "niriss_soss_order2": {
       "institution": "Albert et al.; NIRISS/SOSS instrument team (Universite de Montreal, STScI, NRC and collaborators)",
